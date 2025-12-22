@@ -1,7 +1,12 @@
-[
-  {
-    "id": "com.ezgalaxy.example",
-    "path": "packages/com.ezgalaxy.example",
-    "enabled": true
-  }
-]
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "id": "com.ezgalaxy.example",
+      "title": "Exemple",
+      "function": "Page de démonstration pour dépôts custom",
+      "path": "packages/com.ezgalaxy.example",
+      "version": "1.0.0"
+    }
+  ]
+}

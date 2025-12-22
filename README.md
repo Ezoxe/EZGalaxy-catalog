@@ -34,19 +34,28 @@ packages/
 Exemple :
 
 ```json
-[
-   {
-      "id": "com.ezgalaxy.example",
-      "path": "packages/com.ezgalaxy.example",
-      "enabled": true
-   }
-]
+{
+   "schemaVersion": 1,
+   "packages": [
+      {
+         "id": "com.ezgalaxy.example",
+         "title": "Exemple",
+         "function": "Page de démonstration pour dépôts custom",
+         "path": "packages/com.ezgalaxy.example",
+         "version": "1.0.0"
+      }
+   ]
+}
 ```
 
 Champs :
-- `id` : identifiant unique (recommandé: `a-z0-9.-` mais éviter les espaces)
-- `path` : chemin du dossier du package dans le dépôt
-- `enabled` : true/false
+- `schemaVersion` : version du schéma
+- `packages[]` : liste des packages
+   - `id` : identifiant unique (attendu: `a-z0-9-` côté validation EZPage)
+   - `title` : titre affiché
+   - `function` : description courte
+   - `path` : chemin du dossier du package dans le dépôt
+   - `version` : optionnel (info rapide)
 
 ## 3) `ezpage.json` (manifest du package)
 
