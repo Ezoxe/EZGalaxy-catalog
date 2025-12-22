@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.example",
+  "title": "Exemple",
+  "function": "Page de démonstration pour dépôts custom",
+  "version": "1.0.0",
+  "createdAt": "2025-12-22",
+  "author": "EZGalaxy",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}
