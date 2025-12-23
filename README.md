@@ -27,6 +27,7 @@ Style / animations :
 
 IA + BDD :
 - Voir `AI_GUIDE.md` pour les contraintes (sécurité, style, réseau) et les points importants si une page a besoin de persistance/BDD.
+- Voir `COMMUNITY_DATA_API.md` pour l’API de stockage sécurisée (Community Data) utilisable par les pages.
 
 ## 2) Créer son propre dépôt (catalogue custom)
 
