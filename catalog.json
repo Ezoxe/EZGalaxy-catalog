@@ -7,6 +7,41 @@
       "function": "Page de démonstration pour dépôts custom",
       "path": "packages/com.ezgalaxy.example",
       "version": "1.0.0"
+    },
+    {
+      "id": "test",
+      "title": "TEST",
+      "function": "test",
+      "path": "packages/test",
+      "version": "1.0.0"
+    },
+    {
+      "id": "network-sim",
+      "title": "Network Sim",
+      "function": "Simulation réseau (package standard)",
+      "path": "packages/network-sim",
+      "version": "1.0.0"
+    },
+    {
+      "id": "code-game",
+      "title": "Code Game",
+      "function": "Mini jeu de code (package standard)",
+      "path": "packages/code-game",
+      "version": "1.0.0"
+    },
+    {
+      "id": "kappy-studio",
+      "title": "Kappy Studio",
+      "function": "Éditeur / studio KAPPY (package standard)",
+      "path": "packages/kappy-studio",
+      "version": "1.0.0"
+    },
+    {
+      "id": "world-capitals",
+      "title": "World Capitals",
+      "function": "Jeu des capitales du monde (package standard)",
+      "path": "packages/world-capitals",
+      "version": "1.0.0"
     }
   ]
 }

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TEST</title>
+    <link rel="stylesheet" href="./ezgalaxy-base.css" />
+    <link rel="stylesheet" href="./ezgalaxy-animations.css" />
+    <style>
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <div class="ez-wrap">
+      <div class="ez-card ez-fade-in">
+        <h1 style="margin: 0 0 8px;">TEST</h1>
+        <div class="ez-muted">Description: test</div>
+        <hr class="ez-hr" />
+        <div class="row">
+          <button id="btn" class="ez-btn ez-btn--primary">Générer un diagnostic</button>
+        </div>
+        <pre id="out" class="ez-pre ez-muted" style="margin-top: 12px;">Clique sur “Générer un diagnostic”.</pre>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const out = document.getElementById('out');
+        const btn = document.getElementById('btn');
+
+        function safe(obj) {
+          try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
+        }
+
+        btn.addEventListener('click', () => {
+          const now = new Date();
+          const diag = {
+            title: 'TEST',
+            ok: true,
+            time: now.toISOString(),
+            userAgent: navigator.userAgent,
+            location: location.href,
+          };
+          out.textContent = safe(diag);
+        });
+      })();
+    </script>
+  </body>
+</html>

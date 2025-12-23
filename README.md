@@ -1,112 +1,52 @@
-# Dépôt catalogue (template)
+# Catalogue EZGalaxy (guide rapide)
 
-Ce dossier `catalog/` est une **base prête à copier** pour créer un dépôt GitHub compatible avec le **Catalogue EZGalaxy**.
+Ce dossier montre le format attendu par EZGalaxy pour lister et installer des pages via GitHub.
 
-Objectif : publier des pages (packages) standardisées, installables depuis l’interface admin (installer / mettre à jour / désinstaller).
+Le standard complet est dans `CATALOG_STANDARD.md` (repo principal EZGalaxy).
 
-## 1) Ce que doit contenir le dépôt
+## 1) Ajouter une page dans le dépôt officiel `EZGalaxy-catalog` (Pull Request)
 
-Le dépôt doit contenir au minimum :
+Objectif : proposer une nouvelle page pour qu’elle apparaisse dans le catalogue officiel.
 
-- `catalog.json` : l’index du dépôt (liste des packages)
-- `packages/<packageId>/ezpage.json` : le manifest de chaque package
-- `packages/<packageId>/<entry>` : la page d’entrée (souvent un HTML)
+Étapes :
+1. Fork le dépôt officiel `Ezoxe/EZGalaxy-catalog`.
+2. Crée un dossier de package : `packages/<id>/`.
+3. Ajoute le manifest : `packages/<id>/ezpage.json`.
+4. Ajoute les fichiers web (minimum) : `packages/<id>/web/index.html` (+ JS/CSS si besoin).
+5. Déclare ton package dans `catalog.json` (à la racine) en ajoutant une entrée dans `packages[]`.
+6. Ouvre une Pull Request.
 
-Structure recommandée (celle fournie ici) :
+Rappels :
+- `<id>` doit être stable et unique (conseillé : `a-z0-9-`).
+- `entry` doit être un chemin relatif (ex: `web/index.html`, pas de `/`, pas de `..`).
+- Par défaut, les appels sortants sont bloqués (CSP). Tu peux demander l’activation via `network.allowOutgoing=true`.
 
+Style / animations :
+- Le template fournit des fichiers de style dans `shared/` (base + animations).
+- Pour qu’ils fonctionnent après installation, copie-les dans ton package (ex: `packages/<id>/web/`).
+
+IA + BDD :
+- Voir `AI_GUIDE.md` pour les contraintes (sécurité, style, réseau) et les points importants si une page a besoin de persistance/BDD.
+
+## 2) Créer son propre dépôt (catalogue custom)
+
+Objectif : héberger tes pages dans TON dépôt GitHub, puis l’ajouter dans EZGalaxy.
+
+Structure minimale du dépôt :
 ```
 catalog.json
 packages/
-   com.ezgalaxy.example/
-      ezpage.json
-      web/
-         index.html
-         app.js
-         style.css
-      assets/
-      screenshots/
+  <id>/
+    ezpage.json
+    web/
+      index.html
 ```
 
-## 2) `catalog.json`
+Configuration dans EZGalaxy :
+1. Admin → Catalogue → Paramètres (roue dentée).
+2. Ajoute un dépôt : `owner`, `repo`, `ref` (branche), `catalog_path` (souvent `catalog.json`).
+3. Si le dépôt est privé : configure un token GitHub (PAT) dans la même page.
 
-`catalog.json` liste tous les packages affichés dans le catalogue (vue liste).
-
-Exemple :
-
-```json
-{
-   "schemaVersion": 1,
-   "packages": [
-      {
-         "id": "com.ezgalaxy.example",
-         "title": "Exemple",
-         "function": "Page de démonstration pour dépôts custom",
-         "path": "packages/com.ezgalaxy.example",
-         "version": "1.0.0"
-      }
-   ]
-}
-```
-
-Champs :
-- `schemaVersion` : version du schéma
-- `packages[]` : liste des packages
-   - `id` : identifiant unique (attendu: `a-z0-9-` côté validation EZPage)
-   - `title` : titre affiché
-   - `function` : description courte
-   - `path` : chemin du dossier du package dans le dépôt
-   - `version` : optionnel (info rapide)
-
-## 3) `ezpage.json` (manifest du package)
-
-Chaque package doit contenir un fichier `ezpage.json`.
-
-Exemple minimal :
-
-```json
-{
-   "schemaVersion": 1,
-   "id": "com.ezgalaxy.example",
-   "title": "Exemple",
-   "function": "Page de démonstration pour dépôts custom",
-   "version": "1.0.0",
-   "createdAt": "2025-12-22",
-   "author": "EZGalaxy",
-   "entry": "web/index.html",
-   "screenshots": [],
-   "network": { "allowOutgoing": true }
-}
-```
-
-Notes :
-- `entry` doit être un **chemin relatif** (pas de `/`, pas de `..`).
-- `network.allowOutgoing` :
-   - `false` (par défaut) → appels sortants bloqués par la CSP
-   - `true` → appels sortants autorisés (connect-src https:)
-
-## 4) Screenshots
-
-Les screenshots sont optionnels mais recommandés.
-
-Pour les activer :
-- ajoute des images dans `packages/<id>/screenshots/`
-- référence-les dans `ezpage.json` :
-
-```json
-"screenshots": ["screenshots/1.png", "screenshots/2.png"]
-```
-
-## 5) Comment utiliser ce template pour un dépôt custom
-
-1. Crée un nouveau dépôt GitHub (ex: `EZGalaxy-catalog`).
-2. Copie le contenu de ce dossier `catalog/` à la racine de ton dépôt.
-3. Dans EZGalaxy (admin) → **Catalogue** → **Dépôts catalogue**, ajoute une source :
-    - `owner` : ton owner GitHub
-    - `repo` : le nom du dépôt
-    - `ref` : `main` (ou une autre branche)
-    - `catalog_path` : `catalog.json`
-4. Si le dépôt est privé : dans **Configuration GitHub**, configure un token (PAT).
-
-## 6) Référence du standard
-
-Le standard complet (règles + champs) est décrit dans `CATALOG_STANDARD.md` dans le dépôt principal EZGalaxy.
+Style / IA :
+- Les fichiers `shared/ezgalaxy-base.css` et `shared/ezgalaxy-animations.css` sont là pour être copiés dans tes packages.
+- Le guide `AI_GUIDE.md` donne un “prompt” et des règles pour générer des packages conformes.

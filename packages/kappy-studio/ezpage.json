@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "kappy-studio",
+  "title": "Kappy Studio",
+  "function": "Éditeur / studio KAPPY (package standard)",
+  "version": "1.0.0",
+  "createdAt": "2025-12-23",
+  "author": "EZGalaxy",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": false
+  }
+}
