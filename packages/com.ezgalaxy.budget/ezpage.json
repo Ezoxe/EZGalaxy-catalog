@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.budget",
+  "title": "Budget Graphique",
+  "function": "Gestion de budget ultra graphique (SPA) avec export chiffré et sauvegarde cloud optionnelle via Community Data API",
+  "version": "1.0.0",
+  "createdAt": "2025-12-24",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}

@@ -48,6 +48,13 @@
       "path": "packages/world-capitals",
       "version": "1.0.0",
       "hash": "98917ccba073c58a5f2600a37fba101b7a51d07acb1fe90c3952a51ba1492489"
+    },
+    {
+      "id": "com.ezgalaxy.budget",
+      "title": "Budget Graphique",
+      "function": "Gestion de budget ultra graphique (SPA) avec export chiffré et sauvegarde cloud optionnelle via Community Data API",
+      "path": "packages/com.ezgalaxy.budget",
+      "version": "1.0.0"
     }
   ]
 }
