@@ -294,6 +294,187 @@
     };
   }
 
+  function computeNeedsWantsSavings(filteredTx) {
+    const expenses = filteredTx.filter((t) => t.type === 'expense');
+    const incomes = filteredTx.filter((t) => t.type === 'income');
+    const totalIncome = sum(incomes.map((t) => t.amount));
+
+    const needsCats = new Set(['cat_rent', 'cat_food', 'cat_transport', 'cat_health', 'cat_subs']);
+    const needs = sum(expenses.filter((t) => needsCats.has(t.categoryId)).map((t) => t.amount));
+    const wants = sum(expenses.filter((t) => !needsCats.has(t.categoryId)).map((t) => t.amount));
+    const net = totalIncome - (needs + wants);
+    const savings = Math.max(0, net);
+
+    const pct = (x) => (totalIncome > 0 ? (x / totalIncome) * 100 : 0);
+
+    return {
+      totalIncome,
+      needs,
+      wants,
+      savings,
+      needsPct: pct(needs),
+      wantsPct: pct(wants),
+      savingsPct: pct(savings)
+    };
+  }
+
+  function computeRunwayMonths(filteredTx, kpis) {
+    // Estimated runway based on net positive cashflow within filter.
+    const savingsEstimated = Math.max(0, kpis.net);
+    const burn = kpis.burn || 0;
+    const months = burn > 0 ? savingsEstimated / burn : 0;
+    return { savingsEstimated, burn, months };
+  }
+
+  function weekdayNameFR(dow) {
+    // JS: 0=Sunday
+    const names = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    return names[dow] || 'jour';
+  }
+
+  function computeWeekdayComparison(filteredTx) {
+    const expenses = filteredTx.filter((t) => t.type === 'expense');
+    if (!expenses.length) {
+      return {
+        date: null,
+        dow: null,
+        dowName: null,
+        dayTotal: 0,
+        avg: 0,
+        diff: 0,
+        highlightDates: []
+      };
+    }
+
+    const byDay = new Map();
+    for (const t of expenses) {
+      byDay.set(t.date, (byDay.get(t.date) || 0) + t.amount);
+    }
+
+    const dates = Array.from(byDay.keys()).sort();
+    const date = dates[dates.length - 1];
+    const dt = parseDateISO(date);
+    const dow = dt ? dt.getUTCDay() : null;
+
+    const dayTotal = byDay.get(date) || 0;
+
+    // Compute avg for same weekday across range
+    const totals = [];
+    for (const [iso, total] of byDay.entries()) {
+      const dti = parseDateISO(iso);
+      if (!dti) continue;
+      if (dti.getUTCDay() === dow) totals.push(total);
+    }
+
+    const avg = totals.length ? (sum(totals) / totals.length) : 0;
+    const diff = dayTotal - avg;
+
+    // Highlight same-weekday days significantly above avg
+    const variance = totals.length ? (sum(totals.map((v) => (v - avg) ** 2)) / totals.length) : 0;
+    const sd = Math.sqrt(variance) || 0;
+    const threshold = avg + Math.max(0, sd * 1.0);
+
+    const highlightDates = [];
+    for (const [iso, total] of byDay.entries()) {
+      const dti = parseDateISO(iso);
+      if (!dti) continue;
+      if (dti.getUTCDay() !== dow) continue;
+      if (total >= threshold && total > 0) highlightDates.push([iso, Math.round(total * 100) / 100]);
+    }
+
+    return {
+      date,
+      dow,
+      dowName: dow === null ? null : weekdayNameFR(dow),
+      dayTotal,
+      avg,
+      diff,
+      highlightDates
+    };
+  }
+
+  function countNoSpendDays(filteredTx) {
+    // No-spend day = no non-essential expense on that day. Essential expense is allowed.
+    const expenses = filteredTx.filter((t) => t.type === 'expense');
+    if (!expenses.length) return { month: null, count: 0, prevCount: 0 };
+
+    const month = monthKey(expenses.map((t) => t.date).sort().slice(-1)[0]);
+    const [y, m] = month.split('-').map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+
+    const prevDt = new Date(y, m - 2, 1);
+    const prevMonth = `${prevDt.getFullYear()}-${String(prevDt.getMonth() + 1).padStart(2, '0')}`;
+    const prevDays = new Date(prevDt.getFullYear(), prevDt.getMonth() + 1, 0).getDate();
+
+    const needsCats = new Set(['cat_rent', 'cat_food', 'cat_transport', 'cat_health', 'cat_subs']);
+    const wantsCats = new Set(App.budget.categories.map((c) => c.id).filter((id) => !needsCats.has(id)));
+
+    const byDate = groupBy(expenses, (t) => t.date);
+
+    const isNoSpend = (iso, monthPrefix) => {
+      if (!iso.startsWith(monthPrefix)) return false;
+      const arr = byDate.get(iso) || [];
+      const nonEssential = sum(arr.filter((t) => wantsCats.has(t.categoryId)).map((t) => t.amount));
+      return nonEssential <= 0;
+    };
+
+    let count = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${month}-${String(d).padStart(2, '0')}`;
+      if (isNoSpend(iso, month)) count++;
+    }
+
+    let prevCount = 0;
+    for (let d = 1; d <= prevDays; d++) {
+      const iso = `${prevMonth}-${String(d).padStart(2, '0')}`;
+      if (isNoSpend(iso, prevMonth)) prevCount++;
+    }
+
+    return { month, count, prevCount };
+  }
+
+  function detectPriceHike(filteredTx) {
+    // Detect same-label recurring expenses with an unusual increase.
+    const expenses = filteredTx.filter((t) => t.type === 'expense' && t.label && t.amount >= 5);
+    const byLabel = groupBy(expenses, (t) => (t.label || '').toLowerCase().trim());
+
+    for (const [label, items] of byLabel.entries()) {
+      if (!label || items.length < 4) continue;
+      const sorted = items.slice().sort((a, b) => a.date.localeCompare(b.date));
+      const last = sorted[sorted.length - 1];
+      const prev = sorted[sorted.length - 2];
+      if (!prev) continue;
+      const inc = last.amount - prev.amount;
+      const incPct = prev.amount > 0 ? inc / prev.amount : 0;
+      if (inc > 1 && incPct >= 0.15) {
+        return {
+          label: items[0].label,
+          from: prev.amount,
+          to: last.amount,
+          date: last.date
+        };
+      }
+    }
+    return null;
+  }
+
+  function categoryLability(filteredTx) {
+    // Categories with the most month-to-month volatility (CV).
+    const expenses = filteredTx.filter((t) => t.type === 'expense' && t.categoryId);
+    const byCat = groupBy(expenses, (t) => t.categoryId);
+    const out = [];
+    for (const [cid, items] of byCat.entries()) {
+      const byM = groupBy(items, (t) => monthKey(t.date));
+      const vals = Array.from(byM.values()).map((arr) => sum(arr.map((t) => t.amount)));
+      if (vals.length < 3) continue;
+      const mean = sum(vals) / vals.length;
+      const variance = sum(vals.map((v) => (v - mean) ** 2)) / vals.length;
+      const cv = mean ? Math.sqrt(variance) / mean : 0;
+      out.push({ categoryId: cid, cv, mean });
+    }
+    return out.sort((a, b) => b.cv - a.cv).slice(0, 3);
+  }
+
   // ------------------------------
   // Advice engine
   // ------------------------------
@@ -470,6 +651,30 @@
       }
     }
 
+    // 10) Price hike detection
+    const hike = detectPriceHike(filteredTx);
+    if (hike) {
+      advice.push({
+        id: 'price_hike',
+        severity: 4,
+        title: 'Hausse détectée sur un paiement récurrent',
+        message: `“${hike.label}” est passé de ${formatMoneyEUR(hike.from)} à ${formatMoneyEUR(hike.to)} (le ${hike.date}).`,
+        action: 'Vérifier l’abonnement/facture et renégocier ou résilier si nécessaire.'
+      });
+    }
+
+    // 11) Lability (volatile categories)
+    const lab = categoryLability(filteredTx);
+    if (lab.length) {
+      advice.push({
+        id: 'lability',
+        severity: 3,
+        title: 'Catégories instables (labilité)',
+        message: `Les variations mensuelles les plus fortes: ${lab.map((x) => getCategoryName(x.categoryId)).join(', ')}.`,
+        action: 'Identifier les causes (prix, habitudes, exceptions) et lisser via enveloppes ou plafonds.'
+      });
+    }
+
     // Sort by severity desc, keep top
     return advice.sort((a, b) => b.severity - a.severity).slice(0, 10);
   }
@@ -494,6 +699,9 @@
   }
 
   function packForCloud(budget) {
+    if (!window.LZString) {
+      throw new Error('Compression indisponible (LZString non chargé).');
+    }
     const minimal = {
       schemaVersion: budget.schemaVersion,
       meta: budget.meta,
@@ -516,6 +724,9 @@
   }
 
   function unpackFromCloud(payload) {
+    if (!window.LZString) {
+      throw new Error('Décompression indisponible (LZString non chargé).');
+    }
     if (!payload || payload.v !== 1) throw new Error('Unsupported cloud payload');
     if (payload.format !== 'lz-base64') throw new Error('Unsupported cloud format');
     const json = LZString.decompressFromBase64(payload.data);
@@ -921,6 +1132,236 @@
       renderStreamgraph(el5, filteredTx);
     }
 
+    // 6) Sankey cashflow
+    const el6 = $('.chart-sankey', root);
+    if (el6) {
+      const chart = ensureEChart(el6, 'sankey');
+      const expenses = filteredTx.filter((t) => t.type === 'expense');
+      const incomes = filteredTx.filter((t) => t.type === 'income');
+      const totalIncome = sum(incomes.map((t) => t.amount));
+      const totalExpense = sum(expenses.map((t) => t.amount));
+      const savings = Math.max(0, totalIncome - totalExpense);
+
+      const needsCats = new Set(['cat_rent', 'cat_food', 'cat_transport', 'cat_health', 'cat_subs']);
+      const byCat = groupBy(expenses, (t) => t.categoryId || 'none');
+
+      const nodes = [{ name: 'Revenus' }, { name: 'Besoins' }, { name: 'Envies' }, { name: 'Épargne' }];
+      const links = [];
+
+      const needsByCat = [];
+      const wantsByCat = [];
+      for (const [cid, arr] of byCat.entries()) {
+        const v = sum(arr.map((t) => t.amount));
+        const name = getCategoryName(cid === 'none' ? null : cid);
+        const isNeed = cid !== 'none' && needsCats.has(cid);
+        (isNeed ? needsByCat : wantsByCat).push({ cid, name, v });
+      }
+      needsByCat.sort((a, b) => b.v - a.v);
+      wantsByCat.sort((a, b) => b.v - a.v);
+
+      const cap = (arr, max) => {
+        if (arr.length <= max) return { top: arr, other: 0 };
+        const top = arr.slice(0, max);
+        const other = sum(arr.slice(max).map((x) => x.v));
+        return { top, other };
+      };
+
+      const needsCap = cap(needsByCat, 8);
+      const wantsCap = cap(wantsByCat, 8);
+
+      const needsTotal = sum(needsByCat.map((x) => x.v));
+      const wantsTotal = sum(wantsByCat.map((x) => x.v));
+
+      // Revenue splits
+      if (needsTotal > 0) links.push({ source: 'Revenus', target: 'Besoins', value: needsTotal });
+      if (wantsTotal > 0) links.push({ source: 'Revenus', target: 'Envies', value: wantsTotal });
+      if (savings > 0) links.push({ source: 'Revenus', target: 'Épargne', value: savings });
+
+      // Needs -> categories
+      for (const c of needsCap.top) {
+        nodes.push({ name: c.name });
+        links.push({ source: 'Besoins', target: c.name, value: c.v });
+      }
+      if (needsCap.other > 0) {
+        const otherName = 'Autres besoins';
+        nodes.push({ name: otherName });
+        links.push({ source: 'Besoins', target: otherName, value: needsCap.other });
+      }
+
+      // Wants -> categories
+      for (const c of wantsCap.top) {
+        // Prevent accidental duplicates between needs/wants names
+        const exists = nodes.some((n) => n.name === c.name);
+        if (!exists) nodes.push({ name: c.name });
+        links.push({ source: 'Envies', target: c.name, value: c.v });
+      }
+      if (wantsCap.other > 0) {
+        const otherName = 'Autres envies';
+        nodes.push({ name: otherName });
+        links.push({ source: 'Envies', target: otherName, value: wantsCap.other });
+      }
+
+      chart.setOption({
+        color: palette(),
+        tooltip: { trigger: 'item', borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(0,0,0,0.35)' },
+        series: [{
+          type: 'sankey',
+          emphasis: { focus: 'adjacency' },
+          nodeAlign: 'justify',
+          nodeGap: 10,
+          nodeWidth: 14,
+          data: nodes,
+          links,
+          lineStyle: { color: 'source', opacity: 0.35 },
+          itemStyle: { borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1 }
+        }]
+      }, true);
+    }
+
+    // 7) Calendar heatmap (daily expenses)
+    const el7 = $('.chart-calendar', root);
+    if (el7) {
+      const chart = ensureEChart(el7, 'calendar');
+      const expenses = filteredTx.filter((t) => t.type === 'expense');
+      const byDay = new Map();
+      for (const t of expenses) {
+        byDay.set(t.date, (byDay.get(t.date) || 0) + t.amount);
+      }
+      const dates = Array.from(byDay.keys()).sort();
+      const range = dates.length ? [dates[0], dates[dates.length - 1]] : null;
+      const data = dates.map((d) => [d, Math.round(byDay.get(d) * 100) / 100]);
+
+      const wd = computeWeekdayComparison(filteredTx);
+      const highlights = wd.highlightDates || [];
+
+      const styles = getComputedStyle(document.documentElement);
+      const border = styles.getPropertyValue('--ez-border').trim();
+      const text = styles.getPropertyValue('--ez-text').trim();
+      const muted = styles.getPropertyValue('--ez-muted').trim();
+
+      chart.setOption({
+        tooltip: { position: 'top', borderColor: border, backgroundColor: 'rgba(0,0,0,0.35)' },
+        visualMap: {
+          min: 0,
+          max: Math.max(10, ...data.map((x) => x[1])),
+          calculable: false,
+          orient: 'horizontal',
+          left: 'center',
+          bottom: 0,
+          textStyle: { color: muted },
+          inRange: { color: [styles.getPropertyValue('--ez-primary-soft').trim() || 'rgba(14,165,164,0.22)', styles.getPropertyValue('--ez-primary').trim() || '#0ea5a4'] }
+        },
+        calendar: {
+          top: 30,
+          left: 30,
+          right: 20,
+          cellSize: ['auto', 16],
+          range: range || formatDateISO(new Date()).slice(0, 7),
+          itemStyle: { borderWidth: 1, borderColor: border },
+          yearLabel: { show: false, color: text },
+          monthLabel: { color: muted },
+          dayLabel: { color: muted }
+        },
+        series: [
+          {
+            type: 'heatmap',
+            coordinateSystem: 'calendar',
+            data
+          },
+          {
+            // Overlay highlights (same weekday and above-average): makes patterns pop.
+            type: 'scatter',
+            coordinateSystem: 'calendar',
+            data: highlights,
+            symbolSize: 12,
+            itemStyle: {
+              color: 'transparent',
+              borderWidth: 2,
+              borderColor: styles.getPropertyValue('--ez-warning').trim() || '#f59e0b'
+            },
+            tooltip: {
+              formatter: (p) => {
+                const v = p.value;
+                return `${escapeHtml(v[0])}<br/>Sur-dépense (vs moyenne du ${escapeHtml(wd.dowName || '')})<br/>${formatMoneyEUR(v[1])}`;
+              }
+            },
+            z: 10
+          }
+        ]
+      }, true);
+    }
+
+    // 8) Radar 50/30/20
+    const el8 = $('.chart-radar', root);
+    if (el8) {
+      const chart = ensureEChart(el8, 'radar');
+      const nws = computeNeedsWantsSavings(filteredTx);
+
+      chart.setOption({
+        color: palette(),
+        tooltip: { trigger: 'item', borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(0,0,0,0.35)' },
+        radar: {
+          indicator: [
+            { name: 'Besoins', max: 80 },
+            { name: 'Envies', max: 80 },
+            { name: 'Épargne', max: 80 }
+          ],
+          splitNumber: 4,
+          axisName: { color: 'rgba(229,231,235,0.75)' },
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.12)' } },
+          splitArea: { areaStyle: { color: ['rgba(255,255,255,0.02)', 'rgba(255,255,255,0.00)'] } }
+        },
+        series: [{
+          type: 'radar',
+          data: [
+            { name: 'Actuel', value: [nws.needsPct, nws.wantsPct, nws.savingsPct] },
+            { name: 'Idéal 50/30/20', value: [50, 30, 20] }
+          ],
+          areaStyle: { opacity: 0.12 }
+        }]
+      }, true);
+    }
+
+    // 9) Scatter: amount vs merchant frequency
+    const el9 = $('.chart-scatter', root);
+    if (el9) {
+      const chart = ensureEChart(el9, 'scatter');
+      const expenses = filteredTx.filter((t) => t.type === 'expense' && t.amount > 0);
+      const byLabel = groupBy(expenses, (t) => (t.label || '').toLowerCase().trim() || '—');
+      const freq = new Map();
+      for (const [lbl, arr] of byLabel.entries()) freq.set(lbl, arr.length);
+      const pts = expenses.map((t) => {
+        const lbl = (t.label || '').toLowerCase().trim() || '—';
+        return {
+          value: [t.amount, freq.get(lbl) || 1],
+          label: t.label || '—',
+          date: t.date,
+          category: getCategoryName(t.categoryId)
+        };
+      });
+
+      const common = commonEChartsOptions();
+      chart.setOption({
+        ...common,
+        tooltip: {
+          ...common.tooltip,
+          trigger: 'item',
+          formatter: (p) => {
+            const d = p.data;
+            return `${escapeHtml(d.label)}<br/>${escapeHtml(d.date)} — ${escapeHtml(d.category)}<br/>Montant: ${formatMoneyEUR(d.value[0])}<br/>Fréquence enseigne: ${d.value[1]}`;
+          }
+        },
+        xAxis: { ...common.xAxis, type: 'value', name: 'Montant', nameTextStyle: { color: 'rgba(229,231,235,0.75)' } },
+        yAxis: { ...common.yAxis, type: 'value', name: 'Fréquence', nameTextStyle: { color: 'rgba(229,231,235,0.75)' } },
+        series: [{
+          type: 'scatter',
+          data: pts,
+          symbolSize: (v) => clamp(Math.sqrt(v[0]) * 2.2, 6, 28),
+          itemStyle: { opacity: 0.8 }
+        }]
+      }, true);
+    }
+
     // resize
     window.setTimeout(() => {
       for (const c of App.charts.echarts.values()) {
@@ -1174,6 +1615,11 @@
 
   function renderDashboard(filteredTx, kpis) {
     const advice = buildAdvice(filteredTx);
+    const nws = computeNeedsWantsSavings(filteredTx);
+    const runway = computeRunwayMonths(filteredTx, kpis);
+    const nsd = countNoSpendDays(filteredTx);
+    const hike = detectPriceHike(filteredTx);
+    const wd = computeWeekdayComparison(filteredTx);
 
     const libsOk = Boolean(window.echarts && window.d3 && window.LZString);
     const libsBanner = libsOk ? '' : `
@@ -1232,6 +1678,75 @@
         <div class="card" style="grid-column: span 12; min-height: 340px;">
           <h3>Streamgraph (signature D3) — dépenses top catégories</h3>
           <div class="d3-stream" style="width:100%;height:280px;"></div>
+        </div>
+
+        <div class="card" style="grid-column: span 12; min-height: 360px;">
+          <h3>Flux de trésorerie (Sankey) — où part l’argent</h3>
+          <div class="chart-sankey" style="width:100%;height:300px;"></div>
+        </div>
+
+        <div class="card" style="grid-column: span 7; min-height: 340px;">
+          <h3>Heatmap calendrier — intensité des dépenses</h3>
+          <div class="chart-calendar" style="width:100%;height:280px;"></div>
+        </div>
+        <div class="card" style="grid-column: span 5; min-height: 340px;">
+          <h3>Radar 50/30/20 — équilibre de vie</h3>
+          <div class="chart-radar" style="width:100%;height:280px;"></div>
+        </div>
+
+        <div class="card" style="grid-column: span 12; min-height: 340px;">
+          <h3>Nuage de points — petites dépenses répétitives</h3>
+          <div class="chart-scatter" style="width:100%;height:280px;"></div>
+        </div>
+
+        <div class="card" style="grid-column: span 12;">
+          <h3>Ce que les chiffres bruts cachent</h3>
+          <div class="split">
+            <div class="card" style="min-height: 160px;">
+              <h3>Besoin vs Envie</h3>
+              <div class="ez-muted">Sur vos revenus, ${nws.needsPct.toFixed(0)}% besoins, ${nws.wantsPct.toFixed(0)}% envies, ${nws.savingsPct.toFixed(0)}% épargne.</div>
+              <div class="ez-hr"></div>
+              <div class="ez-muted"><b>Marge de manœuvre</b> — ${formatMoneyEUR(Math.max(0, nws.totalIncome - nws.needs))} après besoins.</div>
+            </div>
+            <div class="card" style="min-height: 160px;">
+              <h3>Runway (autonomie)</h3>
+              <div class="ez-muted">Si vos revenus s’arrêtaient, l’épargne estimée sur la période (${formatMoneyEUR(runway.savingsEstimated)}) couvre ~ <b>${runway.months.toFixed(1)} mois</b> au burn actuel.</div>
+              <div class="ez-hr"></div>
+              <div class="ez-muted"><b>Burn</b> — ${formatMoneyEUR(runway.burn)} / mois (moyenne).</div>
+            </div>
+          </div>
+
+          <div class="split" style="margin-top: 14px;">
+            <div class="card" style="min-height: 160px;">
+              <h3>No-spend days</h3>
+              <div class="ez-muted">${nsd.month ? `Sur ${nsd.month}: <b>${nsd.count}</b> jours sans dépense non-essentielle.` : 'Données insuffisantes.'}</div>
+              <div class="ez-hr"></div>
+              <div class="ez-muted">Δ vs mois précédent: ${(nsd.count - nsd.prevCount) >= 0 ? '+' : ''}${nsd.count - nsd.prevCount}</div>
+            </div>
+            <div class="card" style="min-height: 160px;">
+              <h3>Alertes intelligentes</h3>
+              <div class="ez-muted">${hike ? `Hausse détectée: <b>${escapeHtml(hike.label)}</b> (${formatMoneyEUR(hike.from)} → ${formatMoneyEUR(hike.to)}).` : 'Aucune hausse évidente détectée sur un paiement récurrent.'}</div>
+              <div class="ez-hr"></div>
+              <div class="ez-muted">Astuce: utilisez le nuage de points pour trouver les petites dépenses répétitives.</div>
+            </div>
+          </div>
+
+          <div class="split" style="margin-top: 14px;">
+            <div class="card" style="min-height: 160px;">
+              <h3>Comparaison vs moyenne</h3>
+              <div class="ez-muted">${wd.date ? `Le ${escapeHtml(wd.dowName)} ${escapeHtml(wd.date)}, vous avez dépensé ${formatMoneyEUR(wd.dayTotal)}.` : 'Données insuffisantes.'}</div>
+              <div class="ez-hr"></div>
+              <div class="ez-muted">${wd.date ? `Moyenne des ${escapeHtml(wd.dowName)}: ${formatMoneyEUR(wd.avg)} → écart ${(wd.diff >= 0 ? '+' : '')}${formatMoneyEUR(wd.diff)}.` : ''}</div>
+              <div class="ez-hr"></div>
+              <div class="ez-muted">Les ${escapeHtml(wd.dowName || '')} au-dessus de la moyenne sont <b>surlignés</b> dans la heatmap.</div>
+            </div>
+            <div class="card" style="min-height: 160px;">
+              <h3>What-if (simple)</h3>
+              <div class="ez-muted">En réduisant vos dépenses “Envies” de 15%, vous augmenteriez votre épargne estimée de ${formatMoneyEUR(Math.max(0, nws.wants * 0.15))} sur la période.</div>
+              <div class="ez-hr"></div>
+              <div class="ez-muted">Objectif: convertir une habitude en marge récurrente (le “vrai” levier).</div>
+            </div>
+          </div>
         </div>
 
         <div class="card" style="grid-column: span 12;">
