@@ -179,6 +179,10 @@
 
     libsReady: false,
 
+    // Cross-filter selection (chart click)
+    selection: null,
+    selectionBaseFilters: null,
+
     cryptoKeyB64: null,
 
     // filters
@@ -245,6 +249,66 @@
       }
       return true;
     });
+  }
+
+  function cloneFilters(f) {
+    return JSON.parse(JSON.stringify(f));
+  }
+
+  function daysInMonthUTC(year, month1Based) {
+    // month1Based: 1..12
+    return new Date(Date.UTC(year, month1Based, 0)).getUTCDate();
+  }
+
+  function applySelection(sel) {
+    if (!sel) return;
+
+    // Capture base filters once.
+    if (!App.selectionBaseFilters) {
+      App.selectionBaseFilters = cloneFilters(App.filters);
+    }
+
+    // Toggle off when clicking the same selection.
+    if (App.selection && App.selection.kind === sel.kind && App.selection.value === sel.value) {
+      App.filters = cloneFilters(App.selectionBaseFilters);
+      App.selection = null;
+      App.selectionBaseFilters = null;
+      toast('success', 'Filtre', 'Sélection retirée.');
+      render();
+      return;
+    }
+
+    // Apply from the base filters.
+    const base = App.selectionBaseFilters ? cloneFilters(App.selectionBaseFilters) : cloneFilters(App.filters);
+
+    if (sel.kind === 'category') {
+      base.categoryId = sel.value;
+    }
+    if (sel.kind === 'month') {
+      const mk = sel.value;
+      const [y, m] = mk.split('-').map(Number);
+      const last = daysInMonthUTC(y, m);
+      base.from = `${mk}-01`;
+      base.to = `${mk}-${String(last).padStart(2, '0')}`;
+    }
+    if (sel.kind === 'date') {
+      base.from = sel.value;
+      base.to = sel.value;
+    }
+    if (sel.kind === 'merchant') {
+      base.q = sel.value;
+    }
+    if (sel.kind === 'needswants') {
+      // Best-effort: needs/wants is encoded as category set.
+      base.type = 'expense';
+      base.categoryId = 'all';
+      // We keep it in selection only; the view explains. (Full semantic filter would require a new filter dimension.)
+    }
+
+    App.selection = sel;
+    App.filters = base;
+    toast('success', 'Filtre', `Sélection: ${sel.label}`);
+    render();
   }
 
   // ------------------------------
@@ -930,6 +994,11 @@
     return chart;
   }
 
+  function bindChartClick(chart, handler) {
+    try { chart.off('click'); } catch {}
+    chart.on('click', handler);
+  }
+
   function palette() {
     const styles = getComputedStyle(document.documentElement);
     return [
@@ -952,8 +1021,10 @@
       tooltip: {
         trigger: 'axis',
         borderColor: border,
-        backgroundColor: 'rgba(0,0,0,0.35)',
-        textStyle: { color: text }
+        backgroundColor: 'rgba(0,0,0,0.92)',
+        padding: [10, 12],
+        textStyle: { color: text, fontSize: 12, lineHeight: 16 },
+        extraCssText: 'border-radius:12px;'
       },
       grid: { left: 44, right: 20, top: 30, bottom: 36, containLabel: true },
       xAxis: { axisLine: { lineStyle: { color: border } }, axisLabel: { color: muted } },
@@ -1041,6 +1112,13 @@
           { name: 'Dépenses', type: 'bar', data: monthly.expenses, emphasis: { focus: 'series' } }
         ]
       }, true);
+
+      bindChartClick(chart, (p) => {
+        if (!p || p.componentType !== 'series') return;
+        const mk = monthly.months[p.dataIndex];
+        if (!mk) return;
+        applySelection({ kind: 'month', value: mk, label: `Mois ${mk}` });
+      });
     }
 
     // 2) Category donut
@@ -1056,7 +1134,14 @@
 
       chart.setOption({
         color: palette(),
-        tooltip: { trigger: 'item', borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(0,0,0,0.35)' },
+        tooltip: {
+          trigger: 'item',
+          borderColor: 'rgba(255,255,255,0.12)',
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          padding: [10, 12],
+          textStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--ez-text').trim(), fontSize: 12, lineHeight: 16 },
+          extraCssText: 'border-radius:12px;'
+        },
         series: [
           {
             type: 'pie',
@@ -1068,6 +1153,19 @@
           }
         ]
       }, true);
+
+      bindChartClick(chart, (p) => {
+        if (!p || p.componentType !== 'series') return;
+        const name = p.name;
+        // Map name back to categoryId.
+        const cat = App.budget.categories.find((c) => c.name === name);
+        if (cat) {
+          applySelection({ kind: 'category', value: cat.id, label: `Catégorie ${cat.name}` });
+        } else if (name === 'Sans catégorie') {
+          // no direct filter value; keep as search.
+          applySelection({ kind: 'merchant', value: 'Sans catégorie', label: 'Sans catégorie' });
+        }
+      });
     }
 
     // 3) Waterfall net
@@ -1093,6 +1191,13 @@
           }
         ]
       }, true);
+
+      bindChartClick(chart, (p) => {
+        if (!p || p.componentType !== 'series') return;
+        const mk = monthly.months[p.dataIndex];
+        if (!mk) return;
+        applySelection({ kind: 'month', value: mk, label: `Mois ${mk}` });
+      });
     }
 
     // 4) Forecast line
@@ -1124,6 +1229,13 @@
           }
         ]
       }, true);
+
+      bindChartClick(chart, (p) => {
+        if (!p || p.componentType !== 'series') return;
+        const mk = f.keys[p.dataIndex];
+        if (!mk || mk.length !== 7) return;
+        applySelection({ kind: 'month', value: mk, label: `Mois ${mk}` });
+      });
     }
 
     // 5) D3 streamgraph signature
@@ -1203,7 +1315,7 @@
 
       chart.setOption({
         color: palette(),
-        tooltip: { trigger: 'item', borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(0,0,0,0.35)' },
+        tooltip: { trigger: 'item', borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(0,0,0,0.92)', padding: [10, 12], extraCssText: 'border-radius:12px;' },
         series: [{
           type: 'sankey',
           emphasis: { focus: 'adjacency' },
@@ -1216,6 +1328,20 @@
           itemStyle: { borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1 }
         }]
       }, true);
+
+      bindChartClick(chart, (p) => {
+        if (!p) return;
+        // Clicking nodes/categories should filter where possible.
+        const name = p.name;
+        if (name === 'Besoins' || name === 'Envies') {
+          applySelection({ kind: 'needswants', value: name, label: name });
+          return;
+        }
+        const cat = App.budget.categories.find((c) => c.name === name);
+        if (cat) {
+          applySelection({ kind: 'category', value: cat.id, label: `Catégorie ${cat.name}` });
+        }
+      });
     }
 
     // 7) Calendar heatmap (daily expenses)
@@ -1240,7 +1366,19 @@
       const muted = styles.getPropertyValue('--ez-muted').trim();
 
       chart.setOption({
-        tooltip: { position: 'top', borderColor: border, backgroundColor: 'rgba(0,0,0,0.35)' },
+        tooltip: {
+          position: 'top',
+          borderColor: border,
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          padding: [10, 12],
+          textStyle: { color: text, fontSize: 12, lineHeight: 16 },
+          extraCssText: 'border-radius:12px;',
+          formatter: (p) => {
+            const v = p.value;
+            if (!Array.isArray(v)) return '';
+            return `${escapeHtml(v[0])}<br/>Dépenses: ${formatMoneyEUR(v[1])}`;
+          }
+        },
         visualMap: {
           min: 0,
           max: Math.max(10, ...data.map((x) => x[1])),
@@ -1289,6 +1427,13 @@
           }
         ]
       }, true);
+
+      bindChartClick(chart, (p) => {
+        if (!p || !p.value || !Array.isArray(p.value)) return;
+        const date = p.value[0];
+        if (typeof date !== 'string') return;
+        applySelection({ kind: 'date', value: date, label: `Date ${date}` });
+      });
     }
 
     // 8) Radar 50/30/20
@@ -1346,6 +1491,9 @@
         tooltip: {
           ...common.tooltip,
           trigger: 'item',
+          backgroundColor: 'rgba(0,0,0,0.92)',
+          padding: [10, 12],
+          extraCssText: 'border-radius:12px;',
           formatter: (p) => {
             const d = p.data;
             return `${escapeHtml(d.label)}<br/>${escapeHtml(d.date)} — ${escapeHtml(d.category)}<br/>Montant: ${formatMoneyEUR(d.value[0])}<br/>Fréquence enseigne: ${d.value[1]}`;
@@ -1360,6 +1508,13 @@
           itemStyle: { opacity: 0.8 }
         }]
       }, true);
+
+      bindChartClick(chart, (p) => {
+        if (!p || p.componentType !== 'series' || !p.data) return;
+        const lbl = (p.data.label || '').trim();
+        if (!lbl) return;
+        applySelection({ kind: 'merchant', value: lbl, label: `Enseigne “${lbl}”` });
+      });
     }
 
     // resize
