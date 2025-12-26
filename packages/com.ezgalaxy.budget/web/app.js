@@ -177,6 +177,8 @@
     cloudLastSyncAt: null,
     cloudLastError: null,
 
+    libsReady: false,
+
     cryptoKeyB64: null,
 
     // filters
@@ -1173,8 +1175,21 @@
   function renderDashboard(filteredTx, kpis) {
     const advice = buildAdvice(filteredTx);
 
+    const libsOk = Boolean(window.echarts && window.d3 && window.LZString);
+    const libsBanner = libsOk ? '' : `
+      <div class="card ez-pop" style="grid-column: span 12;">
+        <h3>Librairies graphiques non chargées</h3>
+        <div class="ez-muted">
+          L’interface fonctionne, mais les graphiques “WOW” ne peuvent pas s’afficher.
+          Causes fréquentes : réseau indisponible, CSP/iframe qui bloque les scripts externes.
+          Solution recommandée : utiliser des fichiers locaux (vendor) ou autoriser l’accès réseau.
+        </div>
+      </div>
+    `;
+
     return `
       <section class="grid ez-fade-in">
+        ${libsBanner}
         <div class="card" style="grid-column: span 3;">
           <h3>Dépenses</h3>
           <div class="kpi"><div class="value">${formatMoneyEUR(kpis.totalExpense)}</div><div class="badge">${filteredTx.length} ops</div></div>
@@ -1564,14 +1579,22 @@
   function boot() {
     normalizeAfterLoad();
 
-    // Wait libs
+    // Render immediately so the page is never blank.
+    render();
+
+    // Resize: keep it simple (SPA re-render). Charts will re-init when available.
+    window.addEventListener('resize', () => render());
+
+    // Observe libs availability (ECharts/D3/LZString). If they load later, re-render once.
     const wait = () => {
-      if (window.echarts && window.d3 && window.LZString) {
+      const ok = Boolean(window.echarts && window.d3 && window.LZString);
+      if (ok && !App.libsReady) {
+        App.libsReady = true;
+        toast('success', 'Graphiques', 'Librairies chargées.');
         render();
-        window.addEventListener('resize', () => render());
-      } else {
-        window.setTimeout(wait, 60);
+        return;
       }
+      if (!ok) window.setTimeout(wait, 120);
     };
     wait();
   }
