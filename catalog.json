@@ -55,6 +55,13 @@
       "function": "Gestion de budget ultra graphique (SPA) avec export chiffré et sauvegarde cloud optionnelle via Community Data API",
       "path": "packages/com.ezgalaxy.budget",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.osint",
+      "title": "OSINT Suite",
+      "function": "OSINT (SPA) : recherche universelle + résumé global + analyse + sauvegardes via Community Data API. Mode conforme par défaut, mode agressif réservé aux admins via proxy.",
+      "path": "packages/com.ezgalaxy.osint",
+      "version": "1.0.0"
     }
   ]
 }
