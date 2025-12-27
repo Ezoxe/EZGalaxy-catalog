@@ -1059,10 +1059,8 @@
       this.tintOverlay.setDepth(50);
 
       // Particle managers (enabled/disabled per stratum)
-      const pmPollen = this.add.particles("fx_pollen");
-      pmPollen.setDepth(40);
-      pmPollen.setScrollFactor(0);
-      const emPollen = pmPollen.createEmitter({
+      // Phaser 3.60+ uses ParticleEmitter as a GameObject; createEmitter was removed.
+      const emPollen = this.add.particles(0, 0, "fx_pollen", {
         x: { min: 0, max: cam.width },
         y: { min: 0, max: cam.height },
         lifespan: { min: 2200, max: 4200 },
@@ -1075,11 +1073,10 @@
         rotate: { min: 0, max: 360 },
         blendMode: "ADD",
       });
+      emPollen.setDepth(40);
+      emPollen.setScrollFactor(0);
 
-      const pmEmber = this.add.particles("fx_ember");
-      pmEmber.setDepth(40);
-      pmEmber.setScrollFactor(0);
-      const emEmber = pmEmber.createEmitter({
+      const emEmber = this.add.particles(0, 0, "fx_ember", {
         x: { min: 0, max: cam.width },
         y: { min: cam.height * 0.15, max: cam.height },
         lifespan: { min: 900, max: 1800 },
@@ -1092,11 +1089,10 @@
         rotate: { min: 0, max: 360 },
         blendMode: "ADD",
       });
+      emEmber.setDepth(40);
+      emEmber.setScrollFactor(0);
 
-      const pmMote = this.add.particles("fx_mote");
-      pmMote.setDepth(40);
-      pmMote.setScrollFactor(0);
-      const emMote = pmMote.createEmitter({
+      const emMote = this.add.particles(0, 0, "fx_mote", {
         x: { min: 0, max: cam.width },
         y: { min: 0, max: cam.height },
         lifespan: { min: 2600, max: 5200 },
@@ -1109,14 +1105,13 @@
         rotate: { min: 0, max: 360 },
         blendMode: "ADD",
       });
+      emMote.setDepth(40);
+      emMote.setScrollFactor(0);
 
       this.fx = {
-        pmPollen,
-        emPollen,
-        pmEmber,
-        emEmber,
-        pmMote,
-        emMote,
+        pollen: emPollen,
+        ember: emEmber,
+        mote: emMote,
       };
 
       // Resize hooks
@@ -1327,9 +1322,9 @@
       }
 
       if (this.fx) {
-        this.fx.pmPollen.setVisible(isJ);
-        this.fx.pmEmber.setVisible(isF);
-        this.fx.pmMote.setVisible(isA);
+        this.fx.pollen.setVisible(isJ);
+        this.fx.ember.setVisible(isF);
+        this.fx.mote.setVisible(isA);
       }
     }
 
