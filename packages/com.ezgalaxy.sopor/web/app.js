@@ -1049,8 +1049,8 @@
       this._applyIdleBreathe(this.player, 0.22);
 
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-      this.cameras.main.setZoom(2.5);
-      this.cameras.main.setRoundPixels(true);
+      this.cameras.main.setZoom(2.0);
+      this.cameras.main.setRoundPixels(false);
 
       // Visual ambience (parallax bg + subtle color grade + particles)
       const cam = this.cameras.main;
@@ -2421,6 +2421,12 @@
       const container = this.add.container(cx * CHUNK_SIZE_PX, cy * CHUNK_SIZE_PX);
       container.setDepth(-10);
 
+      // Render base tiles into a single RenderTexture for performance.
+      // (Far fewer GameObjects than creating an Image per tile.)
+      const rt = this.add.renderTexture(0, 0, CHUNK_SIZE_PX, CHUNK_SIZE_PX);
+      rt.setOrigin(0, 0);
+      container.add(rt);
+
       const solidsCreated = [];
       const objectsCreated = [];
 
@@ -2510,9 +2516,8 @@
             ? pickExisting(texKey("wall", wallV), wallFallback)
             : pickExisting(texKey("floor", floorV), baseFallback);
 
-          const base = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, baseKey);
-          base.setOrigin(0.5, 0.5);
-          container.add(base);
+          // Draw the tile into the chunk RenderTexture.
+          rt.drawFrame(baseKey, null, x, y);
 
           if (wall) {
             addSolidRect(x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
@@ -2523,18 +2528,13 @@
             const dv = (h >>> 9) % DETAIL_VARIANTS;
             const detailKey = pickExisting(texKey("detail", dv), null);
             if (detailKey) {
-              const d = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, detailKey);
-              d.setAlpha((road ? 0.22 : plaza ? 0.20 : 0.28) + (h & 7) * 0.02);
-              if (chunk.stratum !== STRATA.JARDIN) d.setBlendMode(Phaser.BlendModes.ADD);
-              container.add(d);
+              const a = (road ? 0.22 : plaza ? 0.20 : 0.28) + (h & 7) * 0.02;
+              rt.drawFrame(detailKey, null, x, y, a);
             }
           }
 
           if (!wall && rng.next() < (0.10 + instability * 0.20)) {
-            const vein = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, veinKey);
-            vein.setBlendMode(Phaser.BlendModes.ADD);
-            vein.setAlpha(0.25 + rng.next() * 0.25);
-            container.add(vein);
+            rt.drawFrame(veinKey, null, x, y, 0.18 + rng.next() * 0.18);
           }
         }
       }
@@ -2678,6 +2678,11 @@
       const container = this.add.container(cx * CHUNK_SIZE_PX, cy * CHUNK_SIZE_PX);
       container.setDepth(-12);
 
+      // Render base dungeon tiles into a single RenderTexture for performance.
+      const rt = this.add.renderTexture(0, 0, CHUNK_SIZE_PX, CHUNK_SIZE_PX);
+      rt.setOrigin(0, 0);
+      container.add(rt);
+
       const solidsCreated = [];
       const objectsCreated = [];
 
@@ -2716,19 +2721,14 @@
 
           const isFloor = inGrid && tiles[idx(gx, gy)] === 1;
           const baseKey = isFloor ? (this.textures.exists(`tile_floor_abime_${floorV}`) ? `tile_floor_abime_${floorV}` : "tile_floor_abime") : (this.textures.exists(`tile_wall_abime_${wallV}`) ? `tile_wall_abime_${wallV}` : "tile_wall_abime");
-          const base = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, baseKey);
-          base.setOrigin(0.5, 0.5);
-          container.add(base);
+          rt.drawFrame(baseKey, null, x, y);
 
           if (!isFloor) {
             addSolidRect(x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
           } else {
             // occasional vein glow
             if ((h & 255) < 34) {
-              const vein = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, "tile_vein_abime");
-              vein.setBlendMode(Phaser.BlendModes.ADD);
-              vein.setAlpha(0.20 + ((h >>> 8) & 7) * 0.03);
-              container.add(vein);
+              rt.drawFrame("tile_vein_abime", null, x, y, 0.16 + ((h >>> 8) & 7) * 0.02);
             }
           }
         }
@@ -3120,8 +3120,7 @@
         g.fillCircle(6, 8, 1);
         g.fillCircle(11, 10, 1);
       } else {
-        g.lineStyle(1, accentColor, 0.18);
-        g.strokeRect(0.5, 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        // No per-tile borders: they create a visible grid when repeated.
       }
 
       g.generateTexture(key, TILE_SIZE, TILE_SIZE);
@@ -3185,8 +3184,7 @@
           g.fillStyle(0xff7fe8, 0.16);
           g.fillRect(fx + 1, fy + 2, 1, 1);
         }
-        g.lineStyle(1, accentColor, 0.10);
-        g.strokeRect(0.5, 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        // No border stroke (prevents grid effect).
       }
 
       if (mode === "forge") {
@@ -3292,41 +3290,40 @@
       g.generateTexture(key, TILE_SIZE, TILE_SIZE);
     };
 
-    // Jardin palette
-    makeTile("tile_floor_jardin", 0x061313, 0x00ffc8, false);
-    makeWall("tile_wall_jardin", 0x090a10, 0x00ffc8);
-    makeTile("tile_vein_jardin", 0x000000, 0x00ffc8, true);
+    // Jardin palette (cozy grassland)
+    makeTile("tile_floor_jardin", 0x3fb85b, 0x2c7a40, false);
+    makeWall("tile_wall_jardin", 0x1f5a32, 0x3fb85b);
+    makeTile("tile_vein_jardin", 0x000000, 0x62ffd1, true);
 
     // Add a more "grassy" variant overlay by regenerating with small flowers specks.
     g.clear();
-    g.fillStyle(0x061313, 1);
+    g.fillStyle(0x3fb85b, 1);
     g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
     // grass noise
     for (let i = 0; i < 22; i++) {
       const x = (i * 5) % TILE_SIZE;
       const y = (i * 9) % TILE_SIZE;
-      g.fillStyle(0x0a2a1f, 0.28);
+      g.fillStyle(0x2f8f4a, 0.22);
       g.fillRect(x, y, 1, 1);
     }
     // tiny flowers
     g.fillStyle(0xffffff, 0.22);
     g.fillRect(3, 6, 1, 1);
     g.fillRect(12, 10, 1, 1);
-    g.fillStyle(0xff7fe8, 0.22);
+    g.fillStyle(0xff6fb5, 0.20);
     g.fillRect(7, 12, 1, 1);
-    g.lineStyle(1, 0x00ffc8, 0.12);
-    g.strokeRect(0.5, 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+    // No border stroke (prevents grid effect).
     g.generateTexture("tile_floor_jardin", TILE_SIZE, TILE_SIZE);
 
     // Jardin variants
     for (let i = 0; i < 4; i++) {
-      makeTileVariant(`tile_floor_jardin_${i}`, 0x061313, 0x0a2a1f, 0x00ffc8, 0x10a1 ^ (i * 0x9e37), "jardin");
+      makeTileVariant(`tile_floor_jardin_${i}`, 0x3fb85b, 0x2f8f4a, 0x1f5a32, 0x10a1 ^ (i * 0x9e37), "jardin");
     }
     for (let i = 0; i < 3; i++) {
-      makeWallVariant(`tile_wall_jardin_${i}`, 0x090a10, 0x00ffc8, 0x11b2 ^ (i * 0x7f4a), "jardin");
+      makeWallVariant(`tile_wall_jardin_${i}`, 0x1f5a32, 0x62ffd1, 0x11b2 ^ (i * 0x7f4a), "jardin");
     }
     for (let i = 0; i < 2; i++) {
-      makeDetailOverlay(`tile_detail_jardin_${i}`, 0x00ffc8, 0x12c3 ^ (i * 0x531), "jardin");
+      makeDetailOverlay(`tile_detail_jardin_${i}`, 0x1f5a32, 0x12c3 ^ (i * 0x531), "jardin");
     }
 
     // Forge palette
@@ -3389,66 +3386,62 @@
     };
 
     const makeHumanoid = (key, skin, cloth, accent, role) => {
-      const W = 20;
-      const H = 22;
+      const W = 28;
+      const H = 28;
       g.clear();
       g.fillStyle(0x000000, 0);
       g.fillRect(0, 0, W, H);
 
-      const outline = 0x05040a;
-      const shade = 0x0b0a12;
+      const outline = 0x1b1b1b;
 
-      // Shadow
-      g.fillStyle(0x000000, 0.18);
-      g.fillRoundedRect(6, 18, 8, 3, 2);
+      // Soft ground shadow
+      g.fillStyle(0x000000, 0.16);
+      g.fillRoundedRect(8, 22, 12, 4, 3);
 
-      // Body outline
-      g.fillStyle(outline, 0.95);
-      g.fillRoundedRect(6, 9, 8, 10, 3);
-      // Body fill + shading
+      // Body (rounded, with subtle rim)
+      g.fillStyle(outline, 0.55);
+      g.fillRoundedRect(8, 12, 12, 12, 5);
       g.fillStyle(cloth, 1);
-      g.fillRoundedRect(7, 10, 6, 8, 2);
-      g.fillStyle(shade, 0.18);
-      g.fillRect(7, 10, 2, 8);
+      g.fillRoundedRect(9, 13, 10, 10, 4);
+      g.fillStyle(0xffffff, 0.10);
+      g.fillRoundedRect(10, 14, 3, 8, 2);
 
-      // Head outline
-      g.fillStyle(outline, 0.95);
-      g.fillCircle(10, 7, 5);
-      // Head fill
+      // Head
+      g.fillStyle(outline, 0.55);
+      g.fillCircle(14, 9, 7);
       g.fillStyle(skin, 1);
-      g.fillCircle(10, 7, 4);
-      g.fillStyle(0x000000, 0.12);
-      g.fillRect(8, 6, 1, 3);
+      g.fillCircle(14, 9, 6);
+      g.fillStyle(0xffffff, 0.10);
+      g.fillCircle(12, 7, 2);
+
+      // Hair / cap accent
+      g.fillStyle(accent, 0.45);
+      g.fillRoundedRect(9, 3, 10, 6, 3);
 
       // Eyes
-      g.fillStyle(0xffffff, 0.65);
-      g.fillRect(8, 7, 1, 1);
-      g.fillRect(11, 7, 1, 1);
+      g.fillStyle(0x000000, 0.35);
+      g.fillCircle(12, 9, 1.2);
+      g.fillCircle(16, 9, 1.2);
+      g.fillStyle(0xffffff, 0.30);
+      g.fillRect(12, 8, 1, 1);
 
-      // Accent (scarf / aura)
-      g.fillStyle(accent, 0.55);
-      g.fillRect(7, 11, 6, 2);
-      g.fillStyle(accent, 0.18);
-      g.fillCircle(10, 7, 5);
+      // Scarf / role badge
+      g.fillStyle(accent, 0.22);
+      g.fillRoundedRect(9, 12, 10, 3, 2);
 
-      // Role mark
       if (role === "quest") {
-        g.fillStyle(accent, 0.55);
-        g.fillRect(9, 14, 2, 3);
+        g.fillStyle(accent, 0.40);
+        g.fillCircle(14, 18, 2);
       } else if (role === "merchant") {
-        g.fillStyle(0xffb000, 0.22);
-        g.fillRect(6, 16, 8, 2);
+        g.fillStyle(0xffc062, 0.25);
+        g.fillRoundedRect(8, 18, 12, 3, 2);
       } else if (role === "guard") {
-        g.fillStyle(0xffffff, 0.10);
-        g.fillRect(6, 10, 2, 8);
+        g.fillStyle(0xffffff, 0.12);
+        g.fillRoundedRect(9, 16, 3, 8, 2);
       } else if (role === "worker") {
-        g.fillStyle(0xffffff, 0.10);
-        g.fillRect(12, 10, 2, 8);
+        g.fillStyle(0xffffff, 0.12);
+        g.fillRoundedRect(16, 16, 3, 8, 2);
       }
-
-      // Tiny highlight
-      g.fillStyle(0xffffff, 0.10);
-      g.fillRect(11, 5, 1, 2);
 
       g.generateTexture(key, W, H);
     };
@@ -3788,9 +3781,9 @@
       g.generateTexture(key, S, S);
     };
 
-    makeBg("bg_jardin", 0x050b0b, 0x00ffc8, "jardin");
-    makeBg("bg_forge", 0x07050a, 0xffb000, "forge");
-    makeBg("bg_abime", 0x040309, 0xff4df2, "abime");
+    makeBg("bg_jardin", 0xbfe9ff, 0x59d48b, "jardin");
+    makeBg("bg_forge", 0x140b10, 0xffb000, "forge");
+    makeBg("bg_abime", 0x06040b, 0xff4df2, "abime");
 
     // --- Particle textures (small, additive) ---
     const makeFx = (key, color, shape) => {
@@ -4341,11 +4334,11 @@
       if (game) return;
 
       const config = {
-        type: Phaser.CANVAS,
+        type: Phaser.AUTO,
         canvas: ui.canvas,
-        backgroundColor: "#05040a",
-        pixelArt: true,
-        antialias: false,
+        backgroundColor: "#bfe9ff",
+        pixelArt: false,
+        antialias: true,
         physics: {
           default: "arcade",
           arcade: {
