@@ -127,6 +127,60 @@ body {
   image-rendering: pixelated;
 }
 
+.sopor-nameSplash {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.sopor-nameSplash.is-show {
+  animation: soporNameSplash 2400ms ease-out both;
+}
+
+.sopor-nameSplashInner {
+  text-align: center;
+  padding: 18px 18px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.sopor-nameSplashTitle {
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  font-size: clamp(26px, 5vw, 56px);
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.sopor-nameSplashSub {
+  margin-top: 8px;
+  opacity: 0.9;
+}
+
+@keyframes soporNameSplash {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  74% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scale(1.01);
+  }
+}
+
 .sopor-danger[data-level="low"] {
   box-shadow: 0 0 0 1px rgba(0, 255, 180, 0.15) inset;
 }

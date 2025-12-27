@@ -79,6 +79,15 @@
     }
   }
 
+  function cloneDeep(obj) {
+    try {
+      if (typeof structuredClone === "function") return structuredClone(obj);
+    } catch {
+      // ignore
+    }
+    return JSON.parse(JSON.stringify(obj));
+  }
+
   function migrateWorldState(state) {
     try {
       if (!state || typeof state !== "object") return state;
@@ -86,7 +95,7 @@
 
       const baseQuest = defaultWorldState(state.usernameNorm ?? "player").world.quest;
       if (!state.world.quest || typeof state.world.quest !== "object") {
-        state.world.quest = structuredClone(baseQuest);
+        state.world.quest = cloneDeep(baseQuest);
         return state;
       }
 
@@ -94,7 +103,7 @@
 
       // Old saves used q.progress/q.required without steps.
       if (!Array.isArray(q.steps)) {
-        const migrated = structuredClone(baseQuest);
+        const migrated = cloneDeep(baseQuest);
         migrated.communityProgress = Number(q.communityProgress ?? q.progress ?? 0) || 0;
         migrated.communityRequired = Number(q.communityRequired ?? q.required ?? baseQuest.communityRequired) || baseQuest.communityRequired;
         migrated.playerContribution = Number(q.playerContribution ?? 0) || 0;
@@ -110,7 +119,7 @@
       if (typeof q.communityRequired !== "number") q.communityRequired = baseQuest.communityRequired;
       if (typeof q.playerContribution !== "number") q.playerContribution = 0;
       if (typeof q.lastTickAt !== "number") q.lastTickAt = Date.now();
-      if (!q.activeSite) q.activeSite = structuredClone(baseQuest.activeSite);
+      if (!q.activeSite) q.activeSite = cloneDeep(baseQuest.activeSite);
       if (typeof q.completedCount !== "number") q.completedCount = 0;
       for (const step of q.steps) {
         if (!step || typeof step !== "object") continue;
@@ -203,6 +212,7 @@
             <div id="hud" class="sopor-hud"></div>
             <div id="danger" class="sopor-danger" data-level="low">Danger: —</div>
             <canvas id="minimap" class="sopor-minimap" width="160" height="160"></canvas>
+            <div id="nameSplash" class="sopor-nameSplash" aria-hidden="true"></div>
             <canvas id="gameCanvas"></canvas>
           </div>
         </div>
@@ -223,6 +233,7 @@
       hud: document.getElementById("hud"),
       danger: document.getElementById("danger"),
       minimap: /** @type {HTMLCanvasElement} */ (document.getElementById("minimap")),
+      nameSplash: /** @type {HTMLDivElement} */ (document.getElementById("nameSplash")),
       canvas: /** @type {HTMLCanvasElement} */ (document.getElementById("gameCanvas")),
     };
   }
@@ -555,7 +566,7 @@
   }
 
   function saveWorld(state) {
-    const copy = structuredClone(state);
+    const copy = cloneDeep(state);
     copy.lastSavedAt = new Date().toISOString();
     localStorage.setItem(saveKeyForUsernameNorm(state.usernameNorm), JSON.stringify(copy));
     return copy;
@@ -2194,6 +2205,20 @@
     const logger = makeLogger(ui.log);
     const audio = makeAudioEngine();
 
+    if (typeof Phaser === "undefined") {
+      logger.info("Erreur: Phaser n'est pas chargé (vendor/phaser.min.js bloqué ou introuvable)." );
+      if (ui.nameSplash) {
+        ui.nameSplash.innerHTML = `
+          <div class="sopor-nameSplashInner">
+            <div class="sopor-nameSplashTitle">PHASER</div>
+            <div class="sopor-nameSplashSub">Script bloqué / introuvable — voir le Journal.</div>
+          </div>
+        `;
+        ui.nameSplash.classList.add("is-show");
+      }
+      return;
+    }
+
     const weapons = buildWeaponIndex();
 
     const gs = {
@@ -2296,6 +2321,26 @@
           ui.danger.dataset.level = d.level;
           ui.danger.textContent = `Danger: ${d.level.toUpperCase()} • ${d.stratum} • ${d.threat.toFixed(2)}`;
         },
+        showNameSplash(usernameNorm) {
+          if (!ui.nameSplash) return;
+          const safe = escapeHtml(usernameNorm);
+          ui.nameSplash.innerHTML = `
+            <div class="sopor-nameSplashInner">
+              <div class="sopor-nameSplashTitle">${safe}</div>
+              <div class="sopor-nameSplashSub">Éveilleur — la Trame t'attend</div>
+            </div>
+          `;
+
+          ui.nameSplash.classList.remove("is-show");
+          // Force reflow to restart animation
+          void ui.nameSplash.offsetWidth;
+          ui.nameSplash.classList.add("is-show");
+
+          window.clearTimeout(ui.nameSplash._t);
+          ui.nameSplash._t = window.setTimeout(() => {
+            ui.nameSplash.classList.remove("is-show");
+          }, 2400);
+        },
       },
       logger,
       audio,
@@ -2305,6 +2350,17 @@
       _lastAutoSaveAt: 0,
       _facing: { x: 1, y: 0 },
     };
+
+    // Surface runtime errors into the in-page journal (helps debug "black screen" issues).
+    window.addEventListener("error", (e) => {
+      const msg = e?.message ? String(e.message) : "Erreur JS";
+      const src = e?.filename ? ` (${String(e.filename).split("/").slice(-1)[0]})` : "";
+      logger.info(`Erreur: ${msg}${src}`);
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      const reason = e?.reason instanceof Error ? e.reason.message : String(e?.reason ?? "(unknown)");
+      logger.info(`Promise rejetée: ${reason}`);
+    });
 
     gs.combat = makeCombatSystem(gs);
 
@@ -2349,8 +2405,44 @@
         scene: [BootScene, PreloadScene, TitleScene, WorldScene, UIScene, PauseScene],
       };
 
-      game = new Phaser.Game(config);
-      game.registry.set("gameState", gs);
+      try {
+        game = new Phaser.Game(config);
+        game.registry.set("gameState", gs);
+      } catch (err) {
+        logger.info("Erreur: impossible de démarrer Phaser." );
+        logger.info(String(err?.message ?? err));
+        throw err;
+      }
+    }
+
+    function startWorldScene() {
+      if (!game) return;
+      const doStart = () => {
+        try {
+          game.scene.stop("TitleScene");
+        } catch {
+          // ignore
+        }
+        game.scene.start("WorldScene");
+      };
+
+      // If boot hasn't completed yet, wait for READY.
+      if (game.isBooted) {
+        doStart();
+        return;
+      }
+
+      try {
+        game.events.once(Phaser.Core.Events.READY, doStart);
+      } catch {
+        // Fallback
+        window.setTimeout(doStart, 0);
+      }
+
+      // Extra fallback in case READY was missed
+      window.setTimeout(() => {
+        if (game && game.isBooted) doStart();
+      }, 150);
     }
 
     function startGameFlow() {
@@ -2360,6 +2452,8 @@
       updateBadges(usernameNorm);
 
       audio.configureForUsername(usernameNorm);
+
+      gs.ui.showNameSplash(usernameNorm);
 
       // Load existing or create new world
       gs.world = loadSave(usernameNorm) ?? defaultWorldState(usernameNorm);
@@ -2377,11 +2471,7 @@
       }
 
       // Jump to world
-      const scene = game.scene.getScene("WorldScene");
-      if (scene && scene.scene) {
-        game.scene.stop("TitleScene");
-        game.scene.start("WorldScene");
-      }
+      startWorldScene();
 
       logger.info("Démarrage du monde... explore les strates, mais attention au danger.");
     }
