@@ -74,7 +74,7 @@ body {
 .sopor-canvasWrap {
   position: relative;
   min-height: 0;
-  height: calc(100vh - 64px);
+  height: 100%;
   border-radius: 12px;
   overflow: hidden;
 }
@@ -173,15 +173,31 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 13px;
   line-height: 1.45;
-  max-height: 240px;
+  max-height: none;
+  min-height: 0;
+  flex: 1;
   overflow: auto;
 }
 
 .sopor-logDock {
   margin: 0 12px 12px;
-  min-height: 220px;
-  max-height: 260px;
+  min-height: 260px;
+  max-height: 360px;
   overflow: hidden;
+}
+
+.sopor-logDock .card-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.sopor-hud--panel {
+  position: static;
+  left: auto;
+  top: auto;
+  pointer-events: none;
 }
 
 .sopor-logTitle {

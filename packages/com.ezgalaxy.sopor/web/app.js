@@ -302,6 +302,13 @@
           </div>
 
           <div class="card">
+            <div class="card-title">État</div>
+            <div class="card-body">
+              <div id="hud" class="sopor-hud sopor-hud--panel"></div>
+            </div>
+          </div>
+
+          <div class="card">
             <div class="card-title">Contrôles</div>
             <div class="card-body">
               <div>Déplacement: ZQSD / WASD / flèches</div>
@@ -315,7 +322,6 @@
 
         <div class="sopor-canvasWrap card">
           <div class="card-body" style="padding:0; height:100%">
-            <div id="hud" class="sopor-hud"></div>
             <div id="danger" class="sopor-danger" data-level="low">Danger: —</div>
             <canvas id="minimap" class="sopor-minimap" width="160" height="160"></canvas>
             <div id="nameSplash" class="sopor-nameSplash" aria-hidden="true"></div>
@@ -955,6 +961,7 @@
 
     create() {
       generatePlaceholderTextures(this);
+      this.registry.set("assetsReady", true);
       this.scene.start("TitleScene");
     }
   }
@@ -4374,22 +4381,56 @@
         game.scene.start("WorldScene");
       };
 
+      const hasCoreTextures = () => {
+        try {
+          return (
+            !!game?.registry?.get("assetsReady") ||
+            (!!game?.textures && (game.textures.exists("spr_player") || game.textures.exists("tile_floor_jardin")))
+          );
+        } catch {
+          return false;
+        }
+      };
+
+      const tryStart = () => {
+        if (hasCoreTextures()) {
+          doStart();
+          return;
+        }
+
+        const t0 = nowMs();
+        const maxWaitMs = 2500;
+        const tick = () => {
+          if (hasCoreTextures()) {
+            doStart();
+            return;
+          }
+          if (nowMs() - t0 > maxWaitMs) {
+            logger.info("Erreur: textures non prêtes (affichage 'grille verte'). Recharge la page.");
+            return;
+          }
+          window.setTimeout(tick, 30);
+        };
+
+        tick();
+      };
+
       // If boot hasn't completed yet, wait for READY.
       if (game.isBooted) {
-        doStart();
+        tryStart();
         return;
       }
 
       try {
-        game.events.once(Phaser.Core.Events.READY, doStart);
+        game.events.once(Phaser.Core.Events.READY, tryStart);
       } catch {
         // Fallback
-        window.setTimeout(doStart, 0);
+        window.setTimeout(tryStart, 0);
       }
 
       // Extra fallback in case READY was missed
       window.setTimeout(() => {
-        if (game && game.isBooted) doStart();
+        if (game && game.isBooted) tryStart();
       }, 150);
     }
 
