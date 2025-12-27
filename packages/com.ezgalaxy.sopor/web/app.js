@@ -1010,6 +1010,8 @@
 
       this.bg = null;
       this.tintOverlay = null;
+      this.darkOverlay = null;
+      this.playerLight = null;
       this.fx = null;
       this._ambienceStratum = null;
       this._lastAmbienceAt = 0;
@@ -1049,8 +1051,8 @@
       this._applyIdleBreathe(this.player, 0.22);
 
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-      this.cameras.main.setZoom(2.0);
-      this.cameras.main.setRoundPixels(false);
+      this.cameras.main.setZoom(3);
+      this.cameras.main.setRoundPixels(true);
 
       // Visual ambience (parallax bg + subtle color grade + particles)
       const cam = this.cameras.main;
@@ -1064,6 +1066,18 @@
       this.tintOverlay.setScrollFactor(0);
       this.tintOverlay.setBlendMode(Phaser.BlendModes.MULTIPLY);
       this.tintOverlay.setDepth(50);
+
+      // Neo-pixel lighting: darken the whole screen, then add soft halos.
+      this.darkOverlay = this.add.rectangle(0, 0, cam.width, cam.height, 0x000000, 0.28);
+      this.darkOverlay.setOrigin(0, 0);
+      this.darkOverlay.setScrollFactor(0);
+      this.darkOverlay.setBlendMode(Phaser.BlendModes.MULTIPLY);
+      this.darkOverlay.setDepth(45);
+
+      this.playerLight = this.add.image(this.player.x, this.player.y, "spr_light_jardin");
+      this.playerLight.setBlendMode(Phaser.BlendModes.ADD);
+      this.playerLight.setDepth(44);
+      this.playerLight.setAlpha(0.9);
 
       // Particle managers (enabled/disabled per stratum)
       // Phaser 3.60+ uses ParticleEmitter as a GameObject; createEmitter was removed.
@@ -1131,6 +1145,10 @@
         if (this.tintOverlay) {
           this.tintOverlay.width = w;
           this.tintOverlay.height = h;
+        }
+        if (this.darkOverlay) {
+          this.darkOverlay.width = w;
+          this.darkOverlay.height = h;
         }
       });
 
@@ -1224,6 +1242,11 @@
 
       this._movePlayer();
       this._aiTick();
+
+      // Neo-pixel lighting follows the player.
+      if (this.playerLight && this.player && this.player.active) {
+        this.playerLight.setPosition(this.player.x, this.player.y);
+      }
 
       // Ambience refresh (bg scroll + stratum toggles)
       if (nowMs() - this._lastAmbienceAt > 140) {
@@ -1326,6 +1349,16 @@
       if (this.tintOverlay) {
         this.tintOverlay.fillColor = isJ ? 0x00ffc8 : isF ? 0xffb000 : 0xff4df2;
         this.tintOverlay.fillAlpha = isJ ? 0.055 : isF ? 0.065 : 0.075;
+      }
+
+      if (this.darkOverlay) {
+        // Darker in Forge/Abime, softer in Jardin.
+        this.darkOverlay.fillAlpha = isJ ? 0.18 : isF ? 0.30 : 0.34;
+      }
+
+      if (this.playerLight) {
+        this.playerLight.setTexture(isJ ? "spr_light_jardin" : isF ? "spr_light_forge" : "spr_light_abime");
+        this.playerLight.setAlpha(isJ ? 0.85 : isF ? 0.95 : 1.0);
       }
 
       if (this.fx) {
@@ -2541,8 +2574,64 @@
 
       // Simple Jardin decor: trees + small "house" blobs to make it feel alive.
       if (chunk.stratum === STRATA.JARDIN) {
+        const drawCentered = (tex, px, py, alpha = 1) => {
+          const frame = this.textures.getFrame(tex);
+          const w = frame?.width ?? 16;
+          const h = frame?.height ?? 16;
+          rt.drawFrame(tex, null, px - w / 2, py - h / 2, alpha);
+          return { w, h };
+        };
+
+        // Village near spawn (origin). Adds a cozy focal point.
+        const chunkCenterWx = (cx + 0.5) * CHUNK_SIZE_PX;
+        const chunkCenterWy = (cy + 0.5) * CHUNK_SIZE_PX;
+        const nearSpawnVillage = Math.hypot(chunkCenterWx, chunkCenterWy) < 520;
+        if (nearSpawnVillage) {
+          const vrng = makeRng(hash32(`${chunk.cx},${chunk.cy}:village`) ^ 0x51a7);
+
+          // Place a few houses in a loose ring.
+          const houseCount = 2 + vrng.nextInt(3);
+          for (let i = 0; i < houseCount; i++) {
+            const ang = (i / houseCount) * Math.PI * 2 + vrng.nextRange(-0.35, 0.35);
+            const rad = 92 + vrng.nextRange(-18, 28);
+            const wx = Math.cos(ang) * rad;
+            const wy = Math.sin(ang) * rad;
+            // Only draw if this chunk contains the position.
+            const inChunk = wx >= cx * CHUNK_SIZE_PX && wx < (cx + 1) * CHUNK_SIZE_PX && wy >= cy * CHUNK_SIZE_PX && wy < (cy + 1) * CHUNK_SIZE_PX;
+            if (!inChunk) continue;
+            const px = wx - cx * CHUNK_SIZE_PX;
+            const py = wy - cy * CHUNK_SIZE_PX;
+            drawCentered("spr_house", px, py, 1);
+            addSolidRect(px, py + 6, 34, 22);
+
+            // Warm lamp glow next to house (additive image, not baked into RT)
+            const lamp = this.add.image(px + vrng.nextRange(-16, 16), py + 10, "spr_light_forge");
+            lamp.setBlendMode(Phaser.BlendModes.ADD);
+            lamp.setAlpha(0.55);
+            lamp.setScale(0.55);
+            lamp.setDepth(20);
+            container.add(lamp);
+            objectsCreated.push(lamp);
+            this.tweens.add({ targets: lamp, alpha: { from: 0.40, to: 0.62 }, duration: 820 + vrng.nextInt(620), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+          }
+
+          // A central light bloom (soft)
+          if (0 >= cx * CHUNK_SIZE_PX && 0 < (cx + 1) * CHUNK_SIZE_PX && 0 >= cy * CHUNK_SIZE_PX && 0 < (cy + 1) * CHUNK_SIZE_PX) {
+            const px = 0 - cx * CHUNK_SIZE_PX;
+            const py = 0 - cy * CHUNK_SIZE_PX;
+            const glow = this.add.image(px, py, "spr_light_jardin");
+            glow.setBlendMode(Phaser.BlendModes.ADD);
+            glow.setAlpha(0.65);
+            glow.setScale(0.85);
+            glow.setDepth(18);
+            container.add(glow);
+            objectsCreated.push(glow);
+            this.tweens.add({ targets: glow, alpha: { from: 0.55, to: 0.78 }, duration: 1200 + vrng.nextInt(900), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+          }
+        }
+
         const decorRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:decor`) ^ 0x2a71);
-        const decorCount = 3 + decorRng.nextInt(5);
+        const decorCount = 8 + decorRng.nextInt(10);
         for (let i = 0; i < decorCount; i++) {
           const tx = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
           const ty = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
@@ -2556,16 +2645,24 @@
           if (plaza || road) continue;
 
           const r = decorRng.next();
-          const isHouse = r < 0.10;
-          const isTree = r >= 0.10 && r < 0.65;
-          const tex = isHouse ? "spr_house" : isTree ? (decorRng.next() < 0.5 ? "spr_tree_a" : "spr_tree_b") : decorRng.next() < 0.55 ? "spr_bush" : "spr_flower";
-          const img = this.add.image(px, py, tex);
-          img.setDepth(-5);
-          container.add(img);
+          const isHouse = r < 0.12;
+          const isTree = r >= 0.12 && r < 0.62;
+          const isPlant = !isHouse && !isTree;
+          const tex = isHouse
+            ? "spr_house"
+            : isTree
+              ? (decorRng.next() < 0.5 ? "spr_tree_a" : "spr_tree_b")
+              : decorRng.next() < 0.6
+                ? "spr_bush"
+                : "spr_flower";
+
+          drawCentered(tex, px, py, 1);
+
           // collider footprint
           if (isHouse) addSolidRect(px, py + 6, 34, 22);
           else if (isTree) addSolidRect(px, py + 4, 22, 18);
           else if (tex === "spr_bush") addSolidRect(px, py + 6, 18, 12);
+          // flowers: no collider
         }
 
         // Occasional chest/node placement in the world state is handled elsewhere,
@@ -2573,8 +2670,16 @@
       }
 
       if (chunk.stratum === STRATA.FORGE) {
+        const drawCentered = (tex, px, py, alpha = 1) => {
+          const frame = this.textures.getFrame(tex);
+          const w = frame?.width ?? 16;
+          const h = frame?.height ?? 16;
+          rt.drawFrame(tex, null, px - w / 2, py - h / 2, alpha);
+          return { w, h };
+        };
+
         const decorRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:decor`) ^ 0x6c52);
-        const decorCount = 3 + decorRng.nextInt(5);
+        const decorCount = 6 + decorRng.nextInt(8);
         for (let i = 0; i < decorCount; i++) {
           const tx = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
           const ty = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
@@ -2589,9 +2694,7 @@
 
           const r = decorRng.next();
           const tex = r < 0.45 ? (decorRng.next() < 0.5 ? "spr_rock_forge_a" : "spr_rock_forge_b") : r < 0.78 ? "spr_pipe_forge" : "spr_vent_forge";
-          const img = this.add.image(px, py, tex);
-          img.setDepth(-5);
-          container.add(img);
+          drawCentered(tex, px, py, 1);
 
           if (tex.startsWith("spr_rock_forge")) addSolidRect(px, py + 6, 22, 14);
           else if (tex === "spr_pipe_forge") addSolidRect(px, py + 6, 28, 10);
@@ -3808,6 +3911,33 @@
     makeFx("fx_ember", 0xffb000, "ember");
     makeFx("fx_mote", 0xff4df2, "mote");
 
+    // --- Light halos (neo pixel lighting) ---
+    const makeLight = (key, color) => {
+      const S = 96;
+      const cx = S / 2;
+      const cy = S / 2;
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, S, S);
+
+      // layered circles = cheap radial gradient
+      for (let r = 42; r >= 4; r -= 4) {
+        const a = (r / 42) * 0.10;
+        g.fillStyle(color, a);
+        g.fillCircle(cx, cy, r);
+      }
+      // bright core
+      g.fillStyle(color, 0.18);
+      g.fillCircle(cx, cy, 10);
+
+      g.generateTexture(key, S, S);
+    };
+
+    makeLight("spr_light_soft", 0xffffff);
+    makeLight("spr_light_jardin", 0x9dffcf);
+    makeLight("spr_light_forge", 0xffb35c);
+    makeLight("spr_light_abime", 0xff7fe8);
+
     g.destroy();
   }
 
@@ -4336,9 +4466,9 @@
       const config = {
         type: Phaser.AUTO,
         canvas: ui.canvas,
-        backgroundColor: "#bfe9ff",
-        pixelArt: false,
-        antialias: true,
+        backgroundColor: "#05040a",
+        pixelArt: true,
+        antialias: false,
         physics: {
           default: "arcade",
           arcade: {
