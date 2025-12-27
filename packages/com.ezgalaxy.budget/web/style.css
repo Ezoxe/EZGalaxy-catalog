@@ -9,6 +9,9 @@
   --success: var(--ez-success);
   --warning: var(--ez-warning);
   --danger: var(--ez-danger);
+
+  /* Hint UA widgets (date/select) to use dark palette when possible */
+  color-scheme: dark;
 }
 
 *{ box-sizing:border-box; }
@@ -117,6 +120,23 @@ input, select, button { font: inherit; }
   -moz-appearance: none;
   appearance: none;
   padding-right: 22px;
+  cursor: pointer;
+}
+
+/* Dropdown list (native) is only partially stylable across browsers.
+   These rules fix the common "white dropdown" issue on Windows/Chromium. */
+.field select option,
+.field select optgroup{
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.field select option:checked{
+  background-color: var(--primarySoft);
+}
+
+.field:focus-within{
+  border-color: rgba(14,165,164,0.45);
 }
 
 .field input[type="date"]{
