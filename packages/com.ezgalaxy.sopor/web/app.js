@@ -10,6 +10,20 @@
   const CHUNK_SIZE_TILES = 24; // 24x24 tiles per chunk
   const CHUNK_SIZE_PX = TILE_SIZE * CHUNK_SIZE_TILES;
 
+  // Finite world (square bounds). Keeps exploration big but not infinite.
+  const WORLD_RADIUS_PX = 2600;
+  const WORLD_MIN = -WORLD_RADIUS_PX;
+  const WORLD_MAX = WORLD_RADIUS_PX;
+  const WORLD_MAX_CHUNK = Math.ceil(WORLD_RADIUS_PX / CHUNK_SIZE_PX);
+
+  // Dungeon pocket (separate bounds, room-based). Uses same tile/chunk renderer.
+  const DUNGEON_SIZE_TILES = 96; // 96x96 tiles
+  const DUNGEON_SIZE_PX = DUNGEON_SIZE_TILES * TILE_SIZE;
+  const DUNGEON_HALF_PX = Math.floor(DUNGEON_SIZE_PX / 2);
+  const DUNGEON_MIN = -DUNGEON_HALF_PX;
+  const DUNGEON_MAX = DUNGEON_HALF_PX;
+  const DUNGEON_MAX_CHUNK = Math.ceil(DUNGEON_HALF_PX / CHUNK_SIZE_PX);
+
   const WORLD_VIEW_CHUNKS_RADIUS = 2; // loads (2r+1)^2 chunks
 
   const BASE_MOVE_SPEED = 120;
@@ -21,10 +35,87 @@
     JARDIN: "JARDIN",
     FORGE: "FORGE",
     ABIME: "ABIME",
+    DUNGEON: "DONJON",
   };
 
   function clamp(v, a, b) {
     return Math.max(a, Math.min(b, v));
+  }
+
+  function clampWorldX(x) {
+    return clamp(x, WORLD_MIN + 16, WORLD_MAX - 16);
+  }
+
+  function clampWorldY(y) {
+    return clamp(y, WORLD_MIN + 16, WORLD_MAX - 16);
+  }
+
+  function clampDungeonX(x) {
+    return clamp(x, DUNGEON_MIN + 16, DUNGEON_MAX - 16);
+  }
+
+  function clampDungeonY(y) {
+    return clamp(y, DUNGEON_MIN + 16, DUNGEON_MAX - 16);
+  }
+
+  function isChunkInWorld(cx, cy) {
+    return cx >= -WORLD_MAX_CHUNK && cx <= WORLD_MAX_CHUNK && cy >= -WORLD_MAX_CHUNK && cy <= WORLD_MAX_CHUNK;
+  }
+
+  function isChunkInDungeon(cx, cy) {
+    return cx >= -DUNGEON_MAX_CHUNK && cx <= DUNGEON_MAX_CHUNK && cy >= -DUNGEON_MAX_CHUNK && cy <= DUNGEON_MAX_CHUNK;
+  }
+
+  function addInventoryItem(player, id, name, qty) {
+    const p = player;
+    if (!p?.inventory) return;
+    if (!Array.isArray(p.inventory.items)) p.inventory.items = [];
+    const q = Math.max(0, Number(qty ?? 0) || 0);
+    if (q <= 0) return;
+    const found = p.inventory.items.find((it) => it && it.id === id);
+    if (found) {
+      found.qty = (Number(found.qty ?? 0) || 0) + q;
+      if (!found.name) found.name = name;
+    } else {
+      p.inventory.items.push({ id, name, qty: q });
+    }
+  }
+
+  function countInventoryItem(player, id) {
+    const items = player?.inventory?.items;
+    if (!Array.isArray(items)) return 0;
+    const found = items.find((it) => it && it.id === id);
+    return Number(found?.qty ?? 0) || 0;
+  }
+
+  function consumeInventoryItem(player, id, qty) {
+    const items = player?.inventory?.items;
+    if (!Array.isArray(items)) return false;
+    const need = Math.max(0, Number(qty ?? 0) || 0);
+    if (need <= 0) return true;
+    const found = items.find((it) => it && it.id === id);
+    const have = Number(found?.qty ?? 0) || 0;
+    if (!found || have < need) return false;
+    found.qty = have - need;
+    if (found.qty <= 0) {
+      const idx = items.indexOf(found);
+      if (idx >= 0) items.splice(idx, 1);
+    }
+    return true;
+  }
+
+  function strategicPillarPositions(seed32) {
+    const rng = makeRng(seed32 ^ 0x51f0a1);
+    const r1 = 1100 + rng.nextRange(-80, 80);
+    const r2 = 1900 + rng.nextRange(-120, 120);
+    return [
+      { x: 0, y: 0 },
+      { x: r1, y: 0 },
+      { x: -r1, y: 0 },
+      { x: 0, y: r1 },
+      { x: 0, y: -r1 },
+      { x: r2, y: r2 },
+    ];
   }
 
   function nowMs() {
@@ -139,6 +230,25 @@
         }
       }
 
+      // Dungeon fields (optional; safe defaults)
+      if (!state.world.dungeon || typeof state.world.dungeon !== "object") {
+        state.world.dungeon = {
+          inDungeon: false,
+          seed: 0,
+          returnPos: { x: 0, y: 0 },
+          opened: {},
+          lastEntrance: null,
+        };
+      } else {
+        if (typeof state.world.dungeon.inDungeon !== "boolean") state.world.dungeon.inDungeon = false;
+        if (typeof state.world.dungeon.seed !== "number") state.world.dungeon.seed = 0;
+        if (!state.world.dungeon.returnPos) state.world.dungeon.returnPos = { x: 0, y: 0 };
+        if (typeof state.world.dungeon.returnPos.x !== "number") state.world.dungeon.returnPos.x = 0;
+        if (typeof state.world.dungeon.returnPos.y !== "number") state.world.dungeon.returnPos.y = 0;
+        if (!state.world.dungeon.opened || typeof state.world.dungeon.opened !== "object") state.world.dungeon.opened = {};
+        if (!("lastEntrance" in state.world.dungeon)) state.world.dungeon.lastEntrance = null;
+      }
+
       return state;
     } catch {
       return state;
@@ -159,11 +269,14 @@
       throw new Error("#app not found");
     }
 
+    app.dataset.mode = "boot";
+
     app.innerHTML = `
       <div class="sopor-topbar">
         <div class="sopor-title">Sopor</div>
         <div class="sopor-badge">Offline • Pixel • Quêtes</div>
         <div style="flex:1"></div>
+        <button id="btnMute" class="btn">Son: —</button>
         <button id="btnHardReset" class="btn">Reset (local)</button>
       </div>
       <div class="sopor-shell">
@@ -198,13 +311,6 @@
               <div>Pause: Échap</div>
             </div>
           </div>
-
-          <div class="card">
-            <div class="card-title">Journal</div>
-            <div class="card-body">
-              <div id="log" class="sopor-log"></div>
-            </div>
-          </div>
         </div>
 
         <div class="sopor-canvasWrap card">
@@ -217,6 +323,13 @@
           </div>
         </div>
       </div>
+
+      <div class="sopor-logDock card">
+        <div class="card-body">
+          <div class="sopor-logTitle">Journal</div>
+          <div id="log" class="sopor-log"></div>
+        </div>
+      </div>
     `;
 
     return {
@@ -225,6 +338,7 @@
       btnStart: /** @type {HTMLButtonElement} */ (document.getElementById("btnStart")),
       btnLoad: /** @type {HTMLButtonElement} */ (document.getElementById("btnLoad")),
       btnDeleteSave: /** @type {HTMLButtonElement} */ (document.getElementById("btnDeleteSave")),
+      btnMute: /** @type {HTMLButtonElement} */ (document.getElementById("btnMute")),
       btnHardReset: /** @type {HTMLButtonElement} */ (document.getElementById("btnHardReset")),
       userBadge: document.getElementById("userBadge"),
       noteBadge: document.getElementById("noteBadge"),
@@ -242,13 +356,35 @@
     const lines = [];
     function render() {
       if (!logEl) return;
-      logEl.textContent = lines.join("\n");
+      logEl.innerHTML = lines
+        .map((l) => {
+          const k = l.kind || "info";
+          return `
+            <div class="sopor-logLine sopor-logLine--${k}">
+              <div class="sopor-logTime">${escapeHtml(l.time)}</div>
+              <div class="sopor-logMsg">${escapeHtml(l.msg)}</div>
+            </div>
+          `;
+        })
+        .join("");
       logEl.scrollTop = logEl.scrollHeight;
     }
+
+    function classify(msg) {
+      const m = String(msg);
+      if (/^Erreur:|^PHASER\b|Promise rejetée:/.test(m)) return "error";
+      if (/Achat réussi:|Pilier alimenté|Sauvegarde chargée|Démarrage du monde/.test(m)) return "success";
+      if (/Pseudo requis\.|Tu n'as plus assez|il te faut de l'Essence|impossible/i.test(m)) return "warn";
+      return "info";
+    }
+
     return {
       info(msg) {
-        const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        lines.push(line);
+        lines.push({
+          time: new Date().toLocaleTimeString(),
+          msg: String(msg),
+          kind: classify(msg),
+        });
         while (lines.length > MAX_LOG_LINES) lines.shift();
         render();
       },
@@ -274,6 +410,8 @@
       rootMidi: 60,
       stratum: STRATA.JARDIN,
       stage: 0,
+      muted: false,
+      volume: 0.35,
       // nodes
       master: null,
       delay: null,
@@ -302,7 +440,8 @@
       if (!ctx) return;
 
       const master = ctx.createGain();
-      master.gain.value = volume;
+      state.volume = clamp(volume, 0, 1);
+      master.gain.value = state.muted ? 0 : state.volume;
 
       const delay = ctx.createDelay(1.2);
       delay.delayTime.value = 0.22;
@@ -456,10 +595,27 @@
         const s = safeJsonParse(raw ?? "", null);
         return {
           volume: typeof s?.volume === "number" ? clamp(s.volume, 0, 1) : 0.35,
+          muted: typeof s?.muted === "boolean" ? s.muted : false,
         };
       },
       saveSettings(settings) {
-        localStorage.setItem(settingsKey(), JSON.stringify({ volume: settings.volume }));
+        localStorage.setItem(settingsKey(), JSON.stringify({ volume: settings.volume, muted: !!settings.muted }));
+      },
+      setMuted(muted) {
+        state.muted = !!muted;
+        if (state.master) {
+          const ctx = ensureContext();
+          const t = ctx ? ctx.currentTime : 0;
+          state.master.gain.setTargetAtTime(state.muted ? 0 : state.volume, t, 0.02);
+        }
+      },
+      setVolume(volume) {
+        state.volume = clamp(volume, 0, 1);
+        if (state.master) {
+          const ctx = ensureContext();
+          const t = ctx ? ctx.currentTime : 0;
+          state.master.gain.setTargetAtTime(state.muted ? 0 : state.volume, t, 0.02);
+        }
       },
       configureForUsername(usernameNorm) {
         state.usernameSeed = hash32(usernameNorm);
@@ -486,6 +642,10 @@
         }
 
         if (!state.master) buildGraph(volume);
+        else {
+          state.volume = clamp(volume, 0, 1);
+          state.master.gain.value = state.muted ? 0 : state.volume;
+        }
 
         state.started = true;
         state.nextNoteTime = ctx.currentTime + 0.08;
@@ -536,6 +696,13 @@
       world: {
         // chunkKey -> { stability, threat, pillar, merchantStockSeed }
         chunks: {},
+        dungeon: {
+          inDungeon: false,
+          seed: 0,
+          returnPos: { x: 0, y: 0 },
+          opened: {},
+          lastEntrance: null,
+        },
         quest: {
           id: "stability_collab_1",
           title: "Trame Collaborative: Réparer le Grand Phare",
@@ -600,6 +767,176 @@
     return base + d / 900;
   }
 
+  function generateDungeonLayout(seed32) {
+    const rng = makeRng(seed32 ^ 0x2e15b1);
+    const W = DUNGEON_SIZE_TILES;
+    const H = DUNGEON_SIZE_TILES;
+
+    const tiles = new Uint8Array(W * H); // 0 wall, 1 floor
+    const idx = (x, y) => y * W + x;
+
+    const carveRect = (x0, y0, w, h) => {
+      for (let y = y0; y < y0 + h; y++) {
+        for (let x = x0; x < x0 + w; x++) {
+          if (x <= 1 || y <= 1 || x >= W - 2 || y >= H - 2) continue;
+          tiles[idx(x, y)] = 1;
+        }
+      }
+    };
+
+    const rooms = [];
+    const maxRooms = 10;
+    for (let i = 0; i < maxRooms; i++) {
+      const rw = 7 + rng.nextInt(10);
+      const rh = 7 + rng.nextInt(10);
+      const rx = 3 + rng.nextInt(W - rw - 6);
+      const ry = 3 + rng.nextInt(H - rh - 6);
+
+      // simple overlap avoidance
+      let ok = true;
+      for (const r of rooms) {
+        const pad = 3;
+        if (rx < r.x + r.w + pad && rx + rw + pad > r.x && ry < r.y + r.h + pad && ry + rh + pad > r.y) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) continue;
+
+      const room = { x: rx, y: ry, w: rw, h: rh, cx: Math.floor(rx + rw / 2), cy: Math.floor(ry + rh / 2) };
+      rooms.push(room);
+      carveRect(rx, ry, rw, rh);
+    }
+
+    // Ensure at least a few rooms
+    if (rooms.length < 4) {
+      const fallback = [
+        { x: 8, y: 8, w: 12, h: 10 },
+        { x: 60, y: 12, w: 12, h: 10 },
+        { x: 12, y: 60, w: 12, h: 10 },
+        { x: 58, y: 60, w: 14, h: 12 },
+      ];
+      rooms.length = 0;
+      for (const r of fallback) {
+        const room = { ...r, cx: Math.floor(r.x + r.w / 2), cy: Math.floor(r.y + r.h / 2) };
+        rooms.push(room);
+        carveRect(room.x, room.y, room.w, room.h);
+      }
+    }
+
+    // Connect rooms with corridors
+    const carveCorridor = (x0, y0, x1, y1) => {
+      let x = x0;
+      let y = y0;
+      const horizFirst = rng.next() < 0.5;
+      const stepX = x1 > x0 ? 1 : -1;
+      const stepY = y1 > y0 ? 1 : -1;
+      const carve = (xx, yy) => {
+        if (xx <= 1 || yy <= 1 || xx >= W - 2 || yy >= H - 2) return;
+        tiles[idx(xx, yy)] = 1;
+        // thicken corridor a bit
+        tiles[idx(xx + 1, yy)] = 1;
+        tiles[idx(xx, yy + 1)] = 1;
+      };
+
+      if (horizFirst) {
+        while (x !== x1) {
+          carve(x, y);
+          x += stepX;
+        }
+        while (y !== y1) {
+          carve(x, y);
+          y += stepY;
+        }
+      } else {
+        while (y !== y1) {
+          carve(x, y);
+          y += stepY;
+        }
+        while (x !== x1) {
+          carve(x, y);
+          x += stepX;
+        }
+      }
+      carve(x1, y1);
+    };
+
+    for (let i = 1; i < rooms.length; i++) {
+      const a = rooms[i - 1];
+      const b = rooms[i];
+      carveCorridor(a.cx, a.cy, b.cx, b.cy);
+    }
+
+    // Choose spawn in first room, exit in farthest room.
+    const spawnRoom = rooms[0];
+    let exitRoom = rooms[0];
+    let bestD = -1;
+    for (const r of rooms) {
+      const d = Math.hypot(r.cx - spawnRoom.cx, r.cy - spawnRoom.cy);
+      if (d > bestD) {
+        bestD = d;
+        exitRoom = r;
+      }
+    }
+
+    const tileToWorld = (tx, ty) => ({
+      x: DUNGEON_MIN + tx * TILE_SIZE + TILE_SIZE / 2,
+      y: DUNGEON_MIN + ty * TILE_SIZE + TILE_SIZE / 2,
+    });
+
+    const spawn = tileToWorld(spawnRoom.cx, spawnRoom.cy);
+    const exit = tileToWorld(exitRoom.cx, exitRoom.cy);
+
+    // Place chests in a few different rooms (not spawn room).
+    // Ensure the locked chest is in the exit room so the loop feels deliberate.
+    const chests = [];
+
+    const pickChestPosInRoom = (r, tries = 10) => {
+      for (let t = 0; t < tries; t++) {
+        const tx = clamp(r.cx + rng.nextInt(5) - 2, 3, W - 4);
+        const ty = clamp(r.cy + rng.nextInt(5) - 2, 3, H - 4);
+        if (tiles[idx(tx, ty)] !== 1) continue;
+        const pos = tileToWorld(tx, ty);
+        return { x: pos.x, y: pos.y };
+      }
+      // Fallback: room center
+      const pos = tileToWorld(r.cx, r.cy);
+      return { x: pos.x, y: pos.y };
+    };
+
+    const chestRooms = rooms.filter((r) => r !== spawnRoom);
+    const regularRooms = chestRooms.filter((r) => r !== exitRoom);
+    const regularCount = clamp(regularRooms.length >= 3 ? 3 : regularRooms.length, 1, 3);
+
+    // Deterministic shuffle via rng
+    for (let i = regularRooms.length - 1; i > 0; i--) {
+      const j = rng.nextInt(i + 1);
+      const tmp = regularRooms[i];
+      regularRooms[i] = regularRooms[j];
+      regularRooms[j] = tmp;
+    }
+
+    for (let i = 0; i < regularCount; i++) {
+      const r = regularRooms[i];
+      const pos = pickChestPosInRoom(r);
+      chests.push({ id: `dch_${i}`, x: pos.x, y: pos.y, locked: false });
+    }
+
+    // Locked chest: exit room
+    const lockPos = pickChestPosInRoom(exitRoom);
+    chests.push({ id: "dch_lock", x: lockPos.x, y: lockPos.y, locked: true });
+
+    return {
+      seed: seed32,
+      w: W,
+      h: H,
+      tiles,
+      spawn,
+      exit,
+      chests,
+    };
+  }
+
   // -------- Phaser scenes --------
 
   class BootScene extends Phaser.Scene {
@@ -658,8 +995,17 @@
       this.workers = null;
       this.projectiles = null;
       this.pickups = null;
+      this.interactables = null;
+
+      this.solids = null;
 
       this.questSite = null;
+
+      this.bg = null;
+      this.tintOverlay = null;
+      this.fx = null;
+      this._ambienceStratum = null;
+      this._lastAmbienceAt = 0;
 
       this._hudLast = 0;
 
@@ -669,7 +1015,9 @@
     create() {
       const gs = this.registry.get("gameState");
 
-      this.physics.world.setBounds(-100000, -100000, 200000, 200000);
+      // Ensure we always start in overworld bounds.
+      gs.world.world.dungeon.inDungeon = false;
+      this.physics.world.setBounds(WORLD_MIN, WORLD_MIN, WORLD_RADIUS_PX * 2, WORLD_RADIUS_PX * 2);
 
       this.chunkLayer = this.add.layer();
       this.entityLayer = this.add.layer();
@@ -679,18 +1027,110 @@
       this.workers = this.physics.add.group();
       this.projectiles = this.physics.add.group();
       this.pickups = this.physics.add.group();
+      this.interactables = this.physics.add.group();
+
+      this.solids = this.physics.add.staticGroup();
 
       const p = gs.world.player;
 
       this.player = this.physics.add.image(p.x, p.y, "spr_player");
       this.player.setCircle(PLAYER_RADIUS, 1, 1);
-      this.player.setCollideWorldBounds(false);
+      this.player.setCollideWorldBounds(true);
       this.player.setDrag(1400, 1400);
       this.player.setMaxVelocity(420, 420);
+
+      this._applyIdleBreathe(this.player, 0.22);
 
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
       this.cameras.main.setZoom(2.5);
       this.cameras.main.setRoundPixels(true);
+
+      // Visual ambience (parallax bg + subtle color grade + particles)
+      const cam = this.cameras.main;
+      this.bg = this.add.tileSprite(0, 0, cam.width, cam.height, "bg_jardin");
+      this.bg.setOrigin(0, 0);
+      this.bg.setScrollFactor(0);
+      this.bg.setDepth(-50);
+
+      this.tintOverlay = this.add.rectangle(0, 0, cam.width, cam.height, 0x00ffc8, 0.06);
+      this.tintOverlay.setOrigin(0, 0);
+      this.tintOverlay.setScrollFactor(0);
+      this.tintOverlay.setBlendMode(Phaser.BlendModes.MULTIPLY);
+      this.tintOverlay.setDepth(50);
+
+      // Particle managers (enabled/disabled per stratum)
+      const pmPollen = this.add.particles("fx_pollen");
+      pmPollen.setDepth(40);
+      pmPollen.setScrollFactor(0);
+      const emPollen = pmPollen.createEmitter({
+        x: { min: 0, max: cam.width },
+        y: { min: 0, max: cam.height },
+        lifespan: { min: 2200, max: 4200 },
+        speedY: { min: 10, max: 28 },
+        speedX: { min: -8, max: 8 },
+        quantity: 2,
+        frequency: 140,
+        scale: { start: 0.9, end: 0.15 },
+        alpha: { start: 0.22, end: 0 },
+        rotate: { min: 0, max: 360 },
+        blendMode: "ADD",
+      });
+
+      const pmEmber = this.add.particles("fx_ember");
+      pmEmber.setDepth(40);
+      pmEmber.setScrollFactor(0);
+      const emEmber = pmEmber.createEmitter({
+        x: { min: 0, max: cam.width },
+        y: { min: cam.height * 0.15, max: cam.height },
+        lifespan: { min: 900, max: 1800 },
+        speedY: { min: -55, max: -95 },
+        speedX: { min: -18, max: 18 },
+        quantity: 1,
+        frequency: 90,
+        scale: { start: 0.75, end: 0.05 },
+        alpha: { start: 0.24, end: 0 },
+        rotate: { min: 0, max: 360 },
+        blendMode: "ADD",
+      });
+
+      const pmMote = this.add.particles("fx_mote");
+      pmMote.setDepth(40);
+      pmMote.setScrollFactor(0);
+      const emMote = pmMote.createEmitter({
+        x: { min: 0, max: cam.width },
+        y: { min: 0, max: cam.height },
+        lifespan: { min: 2600, max: 5200 },
+        speedY: { min: -12, max: 12 },
+        speedX: { min: -10, max: 10 },
+        quantity: 2,
+        frequency: 150,
+        scale: { start: 0.75, end: 0.2 },
+        alpha: { start: 0.18, end: 0 },
+        rotate: { min: 0, max: 360 },
+        blendMode: "ADD",
+      });
+
+      this.fx = {
+        pmPollen,
+        emPollen,
+        pmEmber,
+        emEmber,
+        pmMote,
+        emMote,
+      };
+
+      // Resize hooks
+      this.scale.on("resize", (gameSize) => {
+        const w = gameSize.width;
+        const h = gameSize.height;
+        if (this.bg) {
+          this.bg.setSize(w, h);
+        }
+        if (this.tintOverlay) {
+          this.tintOverlay.width = w;
+          this.tintOverlay.height = h;
+        }
+      });
 
       this.cursors = this.input.keyboard.createCursorKeys();
       this.keys = this.input.keyboard.addKeys({
@@ -719,11 +1159,23 @@
         this._onProjectileHit(/** @type {Phaser.GameObjects.GameObject} */ (proj), /** @type {Phaser.GameObjects.GameObject} */ (mon));
       });
 
+      // Solid collisions
+      this.physics.add.collider(this.player, this.solids);
+      this.physics.add.collider(this.monsters, this.solids);
+      this.physics.add.overlap(this.projectiles, this.solids, (proj) => {
+        const pObj = /** @type {Phaser.GameObjects.GameObject} */ (proj);
+        if (pObj?.active) pObj.destroy();
+      });
+
       this.physics.add.overlap(this.player, this.monsters, () => {
         // contact damage (scales with threat)
         const nearest = this._findNearestGroupMember(this.monsters, 22);
         const threat = nearest?.getData?.("threat") ?? 1;
-        this._applyDamageToPlayer(0.10 + threat * 0.07);
+
+        // Bosses should feel dangerous but not like instant unavoidable death.
+        const isBoss = !!nearest?.getData?.("dungeonBossId");
+        const dmg = isBoss ? (0.10 + threat * 0.035) : (0.10 + threat * 0.07);
+        this._applyDamageToPlayer(dmg);
       });
 
       this.physics.add.overlap(this.player, this.pickups, (pl, pu) => {
@@ -737,6 +1189,7 @@
       // Spawn initial world content
       this._streamWorld(true);
       this._spawnNpcClusterNearPlayer();
+      this._spawnStarterProps();
 
       // Quest site marker (repair location)
       const site = gs.world.world.quest?.activeSite;
@@ -770,6 +1223,13 @@
       this._movePlayer();
       this._aiTick();
 
+      // Ambience refresh (bg scroll + stratum toggles)
+      if (nowMs() - this._lastAmbienceAt > 140) {
+        this._lastAmbienceAt = nowMs();
+        const danger = this._dangerState();
+        this._updateAmbience(danger.stratum);
+      }
+
       const attackPressed = this.keys.space.isDown || this.input.activePointer.isDown;
       if (attackPressed) {
         this._tryAttack();
@@ -779,9 +1239,14 @@
         this._tryInteract();
       }
 
-      // Update saved player pos
-      gs.world.player.x = this.player.x;
-      gs.world.player.y = this.player.y;
+      // Update saved player pos (per zone)
+      if (this._isInDungeon()) {
+        gs.world.player.x = clampDungeonX(this.player.x);
+        gs.world.player.y = clampDungeonY(this.player.y);
+      } else {
+        gs.world.player.x = clampWorldX(this.player.x);
+        gs.world.player.y = clampWorldY(this.player.y);
+      }
 
       // HUD refresh throttled
       if (nowMs() - this._hudLast > 120) {
@@ -805,6 +1270,115 @@
       }
 
       gs.ui.renderDanger(this._dangerState());
+    }
+
+    _applyIdleBreathe(sprite, seed = 0) {
+      if (!sprite || !sprite.active) return;
+      const baseScaleX = sprite.scaleX || 1;
+      const baseScaleY = sprite.scaleY || 1;
+      const s = 0.016;
+      const d1 = 780 + Math.floor(seed * 520);
+      const d2 = 1400 + Math.floor(seed * 900);
+
+      this.tweens.add({
+        targets: sprite,
+        scaleX: { from: baseScaleX * (1 - s), to: baseScaleX * (1 + s) },
+        scaleY: { from: baseScaleY * (1 + s * 0.4), to: baseScaleY * (1 - s * 0.4) },
+        duration: d1,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+        delay: Math.floor(seed * 220),
+      });
+
+      this.tweens.add({
+        targets: sprite,
+        angle: { from: -1.0, to: 1.0 },
+        duration: d2,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+        delay: Math.floor(seed * 340),
+      });
+    }
+
+    _updateAmbience(stratum) {
+      const cam = this.cameras.main;
+      if (this.bg) {
+        // Parallax movement based on camera scroll
+        this.bg.tilePositionX = cam.scrollX * 0.12;
+        this.bg.tilePositionY = cam.scrollY * 0.12;
+      }
+
+      if (this._ambienceStratum === stratum) return;
+      this._ambienceStratum = stratum;
+
+      const isJ = stratum === STRATA.JARDIN;
+      const isF = stratum === STRATA.FORGE;
+      const isA = stratum === STRATA.ABIME;
+
+      if (this.bg) {
+        this.bg.setTexture(isJ ? "bg_jardin" : isF ? "bg_forge" : "bg_abime");
+      }
+
+      if (this.tintOverlay) {
+        this.tintOverlay.fillColor = isJ ? 0x00ffc8 : isF ? 0xffb000 : 0xff4df2;
+        this.tintOverlay.fillAlpha = isJ ? 0.055 : isF ? 0.065 : 0.075;
+      }
+
+      if (this.fx) {
+        this.fx.pmPollen.setVisible(isJ);
+        this.fx.pmEmber.setVisible(isF);
+        this.fx.pmMote.setVisible(isA);
+      }
+    }
+
+    _spawnStarterProps() {
+      // Ensure visible "stuff" near the start so players immediately see items/loot.
+      const gs = this.registry.get("gameState");
+      const rng = makeRng(gs.world.seed ^ 0x77aa11);
+      const spawnChest = (dx, dy) => {
+        const chest = this.physics.add.image(this.player.x + dx, this.player.y + dy, "spr_chest");
+        chest.setCircle(8, 1, 1);
+        chest.setImmovable(true);
+        chest.setData("kind", "chest");
+        chest.setData("opened", false);
+        this.interactables.add(chest);
+      };
+      const spawnNode = (dx, dy, kind) => {
+        const tex = kind === "herb" ? "spr_herb" : "spr_ore";
+        const node = this.physics.add.image(this.player.x + dx, this.player.y + dy, tex);
+        node.setCircle(8, 1, 1);
+        node.setImmovable(true);
+        node.setData("kind", "harvest");
+        node.setData("resource", kind);
+        node.setData("charges", 3);
+        this.interactables.add(node);
+      };
+
+      const spawnDungeonEntrance = (dx, dy) => {
+        const gate = this.physics.add.image(this.player.x + dx, this.player.y + dy, "spr_dungeon_entrance");
+        gate.setCircle(10, 1, 1);
+        gate.setImmovable(true);
+        gate.setData("kind", "dungeonEntrance");
+        gate.setData("entranceId", `E:${Math.floor(gate.x)},${Math.floor(gate.y)}`);
+        this.interactables.add(gate);
+        // Give it a small idle pulse (visual only)
+        gate.setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: gate, alpha: { from: 0.8, to: 1.0 }, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+      };
+
+      spawnChest(120, -40);
+      spawnNode(-110, -30, "herb");
+      if (rng.next() < 0.65) spawnNode(-80, 90, "ore");
+
+      // Dungeon entrance (first loop)
+      spawnDungeonEntrance(210, 30);
+    }
+
+    _isInDungeon() {
+      const gs = this.registry.get("gameState");
+      return !!gs.world.world.dungeon?.inDungeon;
     }
 
     _dangerState() {
@@ -986,6 +1560,12 @@
       if (t - this.lastInteractAt < 350) return;
       this.lastInteractAt = t;
 
+      const nearObj = this._findNearestGroupMember(this.interactables, 52);
+      if (nearObj) {
+        this._interactObject(nearObj);
+        return;
+      }
+
       const nearNpc = this._findNearestGroupMember(this.npcs, 44);
       if (nearNpc) {
         this._interactNpc(nearNpc);
@@ -1010,6 +1590,151 @@
           this._interactQuestSite(site);
         }
       }
+    }
+
+    _interactObject(obj) {
+      const gs = this.registry.get("gameState");
+      const p = gs.world.player;
+      const kind = obj.getData("kind");
+
+      if (kind === "dungeonEntrance") {
+        this._enterDungeon(obj);
+        return;
+      }
+
+      if (kind === "dungeonExit") {
+        // Always allow exit (avoid soft-lock). A key can "stabilize" the portal for a small bonus.
+        const keyId = "clef_onirique";
+        const have = countInventoryItem(p, keyId);
+        if (have > 0) {
+          consumeInventoryItem(p, keyId, 1);
+          const bonus = 6;
+          p.essence = clamp(p.essence + bonus, 0, p.essenceMax);
+          p.pale = p.essence < 6;
+          gs.logger.success("La Clef se dissout. Le Portail se stabilise...");
+        } else {
+          gs.logger.info("Le Portail vibre. Tu peux repartir quand tu veux.");
+        }
+        obj.destroy();
+        this._exitDungeon();
+        return;
+      }
+
+      if (kind === "dungeonChest") {
+        const chestId = obj.getData("chestId") ?? "dch";
+        const locked = !!obj.getData("locked");
+        const dungeon = gs.world.world.dungeon;
+        if (!dungeon.opened) dungeon.opened = {};
+        if (dungeon.opened[chestId]) {
+          gs.logger.info("Coffre du Donjon: déjà ouvert.");
+          return;
+        }
+
+        if (locked) {
+          const keyId = "clef_onirique";
+          const have = countInventoryItem(p, keyId);
+          if (have <= 0) {
+            gs.logger.warn("Coffre scellé: il te faut une Clef Onirique.");
+            return;
+          }
+          consumeInventoryItem(p, keyId, 1);
+          gs.logger.success("La Clef claque. Le Coffre s'ouvre.");
+        }
+
+        const rng = makeRng(gs.world.seed ^ dungeon.seed ^ hash32(`dungeonChest:${chestId}`));
+        const essence = 10 + rng.nextRange(0, 18);
+        p.essence = clamp(p.essence + essence, 0, p.essenceMax);
+        p.pale = p.essence < 6;
+
+        // Loot loop rules:
+        // - Ensure early progression: first dungeon chest always gives a key.
+        // - Locked chest is always premium and refunds a key (so opening it never feels "wasted").
+        const isFirstChest = String(chestId) === "dch_0";
+
+        if (locked) {
+          addInventoryItem(p, "clef_onirique", "Clef Onirique", 1);
+          addInventoryItem(p, "fragment_relique", "Fragment de Relique", 2 + (rng.next() < 0.35 ? 1 : 0));
+          addInventoryItem(p, `relique_${rng.nextInt(99999)}`, "Relique de Trame", 1);
+          if (rng.next() < 0.65) addInventoryItem(p, "poussiere_abyssale", "Poussière Abyssale", 1);
+          // Tiny, tangible progression.
+          p.essenceMax = clamp((p.essenceMax ?? 18) + 1, 10, 40);
+          gs.logger.info(`Coffre Scellé: +${essence.toFixed(1)} Essence • +Relique • +1 Essence Max`);
+        } else if (isFirstChest) {
+          addInventoryItem(p, "clef_onirique", "Clef Onirique", 1);
+          addInventoryItem(p, "fragment_relique", "Fragment de Relique", 1);
+          gs.logger.info(`Coffre du Donjon: +${essence.toFixed(1)} Essence • +1 Clef Onirique`);
+        } else {
+          // Regular chests: weighted table.
+          const roll = rng.next();
+          if (roll < 0.22) {
+            addInventoryItem(p, "clef_onirique", "Clef Onirique", 1);
+            addInventoryItem(p, "fragment_relique", "Fragment de Relique", 1);
+            gs.logger.info(`Coffre du Donjon: +${essence.toFixed(1)} Essence • +Clef`);
+          } else if (roll < 0.78) {
+            addInventoryItem(p, "fragment_relique", "Fragment de Relique", 1 + (rng.next() < 0.25 ? 1 : 0));
+            if (rng.next() < 0.35) addInventoryItem(p, `relique_${rng.nextInt(99999)}`, "Relique de Trame", 1);
+            gs.logger.info(`Coffre du Donjon: +${essence.toFixed(1)} Essence • +Fragments`);
+          } else {
+            addInventoryItem(p, "poussiere_abyssale", "Poussière Abyssale", 1 + rng.nextInt(2));
+            addInventoryItem(p, "minerai", "Minerai Onirique", 1);
+            gs.logger.info(`Coffre du Donjon: +${essence.toFixed(1)} Essence • +Matériaux`);
+          }
+        }
+
+        dungeon.opened[chestId] = true;
+        obj.destroy();
+        return;
+      }
+
+      if (kind === "chest") {
+        if (obj.getData("opened")) {
+          gs.logger.info("Coffre: déjà ouvert." );
+          return;
+        }
+        obj.setData("opened", true);
+
+        const rng = makeRng(gs.world.seed ^ hash32(`chest:${Math.floor(obj.x)},${Math.floor(obj.y)}`));
+        const essence = 6 + rng.nextRange(0, 10);
+        p.essence = clamp(p.essence + essence, 0, p.essenceMax);
+        p.pale = p.essence < 6;
+
+        // Overworld chest table: mostly relic fragments, rare key.
+        if (rng.next() < 0.08) {
+          addInventoryItem(p, "clef_onirique", "Clef Onirique", 1);
+          gs.logger.info(`Coffre ouvert: +${essence.toFixed(1)} Essence • +1 Clef Onirique`);
+        } else {
+          addInventoryItem(p, "fragment_relique", "Fragment de Relique", 1);
+          if (rng.next() < 0.35) addInventoryItem(p, "herb", "Herbe Lumineuse", 1);
+          if (rng.next() < 0.25) addInventoryItem(p, "ore", "Minerai Onirique", 1);
+          // A relic as a rarer bonus
+          if (rng.next() < 0.22) addInventoryItem(p, `relique_${rng.nextInt(99999)}`, "Relique de Trame", 1);
+          gs.logger.info(`Coffre ouvert: +${essence.toFixed(1)} Essence • +Butin`);
+        }
+
+        // Make it disappear (simple feedback)
+        obj.destroy();
+        return;
+      }
+
+      if (kind === "harvest") {
+        const res = obj.getData("resource") ?? "herb";
+        let charges = obj.getData("charges") ?? 0;
+        if (charges <= 0) {
+          gs.logger.info("Récolte: épuisé." );
+          return;
+        }
+        charges -= 1;
+        obj.setData("charges", charges);
+        const itemName = res === "ore" ? "Minerai Onirique" : "Herbe Lumineuse";
+        addInventoryItem(p, res, itemName, 1);
+        gs.logger.info(`Récolte: +1 ${itemName} (reste ${charges})`);
+        if (charges <= 0) {
+          obj.destroy();
+        }
+        return;
+      }
+
+      gs.logger.info("Interaction: rien à faire." );
     }
 
     _interactPillar(chunk) {
@@ -1157,7 +1882,13 @@
       p.hp = p.hpMax;
       p.essence = Math.max(8, p.essence);
       p.pale = p.essence < 6;
-      this.player.setPosition(0, 0);
+
+      if (this._isInDungeon()) {
+        const layout = this._ensureDungeonLayout();
+        this.player.setPosition(layout.spawn.x, layout.spawn.y);
+      } else {
+        this.player.setPosition(0, 0);
+      }
     }
 
     _onProjectileHit(proj, mon) {
@@ -1185,6 +1916,21 @@
 
     _killMonster(mon) {
       const gs = this.registry.get("gameState");
+
+      // Dungeon boss reward (persistent via dungeon.opened[bossId]).
+      const bossId = mon.getData?.("dungeonBossId") ?? null;
+      if (bossId && this._isInDungeon()) {
+        const dungeon = gs.world.world.dungeon;
+        if (!dungeon.opened) dungeon.opened = {};
+        if (!dungeon.opened[bossId]) {
+          dungeon.opened[bossId] = true;
+          addInventoryItem(gs.world.player, `relique_${(hash32(String(bossId)) ^ dungeon.seed) >>> 0}`, "Relique de Trame", 1);
+          addInventoryItem(gs.world.player, "fragment_relique", "Fragment de Relique", 3);
+          addInventoryItem(gs.world.player, "clef_onirique", "Clef Onirique", 1);
+          gs.world.player.essenceMax = clamp((gs.world.player.essenceMax ?? 18) + 1, 10, 40);
+          gs.logger.success("Gardien vaincu: la Trame te récompense.");
+        }
+      }
 
       // Drop essence blob sometimes.
       const rng = makeRng(gs.world.seed ^ hash32(String(mon.x + "," + mon.y)));
@@ -1288,6 +2034,7 @@
         w.setData("kind", "worker");
         w.setData("hp", 10);
         w.setData("lastHitAt", 0);
+        this._applyIdleBreathe(w, rng.next());
         this.workers.add(w);
       }
 
@@ -1438,7 +2185,17 @@
     _currentChunk() {
       const gs = this.registry.get("gameState");
       const ck = this._currentChunkKey();
-      return gs.world.world.chunks[ck] ?? null;
+      const map = this._currentChunkMap();
+      return map[ck] ?? null;
+    }
+
+    _currentChunkMap() {
+      const gs = this.registry.get("gameState");
+      if (gs.world.world.dungeon?.inDungeon) {
+        if (!gs.world.world.dungeon.chunks || typeof gs.world.world.dungeon.chunks !== "object") gs.world.world.dungeon.chunks = {};
+        return gs.world.world.dungeon.chunks;
+      }
+      return gs.world.world.chunks;
     }
 
     _streamWorld(force) {
@@ -1447,14 +2204,23 @@
       const cx = Math.floor(this.player.x / CHUNK_SIZE_PX);
       const cy = Math.floor(this.player.y / CHUNK_SIZE_PX);
 
+      const inDungeon = this._isInDungeon();
+
       const want = new Set();
 
       for (let dy = -WORLD_VIEW_CHUNKS_RADIUS; dy <= WORLD_VIEW_CHUNKS_RADIUS; dy++) {
         for (let dx = -WORLD_VIEW_CHUNKS_RADIUS; dx <= WORLD_VIEW_CHUNKS_RADIUS; dx++) {
-          const k = chunkKey(cx + dx, cy + dy);
+          const tcx = cx + dx;
+          const tcy = cy + dy;
+          if (inDungeon) {
+            if (!isChunkInDungeon(tcx, tcy)) continue;
+          } else {
+            if (!isChunkInWorld(tcx, tcy)) continue;
+          }
+          const k = chunkKey(tcx, tcy);
           want.add(k);
           if (!this.loadedChunks.has(k) || force) {
-            this._ensureChunk(cx + dx, cy + dy);
+            this._ensureChunk(tcx, tcy);
           }
         }
       }
@@ -1468,14 +2234,82 @@
       }
 
       // Spawn monsters around player based on threat.
-      this._spawnMonstersIfNeeded();
+      // In dungeon, keep spawns a bit more controlled.
+      if (inDungeon) this._spawnDungeonMonstersIfNeeded();
+      else this._spawnMonstersIfNeeded();
+    }
+
+    _isDungeonFloorAt(wx, wy) {
+      if (!this._isInDungeon()) return false;
+      const layout = this._ensureDungeonLayout();
+      const gx = Math.floor((wx - DUNGEON_MIN) / TILE_SIZE);
+      const gy = Math.floor((wy - DUNGEON_MIN) / TILE_SIZE);
+      if (gx < 0 || gy < 0 || gx >= layout.w || gy >= layout.h) return false;
+      return layout.tiles[gy * layout.w + gx] === 1;
+    }
+
+    _spawnDungeonMonstersIfNeeded() {
+      const gs = this.registry.get("gameState");
+      const maxMonsters = 10;
+      if (this.monsters.countActive(true) >= maxMonsters) return;
+
+      const layout = this._ensureDungeonLayout();
+      const rng = makeRng((gs.world.seed ^ layout.seed ^ hash32(`${Math.floor(this.player.x)},${Math.floor(this.player.y)}`)) >>> 0);
+
+      const spawnCount = rng.next() < 0.45 ? 2 : 1;
+      for (let i = 0; i < spawnCount; i++) {
+        const dist = 220 + rng.nextRange(0, 260);
+        const angle = rng.nextRange(0, Math.PI * 2);
+        const x = this.player.x + Math.cos(angle) * dist;
+        const y = this.player.y + Math.sin(angle) * dist;
+
+        // Only spawn on dungeon floors.
+        if (!this._isDungeonFloorAt(x, y)) continue;
+
+        const localThreat = 3.2;
+        const hp = 8 + localThreat * 5 + rng.nextRange(-1, 3);
+
+        const choices = ["spr_monster_abime", "spr_monster_abime_a", "spr_monster_abime_b"];
+        const tex = choices[rng.nextInt(choices.length)];
+
+        const mon = this.physics.add.image(x, y, tex);
+        mon.setCircle(7, 1, 1);
+        mon.setData("hp", hp);
+        mon.setData("threat", localThreat);
+        mon.setData("stratum", STRATA.ABIME);
+        mon.setData("dungeon", true);
+        this._applyIdleBreathe(mon, rng.next());
+        this.monsters.add(mon);
+      }
     }
 
     _ensureChunk(cx, cy) {
       const gs = this.registry.get("gameState");
       const k = chunkKey(cx, cy);
 
-      if (!gs.world.world.chunks[k]) {
+      const chunks = this._currentChunkMap();
+
+      if (this._isInDungeon()) {
+        // Dungeon chunks are generated from a prebuilt room layout.
+        this._ensureDungeonLayout();
+        if (!chunks[k]) {
+          chunks[k] = {
+            cx,
+            cy,
+            stratum: STRATA.DUNGEON,
+            threat: 3.0,
+            stability: 55,
+            pillar: null,
+            merchantSeed: 0,
+          };
+        }
+
+        const container = this._buildChunkVisuals(cx, cy, chunks[k]);
+        this.loadedChunks.set(k, container);
+        return;
+      }
+
+      if (!chunks[k]) {
         const centerX = (cx + 0.5) * CHUNK_SIZE_PX;
         const centerY = (cy + 0.5) * CHUNK_SIZE_PX;
         const stratum = biomeForWorldPos(gs.world.seed, centerX, centerY);
@@ -1484,14 +2318,17 @@
         const rng = makeRng(gs.world.seed ^ hash32(k));
         const stability = clamp(70 - threat * 12 + rng.nextRange(-10, 10), 0, 100);
 
-        const pillar = rng.next() < 0.35 ? {
-          x: centerX + rng.nextRange(-90, 90),
-          y: centerY + rng.nextRange(-90, 90),
-          charge: 0,
-          buffActive: false,
-        } : null;
+        // Fewer pillars, placed strategically (seeded).
+        const pillars = strategicPillarPositions(gs.world.seed);
+        let pillar = null;
+        for (const pp of pillars) {
+          if (pp.x >= cx * CHUNK_SIZE_PX && pp.x < (cx + 1) * CHUNK_SIZE_PX && pp.y >= cy * CHUNK_SIZE_PX && pp.y < (cy + 1) * CHUNK_SIZE_PX) {
+            pillar = { x: pp.x, y: pp.y, charge: 0, buffActive: false };
+            break;
+          }
+        }
 
-        gs.world.world.chunks[k] = {
+        chunks[k] = {
           cx,
           cy,
           stratum,
@@ -1502,33 +2339,194 @@
         };
       }
 
-      const container = this._buildChunkVisuals(cx, cy, gs.world.world.chunks[k]);
+      const container = this._buildChunkVisuals(cx, cy, chunks[k]);
       this.loadedChunks.set(k, container);
     }
 
+    _clearLoadedChunks() {
+      for (const [, value] of this.loadedChunks.entries()) {
+        value.destroy();
+      }
+      this.loadedChunks.clear();
+
+      // Remove stragglers
+      this.solids.clear(true, true);
+      this.interactables.clear(true, true);
+      this.pickups.clear(true, true);
+      this.projectiles.clear(true, true);
+      // Monsters/NPCs should remain; but in dungeon transitions we clear monsters for safety.
+      this.monsters.clear(true, true);
+    }
+
+    _enterDungeon(entranceObj) {
+      const gs = this.registry.get("gameState");
+      const dungeon = gs.world.world.dungeon;
+      if (dungeon.inDungeon) return;
+
+      dungeon.returnPos = { x: this.player.x, y: this.player.y };
+      const entranceId = entranceObj?.getData?.("entranceId") ?? `E:${Math.floor(this.player.x)},${Math.floor(this.player.y)}`;
+      dungeon.lastEntrance = String(entranceId);
+      dungeon.seed = (gs.world.seed ^ hash32(String(entranceId)) ^ 0x6f11a2) >>> 0;
+      dungeon.inDungeon = true;
+
+      this._clearLoadedChunks();
+      this.physics.world.setBounds(DUNGEON_MIN, DUNGEON_MIN, DUNGEON_SIZE_PX, DUNGEON_SIZE_PX);
+
+      // Move player to dungeon spawn.
+      const layout = this._ensureDungeonLayout();
+      this.player.setPosition(layout.spawn.x, layout.spawn.y);
+
+      gs.logger.warn("Tu franchis le Seuil. Le Donjon se referme derrière toi...");
+      this._ambienceStratum = null;
+      this._streamWorld(true);
+    }
+
+    _exitDungeon() {
+      const gs = this.registry.get("gameState");
+      const dungeon = gs.world.world.dungeon;
+      if (!dungeon.inDungeon) return;
+
+      dungeon.inDungeon = false;
+
+      this._clearLoadedChunks();
+      this.physics.world.setBounds(WORLD_MIN, WORLD_MIN, WORLD_RADIUS_PX * 2, WORLD_RADIUS_PX * 2);
+
+      const rp = dungeon.returnPos ?? { x: 0, y: 0 };
+      this.player.setPosition(clampWorldX(rp.x), clampWorldY(rp.y));
+
+      gs.logger.success("Retour à l'Éveil. Le rêve extérieur respire.");
+      this._ambienceStratum = null;
+      this._streamWorld(true);
+      this._spawnStarterProps();
+    }
+
+    _ensureDungeonLayout() {
+      const gs = this.registry.get("gameState");
+      const dungeon = gs.world.world.dungeon;
+      if (dungeon.layout && dungeon.layout.seed === dungeon.seed) return dungeon.layout;
+
+      const layout = generateDungeonLayout(dungeon.seed);
+      dungeon.layout = layout;
+      return layout;
+    }
+
     _buildChunkVisuals(cx, cy, chunk) {
+      if (this._isInDungeon()) {
+        return this._buildDungeonChunkVisuals(cx, cy, chunk);
+      }
+
       // Build a static tile visual layer for the chunk.
       const container = this.add.container(cx * CHUNK_SIZE_PX, cy * CHUNK_SIZE_PX);
       container.setDepth(-10);
 
+      const solidsCreated = [];
+      const objectsCreated = [];
+
+      const addSolidRect = (xLocalCenter, yLocalCenter, w, h) => {
+        const x = cx * CHUNK_SIZE_PX + xLocalCenter;
+        const y = cy * CHUNK_SIZE_PX + yLocalCenter;
+        const s = this.physics.add.staticImage(x, y, "spr_collider");
+        s.setVisible(false);
+        s.setDisplaySize(w, h);
+        // refreshBody is required after scaling static bodies.
+        s.refreshBody();
+        this.solids.add(s);
+        solidsCreated.push(s);
+      };
+
       const rng = makeRng(hash32(`${chunk.cx},${chunk.cy}`) ^ 0x5bd1e995);
-      const baseKey = chunk.stratum === STRATA.JARDIN ? "tile_floor_jardin" : chunk.stratum === STRATA.FORGE ? "tile_floor_forge" : "tile_floor_abime";
-      const wallKey = chunk.stratum === STRATA.JARDIN ? "tile_wall_jardin" : chunk.stratum === STRATA.FORGE ? "tile_wall_forge" : "tile_wall_abime";
-      const veinKey = chunk.stratum === STRATA.JARDIN ? "tile_vein_jardin" : chunk.stratum === STRATA.FORGE ? "tile_vein_forge" : "tile_vein_abime";
+  const stratumKey = chunk.stratum === STRATA.JARDIN ? "jardin" : chunk.stratum === STRATA.FORGE ? "forge" : "abime";
+  const FLOOR_VARIANTS = 4;
+  const WALL_VARIANTS = 3;
+  const DETAIL_VARIANTS = 2;
+
+  const texKey = (kind, idx) => `tile_${kind}_${stratumKey}_${idx}`;
+  const pickExisting = (primaryKey, fallbackKey) => (this.textures.exists(primaryKey) ? primaryKey : fallbackKey);
+  const baseFallback = `tile_floor_${stratumKey}`;
+  const wallFallback = `tile_wall_${stratumKey}`;
+  const veinKey = `tile_vein_${stratumKey}`;
 
       const instability = 1 - chunk.stability / 100;
+
+      // World-gen improvements: reduce maze walls and create readable paths/plazas.
+      // Plaza near origin (spawn area) and cross-roads.
+      const isPlaza = (wx, wy) => Math.hypot(wx, wy) < 200;
+      const isRoad = (wx, wy) => {
+        const w = 34;
+        const main = Math.abs(wx) < w || Math.abs(wy) < w;
+        const diag = Math.abs(wy - wx) < (w - 10) || Math.abs(wy + wx) < (w - 10);
+        const ring = Math.abs(Math.hypot(wx, wy) - 760) < 28;
+        return main || diag || ring;
+      };
+
+      // Chunk-local obstacle clusters (rocks/rubble), deterministic and clumpy.
+      const clusterRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:clusters`) ^ 0x3a91);
+      const clusterCount = chunk.stratum === STRATA.JARDIN ? 1 : 2;
+      const clusters = [];
+      for (let i = 0; i < clusterCount; i++) {
+        clusters.push({
+          tx: 4 + clusterRng.nextInt(CHUNK_SIZE_TILES - 8),
+          ty: 4 + clusterRng.nextInt(CHUNK_SIZE_TILES - 8),
+          r: 3 + clusterRng.nextInt(6),
+        });
+      }
 
       for (let ty = 0; ty < CHUNK_SIZE_TILES; ty++) {
         for (let tx = 0; tx < CHUNK_SIZE_TILES; tx++) {
           const x = tx * TILE_SIZE;
           const y = ty * TILE_SIZE;
 
-          const edge = tx === 0 || ty === 0 || tx === CHUNK_SIZE_TILES - 1 || ty === CHUNK_SIZE_TILES - 1;
-          const wall = edge && rng.next() < 0.55;
+          const wx = cx * CHUNK_SIZE_PX + x + TILE_SIZE / 2;
+          const wy = cy * CHUNK_SIZE_PX + y + TILE_SIZE / 2;
 
-          const base = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, wall ? wallKey : baseKey);
+          const h = hash32(`${chunk.cx},${chunk.cy}:${tx},${ty}`);
+          const floorV = h % FLOOR_VARIANTS;
+          const wallV = (h >>> 4) % WALL_VARIANTS;
+
+          const plaza = isPlaza(wx, wy);
+          const road = !plaza && isRoad(wx, wy);
+
+          // Base wall rates by stratum; instability adds a bit.
+          const baseWallRate = chunk.stratum === STRATA.JARDIN ? 0.045 : chunk.stratum === STRATA.FORGE ? 0.075 : 0.065;
+          const wallRate = clamp(baseWallRate + instability * 0.035, 0.02, 0.14);
+          // Use a coarse noise cell (2x2 tiles) to avoid single-tile speckle walls.
+          const hCoarse = hash32(`${chunk.cx},${chunk.cy}:c:${Math.floor(tx / 2)},${Math.floor(ty / 2)}`);
+          const wallNoise = (hCoarse >>> 16) & 255;
+          let wall = !plaza && !road && wallNoise < wallRate * 255;
+
+          if (!plaza && !road && !wall) {
+            // Add a few clumpy obstacle areas.
+            for (const c of clusters) {
+              const d = Math.hypot(tx - c.tx, ty - c.ty);
+              if (d < c.r && ((hCoarse >>> 24) & 255) < 220) {
+                wall = true;
+                break;
+              }
+            }
+          }
+          const baseKey = wall
+            ? pickExisting(texKey("wall", wallV), wallFallback)
+            : pickExisting(texKey("floor", floorV), baseFallback);
+
+          const base = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, baseKey);
           base.setOrigin(0.5, 0.5);
           container.add(base);
+
+          if (wall) {
+            addSolidRect(x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
+          }
+
+          // Rare detail overlay to break up repetition.
+          if (!wall && ((h & 0xff) < (road ? 90 : plaza ? 70 : 28))) {
+            const dv = (h >>> 9) % DETAIL_VARIANTS;
+            const detailKey = pickExisting(texKey("detail", dv), null);
+            if (detailKey) {
+              const d = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, detailKey);
+              d.setAlpha((road ? 0.22 : plaza ? 0.20 : 0.28) + (h & 7) * 0.02);
+              if (chunk.stratum !== STRATA.JARDIN) d.setBlendMode(Phaser.BlendModes.ADD);
+              container.add(d);
+            }
+          }
 
           if (!wall && rng.next() < (0.10 + instability * 0.20)) {
             const vein = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, veinKey);
@@ -1539,14 +2537,312 @@
         }
       }
 
+      // Simple Jardin decor: trees + small "house" blobs to make it feel alive.
+      if (chunk.stratum === STRATA.JARDIN) {
+        const decorRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:decor`) ^ 0x2a71);
+        const decorCount = 3 + decorRng.nextInt(5);
+        for (let i = 0; i < decorCount; i++) {
+          const tx = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
+          const ty = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
+          const px = tx * TILE_SIZE + TILE_SIZE / 2;
+          const py = ty * TILE_SIZE + TILE_SIZE / 2;
+
+          const wx = cx * CHUNK_SIZE_PX + px;
+          const wy = cy * CHUNK_SIZE_PX + py;
+          const plaza = isPlaza(wx, wy);
+          const road = !plaza && isRoad(wx, wy);
+          if (plaza || road) continue;
+
+          const r = decorRng.next();
+          const isHouse = r < 0.10;
+          const isTree = r >= 0.10 && r < 0.65;
+          const tex = isHouse ? "spr_house" : isTree ? (decorRng.next() < 0.5 ? "spr_tree_a" : "spr_tree_b") : decorRng.next() < 0.55 ? "spr_bush" : "spr_flower";
+          const img = this.add.image(px, py, tex);
+          img.setDepth(-5);
+          container.add(img);
+          // collider footprint
+          if (isHouse) addSolidRect(px, py + 6, 34, 22);
+          else if (isTree) addSolidRect(px, py + 4, 22, 18);
+          else if (tex === "spr_bush") addSolidRect(px, py + 6, 18, 12);
+        }
+
+        // Occasional chest/node placement in the world state is handled elsewhere,
+        // but visuals are placed via interactables group.
+      }
+
+      if (chunk.stratum === STRATA.FORGE) {
+        const decorRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:decor`) ^ 0x6c52);
+        const decorCount = 3 + decorRng.nextInt(5);
+        for (let i = 0; i < decorCount; i++) {
+          const tx = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
+          const ty = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
+          const px = tx * TILE_SIZE + TILE_SIZE / 2;
+          const py = ty * TILE_SIZE + TILE_SIZE / 2;
+
+          const wx = cx * CHUNK_SIZE_PX + px;
+          const wy = cy * CHUNK_SIZE_PX + py;
+          const plaza = isPlaza(wx, wy);
+          const road = !plaza && isRoad(wx, wy);
+          if (plaza || road) continue;
+
+          const r = decorRng.next();
+          const tex = r < 0.45 ? (decorRng.next() < 0.5 ? "spr_rock_forge_a" : "spr_rock_forge_b") : r < 0.78 ? "spr_pipe_forge" : "spr_vent_forge";
+          const img = this.add.image(px, py, tex);
+          img.setDepth(-5);
+          container.add(img);
+
+          if (tex.startsWith("spr_rock_forge")) addSolidRect(px, py + 6, 22, 14);
+          else if (tex === "spr_pipe_forge") addSolidRect(px, py + 6, 28, 10);
+          else if (tex === "spr_vent_forge") addSolidRect(px, py + 6, 18, 12);
+        }
+      }
+
+      if (chunk.stratum === STRATA.ABIME) {
+        const decorRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:decor`) ^ 0x9171);
+        const decorCount = 3 + decorRng.nextInt(5);
+        for (let i = 0; i < decorCount; i++) {
+          const tx = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
+          const ty = 2 + decorRng.nextInt(CHUNK_SIZE_TILES - 4);
+          const px = tx * TILE_SIZE + TILE_SIZE / 2;
+          const py = ty * TILE_SIZE + TILE_SIZE / 2;
+
+          const wx = cx * CHUNK_SIZE_PX + px;
+          const wy = cy * CHUNK_SIZE_PX + py;
+          const plaza = isPlaza(wx, wy);
+          const road = !plaza && isRoad(wx, wy);
+          if (plaza || road) continue;
+
+          const r = decorRng.next();
+          const tex = r < 0.42 ? (decorRng.next() < 0.5 ? "spr_crystal_abime_a" : "spr_crystal_abime_b") : r < 0.72 ? "spr_root_abime" : "spr_totem_abime";
+          const img = this.add.image(px, py, tex);
+          img.setDepth(-5);
+          if (tex.startsWith("spr_crystal_abime")) img.setBlendMode(Phaser.BlendModes.ADD);
+          container.add(img);
+
+          if (tex.startsWith("spr_crystal_abime")) addSolidRect(px, py + 6, 18, 14);
+          else if (tex === "spr_root_abime") addSolidRect(px, py + 8, 26, 12);
+          else if (tex === "spr_totem_abime") addSolidRect(px, py + 8, 16, 18);
+        }
+      }
+
       if (chunk.pillar) {
         const p = this.add.image(chunk.pillar.x - cx * CHUNK_SIZE_PX, chunk.pillar.y - cy * CHUNK_SIZE_PX, "spr_pillar");
         p.setBlendMode(Phaser.BlendModes.ADD);
         p.setAlpha(0.95);
         container.add(p);
+
+        const pg = this.add.image(chunk.pillar.x - cx * CHUNK_SIZE_PX, chunk.pillar.y - cy * CHUNK_SIZE_PX, "spr_pillar_glow");
+        pg.setBlendMode(Phaser.BlendModes.ADD);
+        pg.setAlpha(0.22);
+        container.add(pg);
+
+        const pulseRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:pillar`) ^ 0x71a2);
+        this.tweens.add({
+          targets: pg,
+          alpha: { from: 0.14, to: 0.46 },
+          duration: 900 + pulseRng.nextInt(900),
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+          delay: pulseRng.nextInt(400),
+        });
+        this.tweens.add({
+          targets: pg,
+          scaleX: { from: 0.98, to: 1.03 },
+          scaleY: { from: 0.98, to: 1.03 },
+          duration: 1100 + pulseRng.nextInt(800),
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+          delay: pulseRng.nextInt(600),
+        });
       }
 
-      return container;
+      return {
+        destroy: () => {
+          for (const s of solidsCreated) {
+            if (s && s.active) s.destroy();
+          }
+          for (const o of objectsCreated) {
+            if (o && o.active) o.destroy();
+          }
+          container.destroy();
+        },
+      };
+    }
+
+    _buildDungeonChunkVisuals(cx, cy, chunk) {
+      const gs = this.registry.get("gameState");
+      const container = this.add.container(cx * CHUNK_SIZE_PX, cy * CHUNK_SIZE_PX);
+      container.setDepth(-12);
+
+      const solidsCreated = [];
+      const objectsCreated = [];
+
+      const addSolidRect = (xLocalCenter, yLocalCenter, w, h) => {
+        const x = cx * CHUNK_SIZE_PX + xLocalCenter;
+        const y = cy * CHUNK_SIZE_PX + yLocalCenter;
+        const s = this.physics.add.staticImage(x, y, "spr_collider");
+        s.setVisible(false);
+        s.setDisplaySize(w, h);
+        s.refreshBody();
+        this.solids.add(s);
+        solidsCreated.push(s);
+      };
+
+      const layout = this._ensureDungeonLayout();
+      const W = layout.w;
+      const H = layout.h;
+      const tiles = layout.tiles;
+      const idx = (tx, ty) => ty * W + tx;
+
+      // Render tiles for this chunk
+      for (let ty = 0; ty < CHUNK_SIZE_TILES; ty++) {
+        for (let tx = 0; tx < CHUNK_SIZE_TILES; tx++) {
+          const x = tx * TILE_SIZE;
+          const y = ty * TILE_SIZE;
+          const wx = cx * CHUNK_SIZE_PX + x + TILE_SIZE / 2;
+          const wy = cy * CHUNK_SIZE_PX + y + TILE_SIZE / 2;
+
+          const gx = Math.floor((wx - DUNGEON_MIN) / TILE_SIZE);
+          const gy = Math.floor((wy - DUNGEON_MIN) / TILE_SIZE);
+          const inGrid = gx >= 0 && gy >= 0 && gx < W && gy < H;
+
+          const h = hash32(`d:${layout.seed}:${gx},${gy}`);
+          const floorV = h % 4;
+          const wallV = (h >>> 4) % 3;
+
+          const isFloor = inGrid && tiles[idx(gx, gy)] === 1;
+          const baseKey = isFloor ? (this.textures.exists(`tile_floor_abime_${floorV}`) ? `tile_floor_abime_${floorV}` : "tile_floor_abime") : (this.textures.exists(`tile_wall_abime_${wallV}`) ? `tile_wall_abime_${wallV}` : "tile_wall_abime");
+          const base = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, baseKey);
+          base.setOrigin(0.5, 0.5);
+          container.add(base);
+
+          if (!isFloor) {
+            addSolidRect(x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
+          } else {
+            // occasional vein glow
+            if ((h & 255) < 34) {
+              const vein = this.add.image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, "tile_vein_abime");
+              vein.setBlendMode(Phaser.BlendModes.ADD);
+              vein.setAlpha(0.20 + ((h >>> 8) & 7) * 0.03);
+              container.add(vein);
+            }
+          }
+        }
+      }
+
+      // Dungeon objects: chests + exit portal (spawn only if inside this chunk)
+      const dungeon = gs.world.world.dungeon;
+      const opened = dungeon.opened ?? {};
+
+      const spawnChest = (ch) => {
+        if (opened[ch.id]) return;
+        const inChunk = ch.x >= cx * CHUNK_SIZE_PX && ch.x < (cx + 1) * CHUNK_SIZE_PX && ch.y >= cy * CHUNK_SIZE_PX && ch.y < (cy + 1) * CHUNK_SIZE_PX;
+        if (!inChunk) return;
+        const chest = this.physics.add.image(ch.x, ch.y, "spr_chest");
+        chest.setCircle(8, 1, 1);
+        chest.setImmovable(true);
+        chest.setData("kind", "dungeonChest");
+        chest.setData("chestId", ch.id);
+        chest.setData("locked", !!ch.locked);
+        chest.setBlendMode(Phaser.BlendModes.ADD);
+        this.interactables.add(chest);
+        objectsCreated.push(chest);
+      };
+
+      for (const ch of layout.chests) spawnChest(ch);
+
+      const exitInChunk = layout.exit.x >= cx * CHUNK_SIZE_PX && layout.exit.x < (cx + 1) * CHUNK_SIZE_PX && layout.exit.y >= cy * CHUNK_SIZE_PX && layout.exit.y < (cy + 1) * CHUNK_SIZE_PX;
+      if (exitInChunk) {
+        const portal = this.physics.add.image(layout.exit.x, layout.exit.y, "spr_dungeon_exit");
+        portal.setCircle(10, 1, 1);
+        portal.setImmovable(true);
+        portal.setData("kind", "dungeonExit");
+        portal.setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: portal, alpha: { from: 0.55, to: 1.0 }, duration: 800, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+        this.interactables.add(portal);
+        objectsCreated.push(portal);
+
+        // Exit guardian (boss) — spawn once per dungeon seed.
+        const bossId = `boss_${layout.seed}`;
+        // If already defeated, don't spawn.
+        // If alive, keep a single instance even if this chunk unloads/reloads.
+        let bossAlive = false;
+        this.monsters.children.iterate((child) => {
+          if (!child || bossAlive) return;
+          const id = child.getData?.("dungeonBossId");
+          if (id && String(id) === String(bossId)) bossAlive = true;
+        });
+
+        if (!opened[bossId] && !bossAlive) {
+          const findFloorNear = (wx, wy) => {
+            const gx0 = clamp(Math.floor((wx - DUNGEON_MIN) / TILE_SIZE), 1, W - 2);
+            const gy0 = clamp(Math.floor((wy - DUNGEON_MIN) / TILE_SIZE), 1, H - 2);
+            for (let r = 0; r <= 6; r++) {
+              for (let oy = -r; oy <= r; oy++) {
+                for (let ox = -r; ox <= r; ox++) {
+                  const gx = gx0 + ox;
+                  const gy = gy0 + oy;
+                  if (gx <= 1 || gy <= 1 || gx >= W - 2 || gy >= H - 2) continue;
+                  if (tiles[idx(gx, gy)] !== 1) continue;
+                  return {
+                    x: DUNGEON_MIN + gx * TILE_SIZE + TILE_SIZE / 2,
+                    y: DUNGEON_MIN + gy * TILE_SIZE + TILE_SIZE / 2,
+                  };
+                }
+              }
+            }
+            return { x: wx, y: wy };
+          };
+
+          const bossPos = findFloorNear(layout.exit.x, layout.exit.y - 64);
+          const boss = this.physics.add.image(bossPos.x, bossPos.y, "spr_monster_abime_b");
+          boss.setCircle(8, 1, 1);
+          boss.setCollideWorldBounds(true);
+          boss.setData("hp", 42);
+          boss.setData("threat", 4.2);
+          boss.setData("stratum", STRATA.ABIME);
+          boss.setData("dungeon", true);
+          boss.setData("dungeonBossId", bossId);
+          boss.setBlendMode(Phaser.BlendModes.ADD);
+          this._applyIdleBreathe(boss, 0.77);
+
+          // Telegraph: slow pulse (alpha + scale)
+          const prng = makeRng(hash32(bossId) ^ layout.seed ^ 0x19a2);
+          this.tweens.add({
+            targets: boss,
+            alpha: { from: 0.70, to: 1.0 },
+            duration: 820 + prng.nextInt(520),
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut",
+          });
+          this.tweens.add({
+            targets: boss,
+            scaleX: { from: 1.0, to: 1.05 },
+            scaleY: { from: 1.0, to: 1.05 },
+            duration: 1050 + prng.nextInt(650),
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut",
+            delay: 80,
+          });
+          this.monsters.add(boss);
+        }
+      }
+
+      return {
+        destroy: () => {
+          for (const s of solidsCreated) {
+            if (s && s.active) s.destroy();
+          }
+          for (const o of objectsCreated) {
+            if (o && o.active) o.destroy();
+          }
+          container.destroy();
+        },
+      };
     }
 
     _spawnNpcClusterNearPlayer() {
@@ -1559,6 +2855,7 @@
         npc.setImmovable(true);
         npc.setData("kind", kind);
         for (const [k, v] of Object.entries(data)) npc.setData(k, v);
+        this._applyIdleBreathe(npc, rng.next());
         this.npcs.add(npc);
         return npc;
       };
@@ -1594,7 +2891,13 @@
         const localThreat = threatForWorldPos(stratum, x, y);
         const hp = 6 + localThreat * 4 + rng.nextRange(-1, 3);
 
-        const tex = stratum === STRATA.JARDIN ? "spr_monster_jardin" : stratum === STRATA.FORGE ? "spr_monster_forge" : "spr_monster_abime";
+        const choices =
+          stratum === STRATA.JARDIN
+            ? ["spr_monster_jardin", "spr_monster_jardin_a", "spr_monster_jardin_b"]
+            : stratum === STRATA.FORGE
+              ? ["spr_monster_forge", "spr_monster_forge_a", "spr_monster_forge_b"]
+              : ["spr_monster_abime", "spr_monster_abime_a", "spr_monster_abime_b"];
+        const tex = choices[rng.nextInt(choices.length)];
 
         const mon = this.physics.add.image(x, y, tex);
         mon.setCircle(7, 1, 1);
@@ -1771,6 +3074,12 @@
   function generatePlaceholderTextures(scene) {
     const g = scene.add.graphics();
 
+    // 1x1 texture for scalable invisible colliders.
+    g.clear();
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(0, 0, 1, 1);
+    g.generateTexture("spr_collider", 1, 1);
+
     const makeTile = (key, baseColor, accentColor, vein = false) => {
       g.clear();
       g.fillStyle(baseColor, 1);
@@ -1785,6 +3094,14 @@
       }
 
       if (vein) {
+        g.lineStyle(3, accentColor, 0.22);
+        g.beginPath();
+        g.moveTo(2, 12);
+        g.lineTo(6, 8);
+        g.lineTo(11, 10);
+        g.lineTo(14, 5);
+        g.strokePath();
+
         g.lineStyle(2, accentColor, 0.65);
         g.beginPath();
         g.moveTo(2, 12);
@@ -1792,6 +3109,14 @@
         g.lineTo(11, 10);
         g.lineTo(14, 5);
         g.strokePath();
+
+        // nodes
+        g.fillStyle(accentColor, 0.35);
+        g.fillCircle(6, 8, 2);
+        g.fillCircle(11, 10, 2);
+        g.fillStyle(0xffffff, 0.10);
+        g.fillCircle(6, 8, 1);
+        g.fillCircle(11, 10, 1);
       } else {
         g.lineStyle(1, accentColor, 0.18);
         g.strokeRect(0.5, 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
@@ -1813,20 +3138,226 @@
       g.generateTexture(key, TILE_SIZE, TILE_SIZE);
     };
 
+    const makeRng32 = (seed) => {
+      let s = seed | 0;
+      return {
+        next() {
+          s = (s * 1664525 + 1013904223) | 0;
+          return (s >>> 0) / 4294967296;
+        },
+        nextInt(n) {
+          return Math.floor(this.next() * n);
+        },
+      };
+    };
+
+    const speckle = (seed, color, alpha, count) => {
+      const r = makeRng32(seed);
+      g.fillStyle(color, alpha);
+      for (let i = 0; i < count; i++) {
+        const x = r.nextInt(TILE_SIZE);
+        const y = r.nextInt(TILE_SIZE);
+        g.fillRect(x, y, 1, 1);
+      }
+    };
+
+    const makeTileVariant = (key, baseColor, midColor, accentColor, seed, mode) => {
+      g.clear();
+      g.fillStyle(baseColor, 1);
+      g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+
+      // Mild dithering + speckles
+      speckle(seed ^ 0x91e10da5, 0x000000, 0.10, 10);
+      speckle(seed ^ 0x2c1b3c6d, midColor, 0.22, 16);
+
+      if (mode === "jardin") {
+        // grass strands
+        speckle(seed ^ 0x6b2, 0x0a2a1f, 0.30, 22);
+        // small flower clusters
+        const rr = makeRng32(seed ^ 0x8f4);
+        for (let k = 0; k < 2; k++) {
+          const fx = 2 + rr.nextInt(TILE_SIZE - 4);
+          const fy = 2 + rr.nextInt(TILE_SIZE - 4);
+          g.fillStyle(0xffffff, 0.18);
+          g.fillRect(fx, fy, 1, 1);
+          g.fillStyle(0xff7fe8, 0.16);
+          g.fillRect(fx + 1, fy + 2, 1, 1);
+        }
+        g.lineStyle(1, accentColor, 0.10);
+        g.strokeRect(0.5, 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+      }
+
+      if (mode === "forge") {
+        // cracks
+        g.lineStyle(1, accentColor, 0.12);
+        g.beginPath();
+        g.moveTo(1, 4);
+        g.lineTo(6, 7);
+        g.lineTo(10, 5);
+        g.lineTo(15, 10);
+        g.strokePath();
+        // ember dots
+        speckle(seed ^ 0x1c77, accentColor, 0.16, 8);
+      }
+
+      if (mode === "abime") {
+        // star specks + mist edge
+        speckle(seed ^ 0x33a1, 0xffffff, 0.10, 8);
+        g.lineStyle(1, accentColor, 0.12);
+        g.beginPath();
+        g.moveTo(2, 13);
+        g.lineTo(8, 11);
+        g.lineTo(14, 14);
+        g.strokePath();
+      }
+
+      g.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    };
+
+    const makeWallVariant = (key, baseColor, edgeColor, seed, mode) => {
+      g.clear();
+      g.fillStyle(baseColor, 1);
+      g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+
+      // outer shading
+      g.fillStyle(0x000000, 0.18);
+      g.fillRect(0, TILE_SIZE - 3, TILE_SIZE, 3);
+      g.fillRect(TILE_SIZE - 3, 0, 3, TILE_SIZE);
+      g.fillStyle(edgeColor, mode === "forge" ? 0.20 : 0.16);
+      g.fillRect(0, 0, TILE_SIZE, 3);
+      g.fillRect(0, 0, 3, TILE_SIZE);
+
+      // brick-ish seams
+      g.lineStyle(1, 0x000000, 0.18);
+      for (let y = 4; y <= 12; y += 4) {
+        g.beginPath();
+        g.moveTo(0, y + 0.5);
+        g.lineTo(TILE_SIZE, y + 0.5);
+        g.strokePath();
+      }
+      // a few vertical cuts
+      const rr = makeRng32(seed ^ 0x55aa);
+      g.lineStyle(1, edgeColor, 0.08);
+      for (let i = 0; i < 3; i++) {
+        const x = 2 + rr.nextInt(TILE_SIZE - 4);
+        g.beginPath();
+        g.moveTo(x + 0.5, 2);
+        g.lineTo(x + 0.5, TILE_SIZE - 2);
+        g.strokePath();
+      }
+
+      g.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    };
+
+    const makeDetailOverlay = (key, accentColor, seed, mode) => {
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      const rr = makeRng32(seed ^ 0x2d);
+
+      if (mode === "jardin") {
+        // leaf swirl / flower patch
+        g.fillStyle(0x0a2a1f, 0.22);
+        g.fillCircle(5 + rr.nextInt(6), 6 + rr.nextInt(6), 4);
+        g.fillStyle(0xff7fe8, 0.18);
+        g.fillRect(10 + rr.nextInt(3), 9 + rr.nextInt(3), 1, 1);
+        g.fillStyle(0xffffff, 0.14);
+        g.fillRect(11 + rr.nextInt(3), 10 + rr.nextInt(3), 1, 1);
+      }
+
+      if (mode === "forge") {
+        // ember crack
+        g.lineStyle(2, accentColor, 0.14);
+        g.beginPath();
+        g.moveTo(3, 13);
+        g.lineTo(6, 9);
+        g.lineTo(11, 10);
+        g.lineTo(13, 5);
+        g.strokePath();
+      }
+
+      if (mode === "abime") {
+        // small rune
+        g.lineStyle(2, accentColor, 0.12);
+        g.strokeCircle(8, 8, 5);
+        g.lineStyle(1, 0xffffff, 0.07);
+        g.beginPath();
+        g.moveTo(8, 4);
+        g.lineTo(8, 12);
+        g.strokePath();
+      }
+
+      g.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    };
+
     // Jardin palette
-    makeTile("tile_floor_jardin", 0x0b1022, 0x00ffc8, false);
+    makeTile("tile_floor_jardin", 0x061313, 0x00ffc8, false);
     makeWall("tile_wall_jardin", 0x090a10, 0x00ffc8);
     makeTile("tile_vein_jardin", 0x000000, 0x00ffc8, true);
+
+    // Add a more "grassy" variant overlay by regenerating with small flowers specks.
+    g.clear();
+    g.fillStyle(0x061313, 1);
+    g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+    // grass noise
+    for (let i = 0; i < 22; i++) {
+      const x = (i * 5) % TILE_SIZE;
+      const y = (i * 9) % TILE_SIZE;
+      g.fillStyle(0x0a2a1f, 0.28);
+      g.fillRect(x, y, 1, 1);
+    }
+    // tiny flowers
+    g.fillStyle(0xffffff, 0.22);
+    g.fillRect(3, 6, 1, 1);
+    g.fillRect(12, 10, 1, 1);
+    g.fillStyle(0xff7fe8, 0.22);
+    g.fillRect(7, 12, 1, 1);
+    g.lineStyle(1, 0x00ffc8, 0.12);
+    g.strokeRect(0.5, 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+    g.generateTexture("tile_floor_jardin", TILE_SIZE, TILE_SIZE);
+
+    // Jardin variants
+    for (let i = 0; i < 4; i++) {
+      makeTileVariant(`tile_floor_jardin_${i}`, 0x061313, 0x0a2a1f, 0x00ffc8, 0x10a1 ^ (i * 0x9e37), "jardin");
+    }
+    for (let i = 0; i < 3; i++) {
+      makeWallVariant(`tile_wall_jardin_${i}`, 0x090a10, 0x00ffc8, 0x11b2 ^ (i * 0x7f4a), "jardin");
+    }
+    for (let i = 0; i < 2; i++) {
+      makeDetailOverlay(`tile_detail_jardin_${i}`, 0x00ffc8, 0x12c3 ^ (i * 0x531), "jardin");
+    }
 
     // Forge palette
     makeTile("tile_floor_forge", 0x120a16, 0xffb000, false);
     makeWall("tile_wall_forge", 0x0b0a0f, 0xffb000);
     makeTile("tile_vein_forge", 0x000000, 0xffb000, true);
 
+    // Forge variants
+    for (let i = 0; i < 4; i++) {
+      makeTileVariant(`tile_floor_forge_${i}`, 0x120a16, 0x1a0e22, 0xffb000, 0x21a1 ^ (i * 0x9e37), "forge");
+    }
+    for (let i = 0; i < 3; i++) {
+      makeWallVariant(`tile_wall_forge_${i}`, 0x0b0a0f, 0xffb000, 0x22b2 ^ (i * 0x7f4a), "forge");
+    }
+    for (let i = 0; i < 2; i++) {
+      makeDetailOverlay(`tile_detail_forge_${i}`, 0xffb000, 0x23c3 ^ (i * 0x531), "forge");
+    }
+
     // Abime palette
     makeTile("tile_floor_abime", 0x05040a, 0xff4df2, false);
     makeWall("tile_wall_abime", 0x05040a, 0xff4df2);
     makeTile("tile_vein_abime", 0x000000, 0xff4df2, true);
+
+    // Abime variants
+    for (let i = 0; i < 4; i++) {
+      makeTileVariant(`tile_floor_abime_${i}`, 0x05040a, 0x0d0a16, 0xff4df2, 0x31a1 ^ (i * 0x9e37), "abime");
+    }
+    for (let i = 0; i < 3; i++) {
+      makeWallVariant(`tile_wall_abime_${i}`, 0x05040a, 0xff4df2, 0x32b2 ^ (i * 0x7f4a), "abime");
+    }
+    for (let i = 0; i < 2; i++) {
+      makeDetailOverlay(`tile_detail_abime_${i}`, 0xff4df2, 0x33c3 ^ (i * 0x531), "abime");
+    }
 
     const makeSprite = (key, bodyColor, glowColor, kind) => {
       const size = 18;
@@ -1834,31 +3365,305 @@
       g.fillStyle(0x000000, 0);
       g.fillRect(0, 0, size, size);
 
+      // body + head
       g.fillStyle(bodyColor, 1);
-      g.fillRoundedRect(3, 4, 12, 12, 3);
+      g.fillRoundedRect(4, 7, 10, 9, 3);
+      g.fillStyle(bodyColor, 0.95);
+      g.fillCircle(9, 6, 4);
+
       g.fillStyle(glowColor, 0.8);
-      g.fillRect(6, 6, 6, 2);
+      g.fillRect(6, 9, 6, 2);
 
       if (kind === "monster") {
-        g.fillStyle(glowColor, 0.6);
-        g.fillRect(5, 11, 8, 2);
+        // eyes + maw
+        g.fillStyle(glowColor, 0.9);
+        g.fillRect(6, 8, 2, 1);
+        g.fillRect(10, 8, 2, 1);
+        g.fillStyle(glowColor, 0.55);
+        g.fillRect(6, 12, 6, 2);
       }
 
       g.generateTexture(key, size, size);
     };
 
-    makeSprite("spr_player", 0x1e2a4a, 0x00ffc8, "player");
+    const makeHumanoid = (key, skin, cloth, accent, role) => {
+      const W = 20;
+      const H = 22;
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, W, H);
 
-    makeSprite("spr_npc_quest", 0x1a2442, 0x7fffd4, "npc");
-    makeSprite("spr_npc_merchant", 0x1a2442, 0xffd27f, "npc");
-    makeSprite("spr_npc_wander", 0x1a2442, 0xff7fe8, "npc");
-    makeSprite("spr_npc_guard", 0x1a2442, 0xa8ff7f, "npc");
+      const outline = 0x05040a;
+      const shade = 0x0b0a12;
+
+      // Shadow
+      g.fillStyle(0x000000, 0.18);
+      g.fillRoundedRect(6, 18, 8, 3, 2);
+
+      // Body outline
+      g.fillStyle(outline, 0.95);
+      g.fillRoundedRect(6, 9, 8, 10, 3);
+      // Body fill + shading
+      g.fillStyle(cloth, 1);
+      g.fillRoundedRect(7, 10, 6, 8, 2);
+      g.fillStyle(shade, 0.18);
+      g.fillRect(7, 10, 2, 8);
+
+      // Head outline
+      g.fillStyle(outline, 0.95);
+      g.fillCircle(10, 7, 5);
+      // Head fill
+      g.fillStyle(skin, 1);
+      g.fillCircle(10, 7, 4);
+      g.fillStyle(0x000000, 0.12);
+      g.fillRect(8, 6, 1, 3);
+
+      // Eyes
+      g.fillStyle(0xffffff, 0.65);
+      g.fillRect(8, 7, 1, 1);
+      g.fillRect(11, 7, 1, 1);
+
+      // Accent (scarf / aura)
+      g.fillStyle(accent, 0.55);
+      g.fillRect(7, 11, 6, 2);
+      g.fillStyle(accent, 0.18);
+      g.fillCircle(10, 7, 5);
+
+      // Role mark
+      if (role === "quest") {
+        g.fillStyle(accent, 0.55);
+        g.fillRect(9, 14, 2, 3);
+      } else if (role === "merchant") {
+        g.fillStyle(0xffb000, 0.22);
+        g.fillRect(6, 16, 8, 2);
+      } else if (role === "guard") {
+        g.fillStyle(0xffffff, 0.10);
+        g.fillRect(6, 10, 2, 8);
+      } else if (role === "worker") {
+        g.fillStyle(0xffffff, 0.10);
+        g.fillRect(12, 10, 2, 8);
+      }
+
+      // Tiny highlight
+      g.fillStyle(0xffffff, 0.10);
+      g.fillRect(11, 5, 1, 2);
+
+      g.generateTexture(key, W, H);
+    };
+
+    makeHumanoid("spr_player", 0x2a3548, 0x1e2a4a, 0x00ffc8, "player");
+
+    makeHumanoid("spr_npc_quest", 0x2c2f3a, 0x1a2442, 0x7fffd4, "quest");
+    makeHumanoid("spr_npc_merchant", 0x2c2f3a, 0x1a2442, 0xffd27f, "merchant");
+    makeHumanoid("spr_npc_wander", 0x2c2f3a, 0x1a2442, 0xff7fe8, "wander");
+    makeHumanoid("spr_npc_guard", 0x2c2f3a, 0x1a2442, 0xa8ff7f, "guard");
 
     makeSprite("spr_monster_jardin", 0x151022, 0x00ffc8, "monster");
     makeSprite("spr_monster_forge", 0x151022, 0xffb000, "monster");
     makeSprite("spr_monster_abime", 0x151022, 0xff4df2, "monster");
 
-    makeSprite("spr_worker", 0x1a2442, 0xb4ff8a, "npc");
+    // Monster variants (color/shape variety)
+    makeSprite("spr_monster_jardin_a", 0x121b1a, 0x7fffd4, "monster");
+    makeSprite("spr_monster_jardin_b", 0x10161b, 0x00ffc8, "monster");
+    makeSprite("spr_monster_forge_a", 0x1b1018, 0xffd27f, "monster");
+    makeSprite("spr_monster_forge_b", 0x1a0f14, 0xffb000, "monster");
+    makeSprite("spr_monster_abime_a", 0x0f0b16, 0xff7fe8, "monster");
+    makeSprite("spr_monster_abime_b", 0x120b1d, 0xff4df2, "monster");
+
+    makeHumanoid("spr_worker", 0x2c2f3a, 0x1a2442, 0xb4ff8a, "worker");
+
+    // Tree (Jardin)
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 28, 28);
+    g.fillStyle(0x2a1a0a, 0.9);
+    g.fillRoundedRect(12, 14, 4, 10, 2);
+    g.fillStyle(0x0a2a1f, 0.95);
+    g.fillCircle(14, 12, 10);
+    g.fillStyle(0x00ffc8, 0.18);
+    g.fillCircle(14, 12, 9);
+    g.generateTexture("spr_tree", 28, 28);
+
+    // Tree A (round canopy)
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 30, 30);
+    g.fillStyle(0x2a1a0a, 0.9);
+    g.fillRoundedRect(13, 16, 4, 11, 2);
+    g.fillStyle(0x0a2a1f, 0.95);
+    g.fillCircle(15, 13, 11);
+    g.fillStyle(0x00ffc8, 0.16);
+    g.fillCircle(15, 13, 10);
+    g.generateTexture("spr_tree_a", 30, 30);
+
+    // Tree B (pine)
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 28, 30);
+    g.fillStyle(0x2a1a0a, 0.9);
+    g.fillRoundedRect(12, 17, 4, 11, 2);
+    g.fillStyle(0x0a2a1f, 0.9);
+    g.fillTriangle(14, 4, 5, 18, 23, 18);
+    g.fillStyle(0x0a2a1f, 0.9);
+    g.fillTriangle(14, 8, 6, 22, 22, 22);
+    g.fillStyle(0x00ffc8, 0.12);
+    g.fillTriangle(14, 6, 7, 18, 21, 18);
+    g.generateTexture("spr_tree_b", 28, 30);
+
+    // Bush
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 20, 18);
+    g.fillStyle(0x0a2a1f, 0.92);
+    g.fillCircle(7, 10, 6);
+    g.fillCircle(12, 9, 7);
+    g.fillStyle(0x00ffc8, 0.12);
+    g.fillCircle(12, 9, 6);
+    g.generateTexture("spr_bush", 20, 18);
+
+    // Flower
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 16, 16);
+    g.fillStyle(0x0a2a1f, 0.7);
+    g.fillRect(7, 6, 2, 8);
+    g.fillStyle(0xff7fe8, 0.55);
+    g.fillCircle(8, 6, 4);
+    g.fillStyle(0xffffff, 0.28);
+    g.fillCircle(8, 6, 2);
+    g.generateTexture("spr_flower", 16, 16);
+
+    // Forge rock A
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 26, 22);
+    g.fillStyle(0x0b0a12, 0.95);
+    g.fillRoundedRect(4, 8, 18, 12, 4);
+    g.fillStyle(0xffb000, 0.14);
+    g.fillRect(8, 12, 2, 6);
+    g.fillRect(14, 11, 2, 6);
+    g.generateTexture("spr_rock_forge_a", 26, 22);
+
+    // Forge rock B
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 26, 22);
+    g.fillStyle(0x0b0a12, 0.95);
+    g.fillRoundedRect(3, 9, 20, 11, 4);
+    g.fillStyle(0xffb000, 0.12);
+    g.fillRect(9, 12, 2, 5);
+    g.fillRect(16, 13, 2, 5);
+    g.generateTexture("spr_rock_forge_b", 26, 22);
+
+    // Forge pipe
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 34, 18);
+    g.fillStyle(0x0b0a12, 0.95);
+    g.fillRoundedRect(3, 7, 28, 8, 4);
+    g.fillStyle(0xffb000, 0.12);
+    g.fillRect(7, 9, 20, 2);
+    g.generateTexture("spr_pipe_forge", 34, 18);
+
+    // Forge vent
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 22, 22);
+    g.fillStyle(0x0b0a12, 0.95);
+    g.fillRoundedRect(4, 6, 14, 14, 3);
+    g.fillStyle(0xffb000, 0.16);
+    g.fillRect(7, 9, 2, 8);
+    g.fillRect(11, 9, 2, 8);
+    g.generateTexture("spr_vent_forge", 22, 22);
+
+    // Abime crystal A
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 22, 28);
+    g.fillStyle(0x0b0a12, 0.8);
+    g.fillTriangle(11, 2, 4, 24, 18, 24);
+    g.fillStyle(0xff4df2, 0.22);
+    g.fillTriangle(11, 6, 6, 22, 16, 22);
+    g.generateTexture("spr_crystal_abime_a", 22, 28);
+
+    // Abime crystal B
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 22, 28);
+    g.fillStyle(0x0b0a12, 0.8);
+    g.fillTriangle(11, 3, 5, 25, 19, 25);
+    g.fillStyle(0xff4df2, 0.18);
+    g.fillRect(10, 10, 2, 10);
+    g.generateTexture("spr_crystal_abime_b", 22, 28);
+
+    // Abime root
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 34, 18);
+    g.fillStyle(0x0b0a12, 0.9);
+    g.fillRoundedRect(3, 8, 28, 7, 4);
+    g.lineStyle(2, 0xff4df2, 0.10);
+    g.beginPath();
+    g.moveTo(6, 12);
+    g.lineTo(14, 9);
+    g.lineTo(22, 13);
+    g.strokePath();
+    g.generateTexture("spr_root_abime", 34, 18);
+
+    // Abime totem
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 22, 30);
+    g.fillStyle(0x0b0a12, 0.95);
+    g.fillRoundedRect(5, 4, 12, 22, 4);
+    g.fillStyle(0xff4df2, 0.14);
+    g.fillRect(9, 8, 4, 12);
+    g.lineStyle(1, 0xffffff, 0.07);
+    g.strokeRect(7.5, 6.5, 7, 17);
+    g.generateTexture("spr_totem_abime", 22, 30);
+
+    // House (simple)
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 34, 30);
+    g.fillStyle(0x0b0a12, 0.95);
+    g.fillRoundedRect(6, 12, 22, 14, 3);
+    g.fillStyle(0xffb000, 0.45);
+    g.fillTriangle(6, 12, 17, 4, 28, 12);
+    g.fillStyle(0x00ffc8, 0.35);
+    g.fillRect(14, 16, 6, 6);
+    g.generateTexture("spr_house", 34, 30);
+
+    // Chest
+    g.clear();
+    g.fillStyle(0x0b0a12, 1);
+    g.fillRoundedRect(2, 6, 22, 14, 3);
+    g.fillStyle(0xffb000, 0.55);
+    g.fillRect(2, 12, 22, 2);
+    g.fillStyle(0x00ffc8, 0.4);
+    g.fillRect(11, 10, 4, 6);
+    g.generateTexture("spr_chest", 26, 24);
+
+    // Herb node
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 20, 20);
+    g.fillStyle(0x0a2a1f, 0.95);
+    g.fillTriangle(4, 16, 10, 6, 16, 16);
+    g.fillStyle(0x00ffc8, 0.22);
+    g.fillRect(9, 8, 2, 8);
+    g.generateTexture("spr_herb", 20, 20);
+
+    // Ore node
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 20, 20);
+    g.fillStyle(0x0b0a12, 0.95);
+    g.fillRoundedRect(4, 8, 12, 10, 3);
+    g.fillStyle(0xff4df2, 0.28);
+    g.fillRect(7, 10, 2, 6);
+    g.fillRect(11, 11, 2, 5);
+    g.generateTexture("spr_ore", 20, 20);
 
     // Quest site marker
     g.clear();
@@ -1902,6 +3707,111 @@
     g.fillStyle(0x00ffc8, 0.5);
     g.fillRoundedRect(7, 8, 12, 16, 3);
     g.generateTexture("spr_pillar", 26, 32);
+
+    // Pillar glow overlay (additive halo + runes)
+    g.clear();
+    g.fillStyle(0x000000, 0);
+    g.fillRect(0, 0, 34, 40);
+    g.fillStyle(0x00ffc8, 0.10);
+    g.fillCircle(17, 20, 16);
+    g.fillStyle(0x00ffc8, 0.12);
+    g.fillRoundedRect(11, 12, 12, 16, 6);
+    g.lineStyle(2, 0x00ffc8, 0.18);
+    g.strokeRoundedRect(10.5, 11.5, 13, 17, 6);
+    g.lineStyle(1, 0xffffff, 0.06);
+    g.beginPath();
+    g.moveTo(17, 10);
+    g.lineTo(17, 30);
+    g.moveTo(12, 20);
+    g.lineTo(22, 20);
+    g.strokePath();
+    g.generateTexture("spr_pillar_glow", 34, 40);
+
+    // --- Parallax backgrounds (64x64 patterns) ---
+    const makeBg = (key, baseColor, accentColor, mode) => {
+      const S = 64;
+      g.clear();
+      g.fillStyle(baseColor, 1);
+      g.fillRect(0, 0, S, S);
+
+      // Subtle noise
+      g.fillStyle(0x000000, 0.10);
+      for (let i = 0; i < 220; i++) {
+        const x = (i * 13) % S;
+        const y = (i * 29) % S;
+        g.fillRect(x, y, 1, 1);
+      }
+
+      if (mode === "jardin") {
+        // faint vines
+        g.lineStyle(2, accentColor, 0.10);
+        for (let y = 6; y < S; y += 16) {
+          g.beginPath();
+          g.moveTo(0, y);
+          g.lineTo(S, y + 8);
+          g.strokePath();
+        }
+        g.fillStyle(0xffffff, 0.06);
+        for (let i = 0; i < 10; i++) g.fillCircle((i * 9) % S, (i * 17) % S, 2);
+      }
+
+      if (mode === "forge") {
+        // heat bands
+        g.fillStyle(accentColor, 0.06);
+        for (let y = 0; y < S; y += 10) {
+          g.fillRect(0, y, S, 2);
+        }
+        g.lineStyle(1, accentColor, 0.08);
+        g.beginPath();
+        g.moveTo(4, 60);
+        g.lineTo(22, 42);
+        g.lineTo(46, 54);
+        g.lineTo(60, 34);
+        g.strokePath();
+      }
+
+      if (mode === "abime") {
+        // drifting constellations
+        g.fillStyle(0xffffff, 0.10);
+        for (let i = 0; i < 24; i++) {
+          const x = (i * 11 + 7) % S;
+          const y = (i * 23 + 5) % S;
+          g.fillRect(x, y, 1, 1);
+        }
+        g.lineStyle(1, accentColor, 0.06);
+        g.strokeCircle(48, 18, 12);
+        g.strokeCircle(18, 44, 10);
+      }
+
+      g.generateTexture(key, S, S);
+    };
+
+    makeBg("bg_jardin", 0x050b0b, 0x00ffc8, "jardin");
+    makeBg("bg_forge", 0x07050a, 0xffb000, "forge");
+    makeBg("bg_abime", 0x040309, 0xff4df2, "abime");
+
+    // --- Particle textures (small, additive) ---
+    const makeFx = (key, color, shape) => {
+      const S = 8;
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, S, S);
+      g.fillStyle(color, 0.9);
+      if (shape === "dot") {
+        g.fillCircle(4, 4, 2);
+      } else if (shape === "ember") {
+        g.fillTriangle(4, 1, 1, 6, 7, 6);
+      } else {
+        // mote (rune-ish)
+        g.fillRect(3, 2, 2, 4);
+        g.fillRect(2, 3, 4, 2);
+      }
+      g.generateTexture(key, S, S);
+    };
+
+    makeFx("fx_pollen", 0x00ffc8, "dot");
+    makeFx("fx_ember", 0xffb000, "ember");
+    makeFx("fx_mote", 0xff4df2, "mote");
 
     g.destroy();
   }
@@ -2240,6 +4150,9 @@
 
           const cProgress = clamp((q.communityProgress / q.communityRequired) * 100, 0, 100);
 
+          const hpPct = clamp((h.hp / h.hpMax) * 100, 0, 100);
+          const esPct = clamp((h.essence / h.essenceMax) * 100, 0, 100);
+
           const step = q.steps?.[q.stepIndex] ?? null;
           let stepLine = q.stepText ?? "—";
           if (step?.kind === "collect") stepLine += ` • ${step.progress}/${step.required}`;
@@ -2248,12 +4161,34 @@
 
           ui.hud.innerHTML = `
             <div class="card sopor-hudCard">
-              <div class="card-body">
-                <div><b>PV</b> ${h.hp.toFixed(0)}/${h.hpMax.toFixed(0)} • <b>Essence</b> ${h.essence.toFixed(1)}/${h.essenceMax.toFixed(0)} • <b>Pâle</b> ${pale}</div>
-                <div><b>Arme</b> ${escapeHtml(h.weaponName)} (${escapeHtml(h.weaponType)})</div>
-                <div><b>Strate</b> ${escapeHtml(h.stratum)} • <b>Menace</b> ${h.threat.toFixed(2)} • <b>Stabilité</b> ${h.stability.toFixed(0)}%</div>
-                <div><b>Trame</b> ${escapeHtml(q.title)} • <b>Étape</b> ${escapeHtml(stepLine)}</div>
-                <div><b>Communauté</b> ${q.communityProgress.toFixed(1)}/${q.communityRequired} (${cProgress.toFixed(0)}%) • <b>Contribution</b> ${q.playerContribution.toFixed(1)}</div>
+              <div class="card-body sopor-hudGrid">
+                <div class="sopor-bars">
+                  <div class="sopor-bar">
+                    <div class="sopor-barLabel">PV</div>
+                    <div class="sopor-barTrack"><div class="sopor-barFill is-hp" style="width:${hpPct.toFixed(1)}%"></div></div>
+                    <div class="sopor-barValue">${h.hp.toFixed(0)}/${h.hpMax.toFixed(0)}</div>
+                  </div>
+                  <div class="sopor-bar">
+                    <div class="sopor-barLabel">Essence</div>
+                    <div class="sopor-barTrack"><div class="sopor-barFill is-essence" style="width:${esPct.toFixed(1)}%"></div></div>
+                    <div class="sopor-barValue">${h.essence.toFixed(1)}/${h.essenceMax.toFixed(0)}</div>
+                  </div>
+                </div>
+
+                <div class="sopor-chips">
+                  <div class="sopor-chip"><span class="k">Arme</span><span class="v">${escapeHtml(h.weaponName)}</span></div>
+                  <div class="sopor-chip"><span class="k">Type</span><span class="v">${escapeHtml(h.weaponType)}</span></div>
+                  <div class="sopor-chip"><span class="k">Strate</span><span class="v">${escapeHtml(h.stratum)}</span></div>
+                  <div class="sopor-chip"><span class="k">Menace</span><span class="v">${h.threat.toFixed(2)}</span></div>
+                  <div class="sopor-chip"><span class="k">Stabilité</span><span class="v">${h.stability.toFixed(0)}%</span></div>
+                  <div class="sopor-chip"><span class="k">Pâle</span><span class="v">${pale}</span></div>
+                </div>
+
+                <div class="sopor-quest">
+                  <div class="sopor-questTitle">${escapeHtml(q.title)}</div>
+                  <div class="sopor-questStep">${escapeHtml(stepLine)}</div>
+                  <div class="sopor-questMeta">Communauté ${q.communityProgress.toFixed(1)}/${q.communityRequired} (${cProgress.toFixed(0)}%) • Contribution ${q.playerContribution.toFixed(1)}</div>
+                </div>
               </div>
             </div>
           `;
@@ -2350,6 +4285,24 @@
       _lastAutoSaveAt: 0,
       _facing: { x: 1, y: 0 },
     };
+
+    // Mute toggle (persisted)
+    const audioSettings = audio.loadSettings();
+    audio.setMuted(!!audioSettings.muted);
+    audio.setVolume(audioSettings.volume);
+    if (ui.btnMute) {
+      const refreshMuteLabel = () => {
+        ui.btnMute.textContent = audioSettings.muted ? "Son: OFF" : "Son: ON";
+      };
+      refreshMuteLabel();
+      ui.btnMute.addEventListener("click", () => {
+        audioSettings.muted = !audioSettings.muted;
+        audio.setMuted(audioSettings.muted);
+        audio.saveSettings(audioSettings);
+        refreshMuteLabel();
+        logger.info(audioSettings.muted ? "Audio: muet." : "Audio: activé." );
+      });
+    }
 
     // Surface runtime errors into the in-page journal (helps debug "black screen" issues).
     window.addEventListener("error", (e) => {
@@ -2449,6 +4402,8 @@
       const usernameNorm = requireUsername();
       if (!usernameNorm) return;
 
+      ui.app.dataset.mode = "play";
+
       updateBadges(usernameNorm);
 
       audio.configureForUsername(usernameNorm);
@@ -2464,8 +4419,9 @@
       startPhaserIfNeeded();
 
       // Start audio after a user gesture (this click). Safe for iframe policies.
-      const settings = audio.loadSettings();
-      const res = audio.start(settings.volume);
+      // Start audio after a user gesture (this click). Safe for iframe policies.
+      // Use the current settings (including mute).
+      const res = audio.start(audioSettings.volume);
       if (!res.ok) {
         logger.info("Audio: " + res.reason);
       }

@@ -18,7 +18,7 @@ body {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
 }
 
 .sopor-topbar {
@@ -33,11 +33,35 @@ body {
 }
 
 .sopor-shell {
+  position: relative;
   display: grid;
   grid-template-columns: 360px 1fr;
   gap: 12px;
   padding: 12px;
   min-height: 0;
+}
+
+#app[data-mode="boot"] .sopor-shell {
+  grid-template-columns: 1fr;
+}
+
+#app[data-mode="boot"] .sopor-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -55%);
+  width: min(560px, calc(100vw - 28px));
+  z-index: 4;
+}
+
+#app[data-mode="boot"] .sopor-canvasWrap {
+  opacity: 0.92;
+}
+
+#app[data-mode="play"] .sopor-panel {
+  position: static;
+  transform: none;
+  width: auto;
 }
 
 .sopor-panel {
@@ -76,15 +100,62 @@ body {
 
 .sopor-input {
   width: 100%;
+  min-height: 42px;
+}
+
+.sopor-panel .btn {
+  min-height: 40px;
 }
 
 .sopor-log {
-  white-space: pre-wrap;
+  white-space: normal;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 12px;
-  line-height: 1.35;
-  max-height: 220px;
+  font-size: 13px;
+  line-height: 1.45;
+  max-height: 240px;
   overflow: auto;
+}
+
+.sopor-logDock {
+  margin: 0 12px 12px;
+  min-height: 220px;
+  max-height: 260px;
+  overflow: hidden;
+}
+
+.sopor-logTitle {
+  font-weight: 700;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.sopor-logLine {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.sopor-logTime {
+  opacity: 0.65;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.sopor-logMsg {
+  opacity: 0.95;
+}
+
+.sopor-logLine--error .sopor-logMsg {
+  color: rgba(255, 90, 90, 0.95);
+}
+
+.sopor-logLine--success .sopor-logMsg {
+  color: rgba(180, 255, 138, 0.95);
+}
+
+.sopor-logLine--warn .sopor-logMsg {
+  color: rgba(255, 220, 80, 0.95);
 }
 
 .sopor-hud {
@@ -99,6 +170,99 @@ body {
 .sopor-hudCard {
   pointer-events: none;
   opacity: 0.92;
+}
+
+.sopor-hudGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.sopor-bars {
+  display: grid;
+  gap: 8px;
+}
+
+.sopor-bar {
+  display: grid;
+  grid-template-columns: 68px 1fr 88px;
+  align-items: center;
+  gap: 10px;
+}
+
+.sopor-barLabel {
+  font-weight: 800;
+  opacity: 0.95;
+}
+
+.sopor-barTrack {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sopor-barFill {
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.sopor-barFill.is-hp {
+  background: rgba(255, 90, 90, 0.85);
+}
+
+.sopor-barFill.is-essence {
+  background: rgba(0, 255, 200, 0.85);
+}
+
+.sopor-barValue {
+  text-align: right;
+  opacity: 0.9;
+  font-size: 12px;
+}
+
+.sopor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sopor-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sopor-chip .k {
+  opacity: 0.75;
+  font-weight: 700;
+}
+
+.sopor-chip .v {
+  opacity: 0.95;
+}
+
+.sopor-quest {
+  display: grid;
+  gap: 4px;
+}
+
+.sopor-questTitle {
+  font-weight: 800;
+}
+
+.sopor-questStep {
+  opacity: 0.95;
+}
+
+.sopor-questMeta {
+  opacity: 0.8;
+  font-size: 12px;
 }
 
 .sopor-danger {
