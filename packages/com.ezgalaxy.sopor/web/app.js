@@ -365,6 +365,7 @@
         <div class="sopor-title">Sopor</div>
         <div class="sopor-badge">Offline • Pixel • Quêtes</div>
         <div style="flex:1"></div>
+        <button id="btnPanel" class="btn">Panneau</button>
         <button id="btnMute" class="btn">Son: —</button>
         <button id="btnHardReset" class="btn">Reset (local)</button>
       </div>
@@ -402,8 +403,11 @@
             <div class="card-body">
               <div>Déplacement: ZQSD / WASD / flèches</div>
               <div>Attaque: clic gauche ou Espace</div>
+              <div>Esquive: SHIFT</div>
+              <div>Compétences: E (Dash) • R (Onde)</div>
               <div>Interaction (PNJ / Pilier): F</div>
               <div>Changer d'arme: 1–9</div>
+              <div>Panneau: TAB</div>
               <div>Pause: Échap</div>
             </div>
           </div>
@@ -433,6 +437,7 @@
       btnStart: /** @type {HTMLButtonElement} */ (document.getElementById("btnStart")),
       btnLoad: /** @type {HTMLButtonElement} */ (document.getElementById("btnLoad")),
       btnDeleteSave: /** @type {HTMLButtonElement} */ (document.getElementById("btnDeleteSave")),
+      btnPanel: /** @type {HTMLButtonElement} */ (document.getElementById("btnPanel")),
       btnMute: /** @type {HTMLButtonElement} */ (document.getElementById("btnMute")),
       btnHardReset: /** @type {HTMLButtonElement} */ (document.getElementById("btnHardReset")),
       userBadge: document.getElementById("userBadge"),
@@ -473,15 +478,28 @@
       return "info";
     }
 
+    function push(kind, msg) {
+      lines.push({
+        time: new Date().toLocaleTimeString(),
+        msg: String(msg),
+        kind,
+      });
+      while (lines.length > MAX_LOG_LINES) lines.shift();
+      render();
+    }
+
     return {
       info(msg) {
-        lines.push({
-          time: new Date().toLocaleTimeString(),
-          msg: String(msg),
-          kind: classify(msg),
-        });
-        while (lines.length > MAX_LOG_LINES) lines.shift();
-        render();
+        push(classify(msg), msg);
+      },
+      warn(msg) {
+        push("warn", msg);
+      },
+      success(msg) {
+        push("success", msg);
+      },
+      error(msg) {
+        push("error", msg);
       },
       clear() {
         lines.length = 0;
@@ -516,6 +534,10 @@
       nextNoteTime: 0,
       noteIndex: 0,
       timerId: 0,
+
+      // combat intensity (0..1), smoothed
+      combatIntensity: 0,
+      combatTarget: 0,
     };
 
     function midiToHz(midi) {
@@ -652,9 +674,21 @@
       const ctx = ensureContext();
       if (!ctx || !state.started) return;
 
+      // Smooth combat intensity (keeps musical transitions gentle)
+      const a = 0.06;
+      state.combatIntensity = state.combatIntensity * (1 - a) + clamp(state.combatTarget, 0, 1) * a;
+
       const lookAhead = 0.28;
       while (state.nextNoteTime < ctx.currentTime + lookAhead) {
         const preset = stratumPreset(state.stratum, state.stage, state.usernameSeed);
+        const ci = clamp(state.combatIntensity, 0, 1);
+
+        // Adaptive combat layer: more urgency, brighter filter, more space.
+        preset.tempoMul = preset.tempoMul * (1.0 + ci * 0.22);
+        preset.cutoff = clamp(preset.cutoff * (1.0 + ci * 0.60), 250, 5200);
+        preset.mix = clamp(preset.mix + ci * 0.10, 0.0, 0.5);
+        preset.feedback = clamp(preset.feedback + ci * 0.08, 0.1, 0.65);
+        preset.ornamentChance = clamp(preset.ornamentChance + ci * 0.08, 0.0, 0.35);
 
         if (state.delay && state.delayFeedback && state.delayMix) {
           state.delay.delayTime.setTargetAtTime(preset.delayTime, state.nextNoteTime, 0.02);
@@ -667,6 +701,11 @@
         const midi = base + step;
 
         scheduleNote(state.nextNoteTime, midi, preset, 0.9);
+
+        // Low pulse under stress (still subtle; avoids muddying the mix)
+        if (ci > 0.55 && (state.noteIndex % 4 === 0)) {
+          scheduleNote(state.nextNoteTime, midi - 12, preset, 0.35 + ci * 0.25);
+        }
 
         // Ornamentation: small grace note on some stages.
         const rng = makeRng(state.usernameSeed ^ (state.noteIndex * 0x9e3779b9));
@@ -726,6 +765,9 @@
       setStoryProgress({ stratum, stage }) {
         state.stratum = stratum;
         state.stage = clamp(stage, 0, 4);
+      },
+      setCombatIntensity(intensity01) {
+        state.combatTarget = clamp(Number(intensity01 ?? 0) || 0, 0, 1);
       },
       start(volume) {
         const ctx = ensureContext();
@@ -1102,15 +1144,59 @@
       this.tintOverlay = null;
       this.darkOverlay = null;
       this.playerLight = null;
+
+      // Visual upgrade: pseudo-bloom + shadows + glitch + weather (Canvas-friendly)
+      this.playerLightBloomA = null;
+      this.playerLightBloomB = null;
+      this.playerShadow = null;
+      this.glitchOverlay = null;
+      this.fxWeather = null;
+      this._lastScreenFxAt = 0;
+      this._glitchLevel = 0;
       this.fx = null;
       this._ambienceStratum = null;
       this._lastAmbienceAt = 0;
+
+      this._lastAudioCombatAt = 0;
 
       this._hudLast = 0;
 
       this._lastPlayerDamageAt = 0;
 
       this._lastEnemyProjectileTickAt = 0;
+
+      this._lastPlayerProjectileTrailAt = 0;
+
+      // FX budget (prevents worst-case sprite floods)
+      this._fxBudgetAt = 0;
+      this._fxBudget = { impacts: 0, trails: 0, telegraphs: 0 };
+
+      // Enemy visuals: subtle halo + micro-variation (throttled)
+      this._lastMonsterVisualAt = 0;
+
+      // Combat feel: dodge / skills / combos.
+      this._invulnUntil = 0;
+      this._cooldowns = { dodgeReadyAt: 0, dashReadyAt: 0, shockReadyAt: 0 };
+      this._combo = { stage: 0, lastAt: 0 };
+
+      this._basePlayerAlpha = 1.0;
+    }
+
+    _fxBudgetResetIfNeeded() {
+      const t = nowMs();
+      if (t - (this._fxBudgetAt ?? 0) > 240) {
+        this._fxBudgetAt = t;
+        this._fxBudget = { impacts: 0, trails: 0, telegraphs: 0 };
+      }
+    }
+
+    _fxAllow(kind, maxPerWindow) {
+      this._fxBudgetResetIfNeeded();
+      if (!this._fxBudget || !this._fxBudget[kind]) this._fxBudget = { impacts: 0, trails: 0, telegraphs: 0 };
+      const cur = Number(this._fxBudget[kind] ?? 0) || 0;
+      if (cur >= maxPerWindow) return false;
+      this._fxBudget[kind] = cur + 1;
+      return true;
     }
 
     create() {
@@ -1176,6 +1262,25 @@
       this.playerLight.setDepth(44);
       this.playerLight.setAlpha(0.9);
 
+      // Pseudo-bloom: layered halos (cheap, works on Canvas renderer)
+      this.playerLightBloomA = this.add.image(this.player.x, this.player.y, "spr_light_jardin");
+      this.playerLightBloomA.setBlendMode(Phaser.BlendModes.ADD);
+      this.playerLightBloomA.setDepth(43);
+      this.playerLightBloomA.setScale(1.55);
+      this.playerLightBloomA.setAlpha(0.32);
+
+      this.playerLightBloomB = this.add.image(this.player.x, this.player.y, "spr_light_jardin");
+      this.playerLightBloomB.setBlendMode(Phaser.BlendModes.ADD);
+      this.playerLightBloomB.setDepth(42);
+      this.playerLightBloomB.setScale(2.15);
+      this.playerLightBloomB.setAlpha(0.16);
+
+      // Soft ground shadow under player (depth below entities)
+      this.playerShadow = this.add.image(this.player.x, this.player.y + 8, "spr_shadow");
+      this.playerShadow.setBlendMode(Phaser.BlendModes.MULTIPLY);
+      this.playerShadow.setDepth(2);
+      this.playerShadow.setAlpha(0.55);
+
       // Particle managers (enabled/disabled per stratum)
       // Phaser 3.60+ uses ParticleEmitter as a GameObject; createEmitter was removed.
       const emPollen = this.add.particles(0, 0, "fx_pollen", {
@@ -1232,6 +1337,49 @@
         mote: emMote,
       };
 
+      // Weather / corruption overlays (screen-space)
+      const emFog = this.add.particles(0, 0, "fx_fog", {
+        x: { min: 0, max: cam.width },
+        y: { min: 0, max: cam.height },
+        lifespan: { min: 2400, max: 5200 },
+        speedY: { min: -6, max: 6 },
+        speedX: { min: -10, max: 10 },
+        quantity: 2,
+        frequency: 160,
+        scale: { start: 1.35, end: 2.0 },
+        alpha: { start: 0.08, end: 0 },
+        rotate: { min: 0, max: 360 },
+        blendMode: "SCREEN",
+      });
+      emFog.setDepth(46);
+      emFog.setScrollFactor(0);
+
+      const emRain = this.add.particles(0, 0, "fx_rain", {
+        x: { min: -20, max: cam.width + 20 },
+        y: { min: -30, max: cam.height + 30 },
+        lifespan: { min: 550, max: 950 },
+        speedY: { min: 220, max: 380 },
+        speedX: { min: -35, max: 35 },
+        quantity: 4,
+        frequency: 55,
+        scale: { start: 0.9, end: 0.65 },
+        alpha: { start: 0.20, end: 0.0 },
+        rotate: { min: -14, max: 14 },
+        blendMode: "ADD",
+      });
+      emRain.setDepth(46);
+      emRain.setScrollFactor(0);
+
+      emFog.setVisible(false);
+      emRain.setVisible(false);
+
+      this.fxWeather = { fog: emFog, rain: emRain };
+
+      // Glitch overlay (screen-space graphics)
+      this.glitchOverlay = this.add.graphics();
+      this.glitchOverlay.setScrollFactor(0);
+      this.glitchOverlay.setDepth(55);
+
       // Resize hooks
       this.scale.on("resize", (gameSize) => {
         const w = gameSize.width;
@@ -1259,6 +1407,10 @@
         q: Phaser.Input.Keyboard.KeyCodes.Q,
         space: Phaser.Input.Keyboard.KeyCodes.SPACE,
         f: Phaser.Input.Keyboard.KeyCodes.F,
+        e: Phaser.Input.Keyboard.KeyCodes.E,
+        r: Phaser.Input.Keyboard.KeyCodes.R,
+        shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+        tab: Phaser.Input.Keyboard.KeyCodes.TAB,
         esc: Phaser.Input.Keyboard.KeyCodes.ESC,
         one: Phaser.Input.Keyboard.KeyCodes.ONE,
         two: Phaser.Input.Keyboard.KeyCodes.TWO,
@@ -1290,7 +1442,13 @@
 
       this.physics.add.overlap(this.enemyProjectiles, this.solids, (proj) => {
         const pObj = /** @type {Phaser.GameObjects.GameObject} */ (proj);
-        if (pObj?.active) pObj.destroy();
+        if (pObj?.active) {
+          try {
+            const w = pObj.getData?.("warn");
+            if (w?.active) w.destroy();
+          } catch {}
+          pObj.destroy();
+        }
       });
 
       this.physics.add.overlap(this.player, this.monsters, () => {
@@ -1340,6 +1498,22 @@
 
       this._handleWeaponHotkeys();
 
+      // Skills / dodge (JustDown so they don't spam)
+      if (this.keys.tab && Phaser.Input.Keyboard.JustDown(this.keys.tab)) {
+        // Prevent browser focus navigation.
+        try { this.input.keyboard?.preventDefault?.(this.keys.tab); } catch {}
+        gs.ui?.togglePanel?.();
+      }
+      if (this.keys.shift && Phaser.Input.Keyboard.JustDown(this.keys.shift)) {
+        this._tryDodge();
+      }
+      if (this.keys.e && Phaser.Input.Keyboard.JustDown(this.keys.e)) {
+        this._trySkillDash();
+      }
+      if (this.keys.r && Phaser.Input.Keyboard.JustDown(this.keys.r)) {
+        this._trySkillShockwave();
+      }
+
       if (this.keys.esc.isDown) {
         this.scene.pause();
         this.scene.pause("UIScene");
@@ -1348,11 +1522,25 @@
 
       this._movePlayer();
       this._aiTick();
+      this._tickMonsterVisuals();
       this._tickEnemyProjectiles();
+      this._tickPlayerProjectiles();
+
+      this._applyInvulnVisuals();
 
       // Neo-pixel lighting follows the player.
       if (this.playerLight && this.player && this.player.active) {
         this.playerLight.setPosition(this.player.x, this.player.y);
+      }
+
+      if (this.playerLightBloomA && this.player && this.player.active) {
+        this.playerLightBloomA.setPosition(this.player.x, this.player.y);
+      }
+      if (this.playerLightBloomB && this.player && this.player.active) {
+        this.playerLightBloomB.setPosition(this.player.x, this.player.y);
+      }
+      if (this.playerShadow && this.player && this.player.active) {
+        this.playerShadow.setPosition(this.player.x, this.player.y + 8);
       }
 
       // Ambience refresh (bg scroll + stratum toggles)
@@ -1360,6 +1548,18 @@
         this._lastAmbienceAt = nowMs();
         const danger = this._dangerState();
         this._updateAmbience(danger.stratum);
+      }
+
+      // Adaptive combat audio refresh
+      if (gs.audio && nowMs() - (this._lastAudioCombatAt ?? 0) > 160) {
+        this._lastAudioCombatAt = nowMs();
+        this._tickAudioCombat();
+      }
+
+      // Screen FX refresh (corruption / instability)
+      if (nowMs() - this._lastScreenFxAt > 120) {
+        this._lastScreenFxAt = nowMs();
+        this._tickScreenFx();
       }
 
       const attackPressed = this.keys.space.isDown || this.input.activePointer.isDown;
@@ -1404,6 +1604,247 @@
       gs.ui.renderDanger(this._dangerState());
     }
 
+    _tickAudioCombat() {
+      const gs = this.registry.get("gameState");
+      if (!gs.audio?.setCombatIntensity) return;
+
+      const danger = this._dangerState();
+      const t = nowMs();
+
+      let nearest = Infinity;
+      let countNear = 0;
+      const nearR = 270;
+
+      if (this.monsters) {
+        this.monsters.children.iterate((child) => {
+          if (!child || !child.active) return;
+          const d = Math.hypot(child.x - this.player.x, child.y - this.player.y);
+          if (d < nearest) nearest = d;
+          if (d < nearR) countNear++;
+        });
+      }
+
+      const threatBase = clamp(((Number(danger.threat ?? 1) || 1) - 1) / 3.2, 0, 1) * 0.40;
+      const crowd = clamp(countNear / 6, 0, 1) * 0.45;
+      const close = Number.isFinite(nearest) ? clamp(1 - nearest / 280, 0, 1) * 0.25 : 0;
+      const recentHit = t - (this._lastPlayerDamageAt ?? 0) < 1600 ? 0.25 : 0;
+      const recentAtk = t - (this.lastAttackAt ?? 0) < 900 ? 0.12 : 0;
+
+      const intensity = clamp(threatBase + crowd + close + recentHit + recentAtk, 0, 1);
+      gs.audio.setCombatIntensity(intensity);
+    }
+
+    _applyInvulnVisuals() {
+      if (!this.player?.active) return;
+      if (!Number.isFinite(this._basePlayerAlpha)) this._basePlayerAlpha = this.player.alpha ?? 1.0;
+
+      const t = nowMs();
+      const inv = t < (this._invulnUntil ?? 0);
+      if (inv) {
+        const phase = (t % 120) / 120;
+        const a = 0.55 + 0.35 * Math.abs(Math.sin(phase * Math.PI * 2));
+        this.player.setAlpha(a);
+      } else {
+        // Restore
+        if (this.player.alpha !== this._basePlayerAlpha) this.player.setAlpha(this._basePlayerAlpha);
+      }
+    }
+
+    _fxAccentKey() {
+      // Pick an accent by ambience (keeps the palette consistent).
+      const s = this._ambienceStratum ?? STRATA.JARDIN;
+      return s === STRATA.FORGE ? "amber" : s === STRATA.ABIME ? "magenta" : "cyan";
+    }
+
+    _spawnImpactFx(x, y, accent = "cyan", scale = 1.0) {
+      // Always try to show feedback, but cap extreme floods.
+      if (!this._fxAllow("impacts", 28)) return;
+      const key = accent === "amber" ? "fx_spark_amber" : accent === "magenta" ? "fx_spark_magenta" : "fx_spark_cyan";
+      const img = this.add.image(x, y, key);
+      img.setBlendMode(Phaser.BlendModes.ADD);
+      img.setDepth(26);
+      img.setScale(scale);
+      img.setAlpha(0.85);
+      img.setAngle(Math.random() * 360);
+      this.tweens.add({ targets: img, alpha: 0, scale: scale * 1.55, duration: 160, ease: "Sine.easeOut", onComplete: () => img.destroy() });
+
+      // Small secondary flicker
+      if (this._fxBudget.impacts <= 18 && Math.random() < 0.6) {
+        const img2 = this.add.image(x + (Math.random() * 8 - 4), y + (Math.random() * 8 - 4), "fx_trail_white");
+        img2.setBlendMode(Phaser.BlendModes.ADD);
+        img2.setDepth(26);
+        img2.setAlpha(0.35);
+        img2.setScale(1.2);
+        this.tweens.add({ targets: img2, alpha: 0, scale: 2.0, duration: 140, ease: "Sine.easeOut", onComplete: () => img2.destroy() });
+      }
+    }
+
+    _flashSprite(sprite, accent = "cyan") {
+      if (!sprite?.active || typeof sprite.setTintFill !== "function") return;
+      const c = accent === "amber" ? 0xffb000 : accent === "magenta" ? 0xff4df2 : 0x00ffc8;
+      try {
+        sprite.setTintFill(c);
+      } catch {}
+      this.time.delayedCall(70, () => {
+        if (!sprite?.active || typeof sprite.clearTint !== "function") return;
+        try { sprite.clearTint(); } catch {}
+      });
+    }
+
+    _monsterAttackKick(mon, accent = "cyan", dir = null) {
+      if (!mon?.active) return;
+      const t = nowMs();
+      const last = Number(mon.getData?.("lastKickAt") ?? 0) || 0;
+      if (t - last < 140) return;
+      mon.setData?.("lastKickAt", t);
+
+      this._flashSprite(mon, accent);
+
+      const dx = dir && Number.isFinite(dir.x) ? dir.x : 0;
+      const dy = dir && Number.isFinite(dir.y) ? dir.y : 0;
+      const ox = dx * 10;
+      const oy = dy * 10;
+      this._spawnImpactFx(mon.x + ox, mon.y + oy, accent, 0.55);
+    }
+
+    _spawnMeleeAfterimage(originX, originY, aim, stage) {
+      // Stage-based intensity: stage 0 subtle, stage 2 strong.
+      const accent = this._fxAccentKey();
+      const key = stage >= 2 ? "fx_slash_magenta" : stage >= 1 ? "fx_slash_amber" : "fx_slash_cyan";
+      const count = stage >= 2 ? 3 : stage >= 1 ? 2 : 1;
+      for (let i = 0; i < count; i++) {
+        const k = i + 1;
+        this.time.delayedCall(k * 24, () => {
+          const img = this.add.image(originX - aim.x * (k * 6), originY - aim.y * (k * 6), key);
+          img.setRotation(Math.atan2(aim.y, aim.x));
+          img.setBlendMode(Phaser.BlendModes.ADD);
+          img.setDepth(23);
+          img.setAlpha(0.34 - i * 0.08);
+          img.setScale(0.85 + stage * 0.18 + i * 0.06);
+          this.tweens.add({ targets: img, alpha: 0, duration: 160, ease: "Sine.easeOut", onComplete: () => img.destroy() });
+        });
+      }
+
+      // Small spark at the tip for combo 2/3.
+      if (stage >= 1) {
+        this._spawnImpactFx(originX + aim.x * 22, originY + aim.y * 22, accent, 0.9 + stage * 0.12);
+      }
+    }
+
+    _spawnShotTelegraph(x, y, dir, accent = "cyan", durationMs = 220) {
+      if (!this._fxAllow("telegraphs", 26)) return;
+      const g = this.add.graphics();
+      g.setDepth(24);
+      const c = accent === "amber" ? 0xffb000 : accent === "magenta" ? 0xff4df2 : 0x00ffc8;
+      const a = 0.28;
+      const len = 26;
+      const x2 = x + dir.x * len;
+      const y2 = y + dir.y * len;
+      g.lineStyle(2, c, a);
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x2, y2);
+      g.strokePath();
+      g.fillStyle(c, 0.12);
+      g.fillCircle(x, y, 6);
+      g.setBlendMode(Phaser.BlendModes.ADD);
+
+      this.tweens.add({ targets: g, alpha: 0, duration: durationMs, ease: "Sine.easeOut", onComplete: () => g.destroy() });
+    }
+
+    _tickPlayerProjectiles() {
+      if (!this.projectiles) return;
+      const t = nowMs();
+      if (t - this._lastPlayerProjectileTrailAt < 70) return;
+      this._lastPlayerProjectileTrailAt = t;
+
+      // Cheap trail for readability (avoid heavy particle systems per projectile)
+      let spawned = 0;
+      this.projectiles.children.iterate((child) => {
+        if (!child) return;
+        const p = /** @type {Phaser.Physics.Arcade.Image} */ (child);
+        if (!p.active) return;
+
+        if (spawned >= 12) return;
+        if (!this._fxAllow("trails", 30)) return;
+        spawned++;
+
+        const accent = String(p.getData("trail") ?? "cyan");
+        const key = accent === "amber" ? "fx_trail_amber" : accent === "magenta" ? "fx_trail_magenta" : "fx_trail_cyan";
+        const tr = this.add.image(p.x, p.y, key);
+        tr.setBlendMode(Phaser.BlendModes.ADD);
+        tr.setDepth(12);
+        tr.setAlpha(0.22);
+        tr.setScale(1.0);
+        this.tweens.add({ targets: tr, alpha: 0, duration: 220, onComplete: () => tr.destroy() });
+      });
+    }
+
+    _tickScreenFx() {
+      const gs = this.registry.get("gameState");
+      const danger = this._dangerState();
+      const ck = this._currentChunkKey();
+      const chunk = gs.world.world.chunks?.[ck] ?? this._currentChunk();
+      const stability = clamp(Number(chunk?.stability ?? 50), 0, 100);
+      const instability = clamp((100 - stability) / 100, 0, 1);
+
+      // Glitch level reacts to instability + threat.
+      const threatN = clamp((danger.threat - 1.0) / 3.8, 0, 1);
+      this._glitchLevel = clamp(instability * 0.95 + threatN * 0.22, 0, 1);
+
+      // Dynamic darkness: soften in Jardin, heavier in corrupted zones.
+      if (this.darkOverlay) {
+        const base = danger.stratum === STRATA.JARDIN ? 0.06 : danger.stratum === STRATA.FORGE ? 0.30 : 0.34;
+        this.darkOverlay.fillAlpha = clamp(base + this._glitchLevel * 0.18, 0.03, 0.62);
+      }
+
+      // Weather toggles
+      if (this.fxWeather) {
+        const inDungeon = this._isInDungeon();
+        const showFog = !inDungeon && (danger.stratum === STRATA.ABIME || (instability > 0.55 && danger.stratum !== STRATA.JARDIN));
+        const showRain = !inDungeon && (danger.stratum === STRATA.FORGE ? instability > 0.45 : instability > 0.70);
+        this.fxWeather.fog.setVisible(showFog);
+        this.fxWeather.rain.setVisible(showRain);
+      }
+
+      // Glitch overlay redraw
+      if (this.glitchOverlay) {
+        const cam = this.cameras.main;
+        const w = cam.width;
+        const h = cam.height;
+        this.glitchOverlay.clear();
+
+        const g = this._glitchLevel;
+        if (g > 0.05) {
+          const rng = makeRng(hash32(`${Math.floor(nowMs() / 120)}:${this.player.x.toFixed(0)},${this.player.y.toFixed(0)}`) ^ 0x51d2);
+          const lineCount = 6 + Math.floor(g * 18);
+          const blockCount = 2 + Math.floor(g * 10);
+
+          // Scanlines
+          for (let i = 0; i < lineCount; i++) {
+            const y = Math.floor(rng.nextRange(0, h));
+            const hh = 1 + rng.nextInt(2);
+            const a = (0.03 + rng.nextRange(0, 0.08)) * g;
+            const c = rng.next() < 0.5 ? 0x00ffc8 : rng.next() < 0.5 ? 0xffb000 : 0xff4df2;
+            this.glitchOverlay.fillStyle(c, a);
+            this.glitchOverlay.fillRect(0, y, w, hh);
+          }
+
+          // Blocks / chroma tears
+          for (let i = 0; i < blockCount; i++) {
+            const x = Math.floor(rng.nextRange(0, w));
+            const y = Math.floor(rng.nextRange(0, h));
+            const bw = 10 + rng.nextInt(60);
+            const bh = 6 + rng.nextInt(22);
+            const a = (0.02 + rng.nextRange(0, 0.07)) * g;
+            const c = rng.next() < 0.5 ? 0xffffff : rng.next() < 0.5 ? 0x00ffc8 : 0xff4df2;
+            this.glitchOverlay.fillStyle(c, a);
+            this.glitchOverlay.fillRect(x, y, bw, bh);
+          }
+        }
+      }
+    }
+
     _applyIdleBreathe(sprite, seed = 0) {
       if (!sprite || !sprite.active) return;
       const baseScaleX = sprite.scaleX || 1;
@@ -1431,6 +1872,125 @@
         repeat: -1,
         ease: "Sine.easeInOut",
         delay: Math.floor(seed * 340),
+      });
+    }
+
+    _pickMonsterTexture(stratum, aiKind, rng) {
+      const kind = String(aiKind ?? "skirmisher");
+      const pick = (arr) => arr[rng.nextInt(arr.length)];
+
+      if (stratum === STRATA.JARDIN) {
+        if (kind === "charger") return "spr_monster_jardin";
+        if (kind === "spitter") return rng.next() < 0.65 ? "spr_monster_jardin_b" : "spr_monster_jardin";
+        return rng.next() < 0.70 ? "spr_monster_jardin_a" : "spr_monster_jardin";
+      }
+
+      if (stratum === STRATA.FORGE) {
+        if (kind === "gunner") return rng.next() < 0.75 ? "spr_monster_forge_a" : "spr_monster_forge";
+        if (kind === "charger") return "spr_monster_forge";
+        return rng.next() < 0.60 ? "spr_monster_forge_b" : "spr_monster_forge";
+      }
+
+      // ABIME / dungeon default
+      if (kind === "lurker") return rng.next() < 0.70 ? "spr_monster_abime_a" : "spr_monster_abime";
+      if (kind === "summoner") return rng.next() < 0.75 ? "spr_monster_abime_b" : "spr_monster_abime";
+      return pick(["spr_monster_abime", "spr_monster_abime_a", "spr_monster_abime_b"]);
+    }
+
+    _applyMonsterVisualProfile(mon) {
+      if (!mon || !mon.active) return;
+
+      const isBoss = !!mon.getData?.("dungeonBossId");
+      const stratum = mon.getData?.("stratum") ?? STRATA.ABIME;
+      const aiKind = String(mon.getData?.("aiKind") ?? "skirmisher");
+      const seed = Number(mon.getData?.("aiSeed") ?? 0.1) || 0.1;
+      const threat = Number(mon.getData?.("threat") ?? 1) || 1;
+
+      // Texture selection (don’t override boss texture)
+      if (!isBoss) {
+        const rng = makeRng(hash32(`${stratum}:${aiKind}:${seed}`) ^ 0x7b31);
+        const tex = this._pickMonsterTexture(stratum, aiKind, rng);
+        try { mon.setTexture(tex); } catch {}
+      }
+
+      // Small silhouette variation (keeps physics untouched)
+      if (!mon.getData?.("visInited")) {
+        mon.setData("visInited", true);
+
+        const flip = seed > 0.5;
+        try { mon.setFlipX(!!flip); } catch {}
+
+        const baseScale = isBoss ? 1.25 : aiKind === "charger" ? 1.06 : aiKind === "lurker" ? 0.98 : 1.0;
+        mon.setScale(baseScale);
+
+        if (aiKind === "lurker") mon.setAlpha(0.84);
+        if (aiKind === "summoner") mon.setAlpha(0.92);
+
+        // Attach a faint additive halo for readability/neo feel.
+        const haloTex = stratum === STRATA.JARDIN ? "spr_light_jardin" : stratum === STRATA.FORGE ? "spr_light_forge" : "spr_light_abime";
+        const halo = this.add.image(mon.x, mon.y, haloTex);
+        halo.setBlendMode(Phaser.BlendModes.ADD);
+        halo.setAlpha(isBoss ? 0.42 : 0.10 + clamp(threat * 0.03, 0, 0.14));
+        halo.setScale(isBoss ? 0.90 : aiKind === "summoner" ? 0.50 : aiKind === "gunner" ? 0.42 : aiKind === "charger" ? 0.38 : 0.40);
+        halo.setDepth((Number.isFinite(mon.depth) ? mon.depth : 0) - 1);
+        mon.setData("halo", halo);
+
+        // Soft pulse (halo only, avoids physics jitter)
+        const rng2 = makeRng(hash32(`${seed}:${aiKind}:halo`) ^ 0x2a11);
+        this.tweens.add({
+          targets: halo,
+          alpha: { from: halo.alpha * 0.75, to: halo.alpha * 1.25 },
+          duration: 820 + rng2.nextInt(520),
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+        this.tweens.add({
+          targets: halo,
+          scale: { from: halo.scale * 0.92, to: halo.scale * 1.08 },
+          duration: 1050 + rng2.nextInt(700),
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+          delay: 60,
+        });
+
+        // Cleanup
+        try {
+          mon.once(Phaser.GameObjects.Events.DESTROY, () => {
+            try {
+              const h = mon.getData?.("halo");
+              if (h?.active) h.destroy();
+            } catch {}
+          });
+        } catch {}
+      }
+    }
+
+    _tickMonsterVisuals() {
+      if (!this.monsters) return;
+      const t = nowMs();
+      if (t - (this._lastMonsterVisualAt ?? 0) < 80) return;
+      this._lastMonsterVisualAt = t;
+
+      this.monsters.children.iterate((child) => {
+        if (!child || !child.active) return;
+        const mon = /** @type {Phaser.Physics.Arcade.Image} */ (child);
+
+        // Ensure visuals are initialized (also covers older spawns).
+        this._applyMonsterVisualProfile(mon);
+
+        const halo = mon.getData?.("halo");
+        if (halo && halo.active) {
+          halo.setPosition(mon.x, mon.y);
+          halo.setDepth((Number.isFinite(mon.depth) ? mon.depth : 0) - 1);
+
+          // Slight boost when close to player (readability)
+          const d = this.player?.active ? Math.hypot(mon.x - this.player.x, mon.y - this.player.y) : 999;
+          const near = clamp(1.0 - d / 300, 0, 1);
+          const baseA = mon.getData?.("dungeonBossId") ? 0.40 : 0.10 + clamp((Number(mon.getData?.("threat") ?? 1) || 1) * 0.03, 0, 0.14);
+          halo.setAlpha(clamp(baseA * (0.85 + near * 0.65), 0.03, 0.65));
+        }
       });
     }
 
@@ -1546,6 +2106,10 @@
       const step = quest?.steps?.[quest.stepIndex] ?? null;
       const stepText = step ? `${quest.stepIndex + 1}/${quest.steps.length} — ${step.title}` : "—";
 
+      const now = nowMs();
+      const cd = this._cooldowns ?? { dodgeReadyAt: 0, dashReadyAt: 0, shockReadyAt: 0 };
+      const cdLeft = (readyAt) => Math.max(0, (Number(readyAt ?? 0) - now) / 1000);
+
       return {
         hp: p.hp,
         hpMax: p.hpMax,
@@ -1557,6 +2121,12 @@
         stratum,
         threat,
         stability,
+        comboStage: this._combo?.stage ?? 0,
+        abilities: {
+          dodge: { key: "SHIFT", cd: cdLeft(cd.dodgeReadyAt), cdMax: 0.9 },
+          dash: { key: "E", cd: cdLeft(cd.dashReadyAt), cdMax: 2.5 },
+          shock: { key: "R", cd: cdLeft(cd.shockReadyAt), cdMax: 5.2 },
+        },
         quest: {
           ...quest,
           stepText,
@@ -1586,13 +2156,22 @@
       pushGroup(this.workers, "worker", 6);
 
       const site = gs.world.world.quest?.activeSite ?? null;
+      const ck = this._currentChunkKey();
+      const chunk = gs.world.world.chunks?.[ck] ?? this._currentChunk();
+
+      const pois = [];
+      if (chunk?.pillar) {
+        pois.push({ kind: "pillar", x: chunk.pillar.x, y: chunk.pillar.y, active: !!chunk.pillar.buffActive });
+      }
 
       return {
         player: { x: px, y: py },
+        facing: { x: gs._facing?.x ?? 1, y: gs._facing?.y ?? 0 },
         stratum,
         threat,
         entities,
         site,
+        pois,
       };
     }
 
@@ -1634,10 +2213,11 @@
         vy /= len;
       }
 
+      const mods = this._playerEssenceMods();
       const palePenalty = p.pale ? 0.78 : 1.0;
       const chunk = this._currentChunk();
       const zoneSpeedBonus = chunk?.pillar?.buffActive ? 1.1 : 1.0;
-      const speed = BASE_MOVE_SPEED * palePenalty * zoneSpeedBonus;
+      const speed = BASE_MOVE_SPEED * palePenalty * zoneSpeedBonus * (mods.speedMul ?? 1.0);
 
       this.player.setAcceleration(vx * speed * 10, vy * speed * 10);
 
@@ -1662,6 +2242,18 @@
         return;
       }
 
+      // Simple combo system (mainly for melee): 3 steps if you keep rhythm.
+      const comboWindow = 650;
+      const isMelee = String(weapon.behaviorId ?? "").startsWith("melee") || weapon.type === "melee" || weapon.type === "hybrid";
+      if (isMelee) {
+        if (t - (this._combo.lastAt ?? 0) <= comboWindow) this._combo.stage = clamp((this._combo.stage ?? 0) + 1, 0, 2);
+        else this._combo.stage = 0;
+        this._combo.lastAt = t;
+      } else {
+        this._combo.stage = 0;
+        this._combo.lastAt = t;
+      }
+
       this.lastAttackAt = t;
       p.essence = Math.max(0, p.essence - weapon.essenceCost);
       p.pale = p.essence < 6;
@@ -1669,14 +2261,22 @@
       const facing = gs._facing ?? { x: 1, y: 0 };
       const aim = this._aimDirection(facing);
 
+      const mods = this._playerEssenceMods();
+      const comboMul = isMelee ? (1.0 + (this._combo.stage ?? 0) * 0.14) : 1.0;
       const paleDamageMul = p.pale ? 0.85 : 1.0;
 
       gs.combat.fireWeapon({
         scene: this,
-        weapon: { ...weapon, damage: (weapon.damage ?? 0) * paleDamageMul },
+        weapon: { ...weapon, damage: (weapon.damage ?? 0) * paleDamageMul * (mods.damageMul ?? 1.0) * comboMul },
         playerSprite: this.player,
         aim,
       });
+
+      // Tiny neon slash accent for melee combo readability.
+      if (isMelee) {
+        const stage = Number(this._combo.stage ?? 0);
+        this._spawnMeleeAfterimage(this.player.x + aim.x * 16, this.player.y + aim.y * 16, aim, stage);
+      }
 
       // Contribution to collaborative quest.
       const q = gs.world.world.quest;
@@ -2008,13 +2608,205 @@
       const p = gs.world.player;
 
       const t = nowMs();
+      if (t < (this._invulnUntil ?? 0)) return;
       if (t - this._lastPlayerDamageAt < 350) return;
       this._lastPlayerDamageAt = t;
 
-      p.hp = Math.max(0, p.hp - amount);
+      const mods = this._playerEssenceMods();
+      const taken = amount * (mods.takenMul ?? 1.0);
+
+      p.hp = Math.max(0, p.hp - taken);
+      this._spawnDamageNumber(this.player?.x ?? p.x, (this.player?.y ?? p.y) - 14, `-${taken.toFixed(1)}`, "rgba(255,90,90,0.95)");
       if (p.hp <= 0) {
         this._respawn();
       }
+    }
+
+    _playerEssenceMods() {
+      const gs = this.registry.get("gameState");
+      const p = gs.world.player;
+      const r = clamp((p.essenceMax ? p.essence / p.essenceMax : 0.5), 0, 1);
+
+      // High Essence: more damage, more fragile.
+      // Low Essence: pale + weak (less damage, also fragile).
+      let damageMul = 1.0;
+      let takenMul = 1.0;
+      let speedMul = 1.0;
+      if (r >= 0.78) {
+        damageMul = 1.15;
+        takenMul = 1.15;
+      } else if (r <= 0.22) {
+        damageMul = 0.86;
+        takenMul = 1.10;
+        speedMul = 0.92;
+      }
+      if (p.pale) {
+        damageMul *= 0.90;
+        speedMul *= 0.92;
+      }
+      return { r, damageMul, takenMul, speedMul };
+    }
+
+    _spawnDamageNumber(x, y, text, color = "rgba(255,255,255,0.9)") {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const t = this.add.text(x, y, String(text), {
+        fontFamily: "ui-monospace, Menlo, Consolas, monospace",
+        fontSize: "12px",
+        color,
+        stroke: "rgba(0,0,0,0.55)",
+        strokeThickness: 3,
+      });
+      t.setOrigin(0.5, 1);
+      t.setDepth(999);
+      this.tweens.add({ targets: t, y: y - 16, alpha: 0, duration: 520, ease: "Sine.easeOut", onComplete: () => t.destroy() });
+    }
+
+    _tryDodge() {
+      const gs = this.registry.get("gameState");
+      const p = gs.world.player;
+      const t = nowMs();
+      if (t < (this._cooldowns.dodgeReadyAt ?? 0)) return;
+
+      const cost = 0.9;
+      if (p.essence < cost) return;
+
+      // Direction: current input or facing.
+      const facing = gs._facing ?? { x: 1, y: 0 };
+      const aim = this._aimDirection(facing);
+
+      p.essence = Math.max(0, p.essence - cost);
+      p.pale = p.essence < 6;
+
+      this._cooldowns.dodgeReadyAt = t + 900;
+      this._invulnUntil = t + 240;
+
+      // Quick flash feedback
+      this._flashSprite(this.player, "cyan");
+
+      const sp = 420;
+      this.player.setVelocity(aim.x * sp, aim.y * sp);
+      this.player.setAcceleration(0, 0);
+
+      // Neon afterimage
+      const img = this.add.image(this.player.x, this.player.y, "spr_essence");
+      img.setBlendMode(Phaser.BlendModes.ADD);
+      img.setAlpha(0.35);
+      img.setScale(1.35);
+      img.setDepth(30);
+      this.tweens.add({ targets: img, alpha: 0, duration: 220, onComplete: () => img.destroy() });
+    }
+
+    _trySkillDash() {
+      const gs = this.registry.get("gameState");
+      const p = gs.world.player;
+      const t = nowMs();
+      if (t < (this._cooldowns.dashReadyAt ?? 0)) return;
+
+      const cost = 1.6;
+      if (p.essence < cost) return;
+
+      const facing = gs._facing ?? { x: 1, y: 0 };
+      const aim = this._aimDirection(facing);
+
+      p.essence = Math.max(0, p.essence - cost);
+      p.pale = p.essence < 6;
+
+      this._cooldowns.dashReadyAt = t + 2500;
+      this._invulnUntil = Math.max(this._invulnUntil ?? 0, t + 160);
+
+      this._flashSprite(this.player, "amber");
+
+      const sp = 560;
+      this.player.setVelocity(aim.x * sp, aim.y * sp);
+      this.player.setAcceleration(0, 0);
+
+      // Dash trail
+      for (let k = 0; k < 4; k++) {
+        this.time.delayedCall(k * 30, () => {
+          if (!this.player?.active) return;
+          const tr = this.add.image(this.player.x - aim.x * (k * 12), this.player.y - aim.y * (k * 12), "fx_dash_streak");
+          tr.setBlendMode(Phaser.BlendModes.ADD);
+          tr.setAlpha(0.32 - k * 0.04);
+          tr.setScale(0.9 + k * 0.08);
+          tr.setRotation(Math.atan2(aim.y, aim.x));
+          tr.setDepth(28);
+          this.tweens.add({ targets: tr, alpha: 0, duration: 260, onComplete: () => tr.destroy() });
+        });
+      }
+
+      // Small line hit at the end of the dash (fair AoE)
+      this.time.delayedCall(90, () => {
+        if (!this.player?.active) return;
+        const mods = this._playerEssenceMods();
+        const dmg = (7.0 + mods.damageMul * 3.0);
+        const radius = 54;
+        this._areaHitMonsters(this.player.x, this.player.y, radius, dmg, 210);
+      });
+    }
+
+    _trySkillShockwave() {
+      const gs = this.registry.get("gameState");
+      const p = gs.world.player;
+      const t = nowMs();
+      if (t < (this._cooldowns.shockReadyAt ?? 0)) return;
+
+      const cost = 2.4;
+      if (p.essence < cost) return;
+
+      p.essence = Math.max(0, p.essence - cost);
+      p.pale = p.essence < 6;
+      this._cooldowns.shockReadyAt = t + 5200;
+
+      const mods = this._playerEssenceMods();
+      const radius = 92;
+      const dmg = 10.0 * mods.damageMul;
+
+      // VFX rings (multi-layer for punch)
+      const ringA = this.add.image(this.player.x, this.player.y, "spr_light_soft");
+      ringA.setBlendMode(Phaser.BlendModes.ADD);
+      ringA.setAlpha(0.34);
+      ringA.setScale(0.55);
+      ringA.setDepth(26);
+      this.tweens.add({ targets: ringA, alpha: 0, scale: 1.18, duration: 250, ease: "Sine.easeOut", onComplete: () => ringA.destroy() });
+
+      const ringB = this.add.image(this.player.x, this.player.y, "spr_light_soft");
+      ringB.setBlendMode(Phaser.BlendModes.ADD);
+      ringB.setAlpha(0.18);
+      ringB.setScale(0.80);
+      ringB.setDepth(25);
+      this.tweens.add({ targets: ringB, alpha: 0, scale: 1.55, duration: 320, ease: "Sine.easeOut", onComplete: () => ringB.destroy() });
+
+      // Perimeter sparks
+      const accent = this._fxAccentKey();
+      const sparkCount = 10;
+      for (let i = 0; i < sparkCount; i++) {
+        const a = (i / sparkCount) * Math.PI * 2;
+        const sx = this.player.x + Math.cos(a) * 26;
+        const sy = this.player.y + Math.sin(a) * 26;
+        this.time.delayedCall(i * 10, () => this._spawnImpactFx(sx, sy, accent, 0.9));
+      }
+
+      this._areaHitMonsters(this.player.x, this.player.y, radius, dmg, 260);
+    }
+
+    _areaHitMonsters(x, y, radius, damage, knockback) {
+      this.monsters.children.iterate((child) => {
+        if (!child) return;
+        const mon = /** @type {Phaser.Physics.Arcade.Image} */ (child);
+        const d = Math.hypot(mon.x - x, mon.y - y);
+        if (d > radius) return;
+        const dx = mon.x - x;
+        const dy = mon.y - y;
+        const len = d || 1;
+
+        const hp = (mon.getData("hp") ?? 6) - damage;
+        mon.setData("hp", hp);
+        this._spawnDamageNumber(mon.x, mon.y - 10, `-${damage.toFixed(0)}`, "rgba(255,77,242,0.95)");
+        this._flashSprite(mon, this._fxAccentKey());
+        if (hp <= 0) this._killMonster(mon);
+
+        mon.setVelocity((dx / len) * knockback, (dy / len) * knockback);
+      });
     }
 
     _respawn() {
@@ -2042,8 +2834,16 @@
       const dmg = pObj.getData("damage") ?? 1;
       const pierce = pObj.getData("pierce") ?? 0;
 
+      // Impact feedback
+      this._spawnImpactFx(pObj.x, pObj.y, String(pObj.getData("trail") ?? this._fxAccentKey()));
+
       const hp = (mObj.getData("hp") ?? 5) - dmg;
       mObj.setData("hp", hp);
+      this._flashSprite(mObj, String(pObj.getData("trail") ?? this._fxAccentKey()));
+
+      if (typeof this._spawnDamageNumber === "function") {
+        this._spawnDamageNumber(mObj.x, mObj.y - 10, `-${Number(dmg).toFixed(0)}`, "rgba(255,77,242,0.95)");
+      }
 
       if (hp <= 0) {
         this._killMonster(mObj);
@@ -2061,6 +2861,14 @@
       if (!pObj?.active) return;
       const dmg = pObj.getData("damage") ?? 0.65;
       this._applyDamageToPlayer(dmg);
+
+      // Enemy hit feedback
+      this._spawnImpactFx(this.player.x, this.player.y - 6, "magenta", 1.15);
+
+      try {
+        const w = pObj.getData("warn");
+        if (w?.active) w.destroy();
+      } catch {}
       pObj.destroy();
     }
 
@@ -2072,6 +2880,21 @@
       p.setData("spawnAt", nowMs());
       p.setData("ttl", opts.ttl ?? 1800);
       p.setData("homing", !!opts.homing);
+
+      const accent = tex.includes("forge") ? "amber" : tex.includes("abime") ? "magenta" : "cyan";
+      p.setData("trail", accent);
+      this._spawnImpactFx(x, y, accent, 0.75);
+
+      // Warning ring for homing projectiles (purely visual, fair telegraph)
+      if (opts.homing) {
+        const warn = this.add.image(x, y, "spr_light_soft");
+        warn.setBlendMode(Phaser.BlendModes.ADD);
+        warn.setDepth(13);
+        warn.setAlpha(0.16);
+        warn.setScale(0.28);
+        p.setData("warn", warn);
+      }
+
       p.setVelocity(vx, vy);
       p.setDrag(0, 0);
       p.setMaxVelocity(340, 340);
@@ -2090,14 +2913,42 @@
       const px = this.player?.x ?? 0;
       const py = this.player?.y ?? 0;
 
+      let spawned = 0;
       this.enemyProjectiles.children.iterate((child) => {
         if (!child) return;
         const p = /** @type {Phaser.Physics.Arcade.Image} */ (child);
         if (!p.active) return;
 
+        // Trail for readability
+        if (spawned < 10 && this._fxAllow("trails", 30)) {
+          spawned++;
+          const accent = String(p.getData("trail") ?? "magenta");
+          const key = accent === "amber" ? "fx_trail_amber" : accent === "cyan" ? "fx_trail_cyan" : "fx_trail_magenta";
+          const tr = this.add.image(p.x, p.y, key);
+          tr.setBlendMode(Phaser.BlendModes.ADD);
+          tr.setDepth(13);
+          tr.setAlpha(0.16);
+          tr.setScale(0.9);
+          this.tweens.add({ targets: tr, alpha: 0, duration: 220, onComplete: () => tr.destroy() });
+        }
+
+        // Homing warning follow + pulse
+        try {
+          const w = p.getData("warn");
+          if (w?.active) {
+            w.setPosition(p.x, p.y);
+            const ph = (t % 260) / 260;
+            w.setAlpha(0.10 + 0.10 * Math.abs(Math.sin(ph * Math.PI * 2)));
+          }
+        } catch {}
+
         const born = Number(p.getData("spawnAt") ?? 0) || 0;
         const ttl = Number(p.getData("ttl") ?? 0) || 0;
         if (ttl > 0 && t - born > ttl) {
+          try {
+            const w = p.getData("warn");
+            if (w?.active) w.destroy();
+          } catch {}
           p.destroy();
           return;
         }
@@ -2303,6 +3154,22 @@
         mon.setData("hp", hp);
         mon.setData("threat", localThreat);
         mon.setData("stratum", stratum);
+
+        // Basic archetype + visuals (keeps waves readable)
+        const roll = rng.next();
+        const aiKind =
+          stratum === STRATA.JARDIN
+            ? (roll < 0.50 ? "skirmisher" : roll < 0.78 ? "charger" : "spitter")
+            : stratum === STRATA.FORGE
+              ? (roll < 0.52 ? "charger" : roll < 0.84 ? "gunner" : "skirmisher")
+              : (roll < 0.45 ? "lurker" : roll < 0.74 ? "summoner" : "skirmisher");
+        mon.setData("aiKind", aiKind);
+        mon.setData("aiSeed", rng.next());
+        mon.setData("lastBurstAt", 0);
+        mon.setData("lastShotAt", 0);
+
+        this._applyIdleBreathe(mon, rng.next());
+        this._applyMonsterVisualProfile(mon);
         mon.setVelocity(rng.nextRange(-40, 40), rng.nextRange(-40, 40));
         mon.setDrag(70, 70);
         mon.setMaxVelocity(180, 180);
@@ -2472,16 +3339,22 @@
         const localThreat = 3.2;
         const hp = 8 + localThreat * 5 + rng.nextRange(-1, 3);
 
-        const choices = ["spr_monster_abime", "spr_monster_abime_a", "spr_monster_abime_b"];
-        const tex = choices[rng.nextInt(choices.length)];
-
-        const mon = this.physics.add.image(x, y, tex);
+        const mon = this.physics.add.image(x, y, "spr_monster_abime");
         mon.setCircle(7, 1, 1);
         mon.setData("hp", hp);
         mon.setData("threat", localThreat);
         mon.setData("stratum", STRATA.ABIME);
         mon.setData("dungeon", true);
+
+        const roll = rng.next();
+        const aiKind = roll < 0.46 ? "lurker" : roll < 0.78 ? "summoner" : "skirmisher";
+        mon.setData("aiKind", aiKind);
+        mon.setData("aiSeed", rng.next());
+        mon.setData("lastBurstAt", 0);
+        mon.setData("lastShotAt", 0);
+
         this._applyIdleBreathe(mon, rng.next());
+        this._applyMonsterVisualProfile(mon);
         this.monsters.add(mon);
       }
     }
@@ -3418,20 +4291,6 @@
         const localThreat = threatForWorldPos(stratum, x, y);
         const hp = 6 + localThreat * 4 + rng.nextRange(-1, 3);
 
-        const choices =
-          stratum === STRATA.JARDIN
-            ? ["spr_monster_jardin", "spr_monster_jardin_a", "spr_monster_jardin_b"]
-            : stratum === STRATA.FORGE
-              ? ["spr_monster_forge", "spr_monster_forge_a", "spr_monster_forge_b"]
-              : ["spr_monster_abime", "spr_monster_abime_a", "spr_monster_abime_b"];
-        const tex = choices[rng.nextInt(choices.length)];
-
-        const mon = this.physics.add.image(x, y, tex);
-        mon.setCircle(7, 1, 1);
-        mon.setData("hp", hp);
-        mon.setData("threat", localThreat);
-        mon.setData("stratum", stratum);
-
         // AI archetypes (small variety, still readable/fair)
         const roll = rng.next();
         const aiKind =
@@ -3440,12 +4299,21 @@
             : stratum === STRATA.FORGE
               ? (roll < 0.50 ? "charger" : roll < 0.82 ? "gunner" : "skirmisher")
               : (roll < 0.45 ? "lurker" : roll < 0.72 ? "summoner" : "skirmisher");
+
+        const tex = this._pickMonsterTexture(stratum, aiKind, rng);
+
+        const mon = this.physics.add.image(x, y, tex);
+        mon.setCircle(7, 1, 1);
+        mon.setData("hp", hp);
+        mon.setData("threat", localThreat);
+        mon.setData("stratum", stratum);
         mon.setData("aiKind", aiKind);
         mon.setData("aiSeed", rng.next());
         mon.setData("lastBurstAt", 0);
         mon.setData("lastShotAt", 0);
 
         this._applyIdleBreathe(mon, rng.next());
+        this._applyMonsterVisualProfile(mon);
 
         // Slight random drift
         const vx = rng.nextRange(-40, 40);
@@ -3533,10 +4401,17 @@
               const sx = mon.x + nx * 10;
               const sy = mon.y + ny * 10;
               const spd = 215 + threat * 18;
-              this._spawnEnemyProjectile(sx, sy, "spr_enemy_bolt_forge", nx * spd, ny * spd, {
-                damage: 0.55 + threat * 0.08,
-                ttl: 1650,
-                additive: true,
+
+              // Telegraph then fire (fairer, more readable)
+              this._spawnShotTelegraph(sx, sy, { x: nx, y: ny }, "amber", 220);
+              this.time.delayedCall(170, () => {
+                if (!mon?.active) return;
+                this._monsterAttackKick(mon, "amber", { x: nx, y: ny });
+                this._spawnEnemyProjectile(sx, sy, "spr_enemy_bolt_forge", nx * spd, ny * spd, {
+                  damage: 0.55 + threat * 0.08,
+                  ttl: 1650,
+                  additive: true,
+                });
               });
             }
           } else if (aiKind === "spitter") {
@@ -3557,10 +4432,16 @@
               const sx = mon.x + nx * 8;
               const sy = mon.y + ny * 8;
               const spd = 165 + threat * 14;
-              this._spawnEnemyProjectile(sx, sy, "spr_enemy_spit_jardin", nx * spd, ny * spd, {
-                damage: 0.48 + threat * 0.07,
-                ttl: 1750,
-                additive: true,
+
+              this._spawnShotTelegraph(sx, sy, { x: nx, y: ny }, "cyan", 240);
+              this.time.delayedCall(190, () => {
+                if (!mon?.active) return;
+                this._monsterAttackKick(mon, "cyan", { x: nx, y: ny });
+                this._spawnEnemyProjectile(sx, sy, "spr_enemy_spit_jardin", nx * spd, ny * spd, {
+                  damage: 0.48 + threat * 0.07,
+                  ttl: 1750,
+                  additive: true,
+                });
               });
             }
           } else if (aiKind === "summoner") {
@@ -3584,11 +4465,19 @@
                 const a = base + k * 0.20;
                 const vx = Math.cos(a) * spd;
                 const vy = Math.sin(a) * spd;
-                this._spawnEnemyProjectile(mon.x + Math.cos(a) * 10, mon.y + Math.sin(a) * 10, "spr_enemy_mote_abime", vx, vy, {
-                  damage: 0.52 + threat * 0.09,
-                  ttl: 2200,
-                  homing: true,
-                  additive: true,
+
+                const sx = mon.x + Math.cos(a) * 10;
+                const sy = mon.y + Math.sin(a) * 10;
+                this._spawnShotTelegraph(sx, sy, { x: Math.cos(a), y: Math.sin(a) }, "magenta", 260);
+                this.time.delayedCall(210, () => {
+                  if (!mon?.active) return;
+                  this._monsterAttackKick(mon, "magenta", { x: Math.cos(a), y: Math.sin(a) });
+                  this._spawnEnemyProjectile(sx, sy, "spr_enemy_mote_abime", vx, vy, {
+                    damage: 0.52 + threat * 0.09,
+                    ttl: 2200,
+                    homing: true,
+                    additive: true,
+                  });
                 });
               }
             }
@@ -3601,6 +4490,7 @@
             const last = Number(mon.getData("lastBurstAt") ?? 0) || 0;
             if (d < 240 && t - last > 900) {
               mon.setData("lastBurstAt", t);
+              this._monsterAttackKick(mon, "magenta", { x: nx, y: ny });
               mon.setVelocity(nx * (240 + threat * 14), ny * (240 + threat * 14));
             }
           }
@@ -4737,6 +5627,116 @@
     makeFx("fx_ember", 0xffb000, "ember");
     makeFx("fx_mote", 0xff4df2, "mote");
 
+    // Fog particle (soft smudge)
+    g.clear();
+    g.fillStyle(0x000000, 0);
+    g.fillRect(0, 0, 14, 14);
+    for (let r = 6; r >= 2; r -= 2) {
+      g.fillStyle(0xffffff, (r / 6) * 0.10);
+      g.fillCircle(7, 7, r);
+    }
+    g.generateTexture("fx_fog", 14, 14);
+
+    // Rain particle (tiny streak)
+    g.clear();
+    g.fillStyle(0x000000, 0);
+    g.fillRect(0, 0, 6, 12);
+    g.fillStyle(0xffffff, 0.22);
+    g.fillRect(3, 1, 1, 10);
+    g.fillStyle(0x00ffc8, 0.08);
+    g.fillRect(2, 2, 1, 8);
+    g.generateTexture("fx_rain", 6, 12);
+
+    // Combat VFX: trails (tiny dots)
+    const makeTrail = (key, color) => {
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, 10, 10);
+      g.fillStyle(color, 0.55);
+      g.fillCircle(5, 5, 3);
+      g.fillStyle(0xffffff, 0.10);
+      g.fillCircle(4, 4, 2);
+      g.generateTexture(key, 10, 10);
+    };
+    makeTrail("fx_trail_cyan", 0x00ffc8);
+    makeTrail("fx_trail_amber", 0xffb000);
+    makeTrail("fx_trail_magenta", 0xff4df2);
+    makeTrail("fx_trail_white", 0xffffff);
+
+    // Combat VFX: sparks (small starburst)
+    const makeSpark = (key, color) => {
+      const S = 18;
+      const cx = S / 2;
+      const cy = S / 2;
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, S, S);
+      g.lineStyle(2, color, 0.34);
+      g.beginPath();
+      g.moveTo(cx - 6, cy);
+      g.lineTo(cx + 6, cy);
+      g.moveTo(cx, cy - 6);
+      g.lineTo(cx, cy + 6);
+      g.strokePath();
+      g.lineStyle(1, 0xffffff, 0.10);
+      g.strokeCircle(cx, cy, 6);
+      g.fillStyle(color, 0.20);
+      g.fillCircle(cx, cy, 5);
+      g.generateTexture(key, S, S);
+    };
+    makeSpark("fx_spark_cyan", 0x00ffc8);
+    makeSpark("fx_spark_amber", 0xffb000);
+    makeSpark("fx_spark_magenta", 0xff4df2);
+
+    // Combat VFX: slash (thin arc)
+    const makeSlash = (key, color) => {
+      const W = 34;
+      const H = 18;
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, W, H);
+      g.lineStyle(4, color, 0.18);
+      g.beginPath();
+      g.arc(W * 0.55, H * 0.70, 12, Math.PI * 1.10, Math.PI * 1.85);
+      g.strokePath();
+      g.lineStyle(2, color, 0.34);
+      g.beginPath();
+      g.arc(W * 0.55, H * 0.70, 12, Math.PI * 1.12, Math.PI * 1.83);
+      g.strokePath();
+      g.lineStyle(1, 0xffffff, 0.10);
+      g.beginPath();
+      g.arc(W * 0.55, H * 0.70, 10, Math.PI * 1.18, Math.PI * 1.78);
+      g.strokePath();
+      g.generateTexture(key, W, H);
+    };
+    makeSlash("fx_slash_cyan", 0x00ffc8);
+    makeSlash("fx_slash_amber", 0xffb000);
+    makeSlash("fx_slash_magenta", 0xff4df2);
+
+    // Combat VFX: dash streak (elongated glow)
+    g.clear();
+    g.fillStyle(0x000000, 0);
+    g.fillRect(0, 0, 26, 10);
+    g.fillStyle(0xffffff, 0.10);
+    g.fillEllipse(13, 5, 22, 6);
+    g.fillStyle(0xffb000, 0.18);
+    g.fillEllipse(13, 5, 18, 5);
+    g.fillStyle(0x00ffc8, 0.10);
+    g.fillEllipse(12, 5, 14, 4);
+    g.generateTexture("fx_dash_streak", 26, 10);
+
+    // Soft ground shadow (ellipse)
+    g.clear();
+    g.fillStyle(0x000000, 0);
+    g.fillRect(0, 0, 26, 14);
+    g.fillStyle(0x000000, 0.18);
+    g.fillEllipse(13, 8, 20, 8);
+    g.fillStyle(0x000000, 0.12);
+    g.fillEllipse(13, 8, 16, 6);
+    g.fillStyle(0x000000, 0.08);
+    g.fillEllipse(13, 8, 12, 4);
+    g.generateTexture("spr_shadow", 26, 14);
+
     // --- Light halos (neo pixel lighting) ---
     const makeLight = (key, color) => {
       const S = 96;
@@ -4790,6 +5790,13 @@
       p.setBlendMode(Phaser.BlendModes.ADD);
       p.setAlpha(0.85);
 
+      // Tag projectile for trail tint + add muzzle flash.
+      const accent = typeof scene._fxAccentKey === "function" ? scene._fxAccentKey() : "cyan";
+      p.setData("trail", accent);
+      if (typeof scene._spawnImpactFx === "function") {
+        scene._spawnImpactFx(origin.x, origin.y, accent, 0.9);
+      }
+
       const speed = overrides.speed ?? weapon.projectile?.speed ?? 380;
       const ttlMs = overrides.ttlMs ?? weapon.projectile?.ttlMs ?? 900;
       const dmg = overrides.damage ?? weapon.damage ?? 4;
@@ -4812,6 +5819,14 @@
       return p;
     }
 
+    function accentKeyForScene(scene) {
+      return typeof scene._fxAccentKey === "function" ? scene._fxAccentKey() : "cyan";
+    }
+
+    function slashKey(accent) {
+      return accent === "amber" ? "fx_slash_amber" : accent === "magenta" ? "fx_slash_magenta" : "fx_slash_cyan";
+    }
+
     function meleeArc(scene, weapon, playerSprite, aim) {
       const reach = weapon.reach ?? 34;
       const arcDeg = weapon.arcDeg ?? 90;
@@ -4819,11 +5834,13 @@
       const hitPos = { x: playerSprite.x + aim.x * reach, y: playerSprite.y + aim.y * reach };
 
       // Visual swipe
-      const fx = scene.add.image(hitPos.x, hitPos.y, "spr_essence");
-      fx.setScale(1.2);
+      const accent = accentKeyForScene(scene);
+      const fx = scene.add.image(hitPos.x, hitPos.y, slashKey(accent));
+      fx.setScale(1.0 + (weapon.reach ?? 34) / 120);
+      fx.setRotation(Math.atan2(aim.y, aim.x));
       fx.setBlendMode(Phaser.BlendModes.ADD);
-      fx.setAlpha(0.55);
-      scene.tweens.add({ targets: fx, alpha: 0, duration: 160, onComplete: () => fx.destroy() });
+      fx.setAlpha(0.75);
+      scene.tweens.add({ targets: fx, alpha: 0, duration: 170, onComplete: () => fx.destroy() });
 
       // Damage monsters in cone.
       scene.monsters.children.iterate((child) => {
@@ -4842,10 +5859,15 @@
 
         // hit
         const dmg = weapon.damage ?? 6;
-        mon.setData("hp", (mon.getData("hp") ?? 6) - dmg);
-        if ((mon.getData("hp") ?? 0) <= 0) {
-          scene._killMonster(mon);
+        const hp = (mon.getData("hp") ?? 6) - dmg;
+        mon.setData("hp", hp);
+        if (typeof scene._spawnDamageNumber === "function") {
+          scene._spawnDamageNumber(mon.x, mon.y - 10, `-${dmg.toFixed(0)}`, "rgba(255,77,242,0.95)");
         }
+        if (typeof scene._spawnImpactFx === "function") {
+          scene._spawnImpactFx(mon.x, mon.y, accent, 1.05);
+        }
+        if (hp <= 0) scene._killMonster(mon);
 
         const kb = weapon.knockback ?? 120;
         const len = dist || 1;
@@ -4857,11 +5879,13 @@
       const reach = weapon.reach ?? 54;
       const hitPos = { x: playerSprite.x + aim.x * reach, y: playerSprite.y + aim.y * reach };
 
-      const fx = scene.add.image(hitPos.x, hitPos.y, "spr_essence");
-      fx.setScale(0.9);
+      const accent = accentKeyForScene(scene);
+      const fx = scene.add.image(hitPos.x, hitPos.y, slashKey(accent));
+      fx.setScale(0.85 + (weapon.reach ?? 54) / 160);
+      fx.setRotation(Math.atan2(aim.y, aim.x));
       fx.setBlendMode(Phaser.BlendModes.ADD);
-      fx.setAlpha(0.55);
-      scene.tweens.add({ targets: fx, alpha: 0, duration: 140, onComplete: () => fx.destroy() });
+      fx.setAlpha(0.75);
+      scene.tweens.add({ targets: fx, alpha: 0, duration: 150, onComplete: () => fx.destroy() });
 
       // narrow line hit
       scene.monsters.children.iterate((child) => {
@@ -4876,15 +5900,23 @@
         if (dot < 0.9) return;
 
         const dmg = weapon.damage ?? 7;
-        mon.setData("hp", (mon.getData("hp") ?? 6) - dmg);
-        if ((mon.getData("hp") ?? 0) <= 0) scene._killMonster(mon);
+        const hp = (mon.getData("hp") ?? 6) - dmg;
+        mon.setData("hp", hp);
+        if (typeof scene._spawnDamageNumber === "function") {
+          scene._spawnDamageNumber(mon.x, mon.y - 10, `-${dmg.toFixed(0)}`, "rgba(255,77,242,0.95)");
+        }
+        if (typeof scene._spawnImpactFx === "function") {
+          scene._spawnImpactFx(mon.x, mon.y, accent, 1.0);
+        }
+        if (hp <= 0) scene._killMonster(mon);
       });
     }
 
     function meleeSlam(scene, weapon, playerSprite) {
       const radius = weapon.radius ?? 44;
-      const fx = scene.add.image(playerSprite.x, playerSprite.y, "spr_essence");
-      fx.setScale(2.0);
+      const accent = accentKeyForScene(scene);
+      const fx = scene.add.image(playerSprite.x, playerSprite.y, "spr_light_soft");
+      fx.setScale(0.85 + radius / 60);
       fx.setBlendMode(Phaser.BlendModes.ADD);
       fx.setAlpha(0.5);
       scene.tweens.add({ targets: fx, alpha: 0, duration: 220, onComplete: () => fx.destroy() });
@@ -4896,8 +5928,15 @@
         if (d > radius) return;
 
         const dmg = weapon.damage ?? 12;
-        mon.setData("hp", (mon.getData("hp") ?? 8) - dmg);
-        if ((mon.getData("hp") ?? 0) <= 0) scene._killMonster(mon);
+        const hp = (mon.getData("hp") ?? 8) - dmg;
+        mon.setData("hp", hp);
+        if (typeof scene._spawnDamageNumber === "function") {
+          scene._spawnDamageNumber(mon.x, mon.y - 10, `-${dmg.toFixed(0)}`, "rgba(255,77,242,0.95)");
+        }
+        if (typeof scene._spawnImpactFx === "function") {
+          scene._spawnImpactFx(mon.x, mon.y, accent, 1.15);
+        }
+        if (hp <= 0) scene._killMonster(mon);
 
         const kb = weapon.knockback ?? 180;
         const dx = mon.x - playerSprite.x;
@@ -4911,11 +5950,13 @@
       const reach = weapon.reach ?? 70;
       const hitPos = { x: playerSprite.x + aim.x * reach, y: playerSprite.y + aim.y * reach };
 
-      const fx = scene.add.image(hitPos.x, hitPos.y, "spr_essence");
-      fx.setScale(0.8);
+      const accent = accentKeyForScene(scene);
+      const fx = scene.add.image(hitPos.x, hitPos.y, slashKey(accent));
+      fx.setScale(0.75 + (weapon.reach ?? 70) / 200);
+      fx.setRotation(Math.atan2(aim.y, aim.x));
       fx.setBlendMode(Phaser.BlendModes.ADD);
-      fx.setAlpha(0.45);
-      scene.tweens.add({ targets: fx, alpha: 0, duration: 160, onComplete: () => fx.destroy() });
+      fx.setAlpha(0.65);
+      scene.tweens.add({ targets: fx, alpha: 0, duration: 170, onComplete: () => fx.destroy() });
 
       scene.monsters.children.iterate((child) => {
         if (!child) return;
@@ -4929,8 +5970,15 @@
         if (dot < 0.6) return;
 
         const dmg = weapon.damage ?? 7;
-        mon.setData("hp", (mon.getData("hp") ?? 6) - dmg);
-        if ((mon.getData("hp") ?? 0) <= 0) scene._killMonster(mon);
+        const hp = (mon.getData("hp") ?? 6) - dmg;
+        mon.setData("hp", hp);
+        if (typeof scene._spawnDamageNumber === "function") {
+          scene._spawnDamageNumber(mon.x, mon.y - 10, `-${dmg.toFixed(0)}`, "rgba(255,77,242,0.95)");
+        }
+        if (typeof scene._spawnImpactFx === "function") {
+          scene._spawnImpactFx(mon.x, mon.y, accent, 1.0);
+        }
+        if (hp <= 0) scene._killMonster(mon);
 
         // Pull towards player a bit
         const pull = 90;
@@ -5084,6 +6132,15 @@
 
     const gs = {
       ui: {
+        _panelCollapsed: false,
+        setPanelCollapsed(v) {
+          gs.ui._panelCollapsed = !!v;
+          if (ui.app) ui.app.dataset.panel = gs.ui._panelCollapsed ? "collapsed" : "open";
+          if (ui.btnPanel) ui.btnPanel.textContent = gs.ui._panelCollapsed ? "Panneau: OFF" : "Panneau: ON";
+        },
+        togglePanel() {
+          gs.ui.setPanelCollapsed(!gs.ui._panelCollapsed);
+        },
         setUserBadge(text) {
           if (ui.userBadge) ui.userBadge.textContent = text;
         },
@@ -5110,6 +6167,23 @@
           if (step?.kind === "repair") stepLine += ` • ${step.progress.toFixed(1)}/${step.required}`;
           if (step?.kind === "protect") stepLine += ` • ${Math.floor(step.progressSeconds)}/${step.requiredSeconds}s • ouvriers ${step.workersAlive ?? 0}/${step.workersMax ?? 0}`;
 
+          const ab = h.abilities ?? {};
+          const skill = (k, label, cls) => {
+            const s = ab[k] ?? { key: "—", cd: 0, cdMax: 1 };
+            const cd = Math.max(0, Number(s.cd ?? 0));
+            const cdMax = Math.max(0.001, Number(s.cdMax ?? 1));
+            const pct = clamp((cd / cdMax) * 100, 0, 100);
+            const ready = cd <= 0.001;
+            return `
+              <div class="sopor-skill ${ready ? "is-ready" : "is-cd"} ${cls}">
+                <div class="sopor-skillKey">${escapeHtml(String(s.key ?? ""))}</div>
+                <div class="sopor-skillLabel">${escapeHtml(label)}</div>
+                <div class="sopor-skillCd" style="--cd:${pct.toFixed(1)}%"></div>
+                <div class="sopor-skillTime">${ready ? "PRÊT" : `${cd.toFixed(1)}s`}</div>
+              </div>
+            `;
+          };
+
           ui.hud.innerHTML = `
             <div class="card sopor-hudCard">
               <div class="card-body sopor-hudGrid">
@@ -5133,6 +6207,13 @@
                   <div class="sopor-chip"><span class="k">Menace</span><span class="v">${h.threat.toFixed(2)}</span></div>
                   <div class="sopor-chip"><span class="k">Stabilité</span><span class="v">${h.stability.toFixed(0)}%</span></div>
                   <div class="sopor-chip"><span class="k">Pâle</span><span class="v">${pale}</span></div>
+                  <div class="sopor-chip"><span class="k">Combo</span><span class="v">${Number(h.comboStage ?? 0) + 1}/3</span></div>
+                </div>
+
+                <div class="sopor-skillbar">
+                  ${skill("dodge", "Esquive", "is-cyan")}
+                  ${skill("dash", "Dash", "is-amber")}
+                  ${skill("shock", "Onde", "is-magenta")}
                 </div>
 
                 <div class="sopor-quest">
@@ -5161,6 +6242,17 @@
           ctx.fillStyle = bg;
           ctx.fillRect(0, 0, w, h);
 
+          // Subtle rings / grid (readability)
+          ctx.save();
+          ctx.globalAlpha = 0.14;
+          ctx.strokeStyle = "rgba(255,255,255,0.18)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.min(cx, cy) * 0.33, 0, Math.PI * 2);
+          ctx.arc(cx, cy, Math.min(cx, cy) * 0.66, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+
           // View radius in world units
           const viewR = 520;
           const toMini = (x, y) => {
@@ -5172,11 +6264,43 @@
             };
           };
 
-          // Site
+          // POIs (pillar, etc.)
+          for (const poi of m.pois ?? []) {
+            const p = toMini(poi.x, poi.y);
+            const x = Math.round(p.x);
+            const y = Math.round(p.y);
+            if (x < -8 || y < -8 || x > w + 8 || y > h + 8) continue;
+            if (poi.kind === "pillar") {
+              ctx.save();
+              ctx.lineWidth = 2;
+              ctx.strokeStyle = poi.active ? "rgba(0,255,200,0.85)" : "rgba(0,255,200,0.35)";
+              ctx.beginPath();
+              ctx.arc(x, y, 6, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.fillStyle = "rgba(255,255,255,0.18)";
+              ctx.fillRect(x - 1, y - 1, 2, 2);
+              ctx.restore();
+            }
+          }
+
+          // Site (quest) as diamond
           if (m.site) {
             const p = toMini(m.site.x, m.site.y);
-            ctx.fillStyle = "rgba(0,255,200,0.85)";
-            ctx.fillRect(Math.round(p.x) - 2, Math.round(p.y) - 2, 4, 4);
+            const x = Math.round(p.x);
+            const y = Math.round(p.y);
+            ctx.save();
+            ctx.fillStyle = "rgba(0,255,200,0.35)";
+            ctx.strokeStyle = "rgba(0,255,200,0.85)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, y - 6);
+            ctx.lineTo(x + 6, y);
+            ctx.lineTo(x, y + 6);
+            ctx.lineTo(x - 6, y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
           }
 
           // Entities
@@ -5191,9 +6315,22 @@
             ctx.fillRect(x, y, 2, 2);
           }
 
-          // Player always centered
-          ctx.fillStyle = "rgba(255,255,255,0.95)";
-          ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 1, 3, 3);
+          // Player always centered (arrow indicates facing)
+          const fx = Number(m.facing?.x ?? 1);
+          const fy = Number(m.facing?.y ?? 0);
+          const ang = Math.atan2(fy, fx);
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(ang);
+          ctx.fillStyle = "rgba(255,255,255,0.92)";
+          ctx.beginPath();
+          ctx.moveTo(7, 0);
+          ctx.lineTo(-4, -4);
+          ctx.lineTo(-2, 0);
+          ctx.lineTo(-4, 4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
 
           // Tiny threat hint bar
           const t = clamp(m.threat / 4.2, 0, 1);
@@ -5241,6 +6378,12 @@
     const audioSettings = audio.loadSettings();
     audio.setMuted(!!audioSettings.muted);
     audio.setVolume(audioSettings.volume);
+
+    // Panel toggle
+    gs.ui.setPanelCollapsed(false);
+    if (ui.btnPanel) {
+      ui.btnPanel.addEventListener("click", () => gs.ui.togglePanel());
+    }
     if (ui.btnMute) {
       const refreshMuteLabel = () => {
         ui.btnMute.textContent = audioSettings.muted ? "Son: OFF" : "Son: ON";
