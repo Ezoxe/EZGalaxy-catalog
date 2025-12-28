@@ -162,6 +162,95 @@
     };
   }
 
+  function pointSegDist(px, py, ax, ay, bx, by) {
+    const abx = bx - ax;
+    const aby = by - ay;
+    const apx = px - ax;
+    const apy = py - ay;
+    const ab2 = abx * abx + aby * aby;
+    if (ab2 <= 1e-6) return Math.hypot(apx, apy);
+    let t = (apx * abx + apy * aby) / ab2;
+    t = clamp(t, 0, 1);
+    const cx = ax + abx * t;
+    const cy = ay + aby * t;
+    return Math.hypot(px - cx, py - cy);
+  }
+
+  function generateSettlements(seed32) {
+    const rng = makeRng(seed32 ^ 0x6a2b11);
+    /** @type {{id:string,stratum:string,kind:string,x:number,y:number,r:number}[]} */
+    const out = [];
+
+    const placeMany = (stratum, kind, countMin, countMax, rMin, rMax, minSep) => {
+      const count = countMin + rng.nextInt(Math.max(1, countMax - countMin + 1));
+      let tries = 0;
+      while (out.filter((s) => s.stratum === stratum && s.kind === kind).length < count && tries < 1200) {
+        tries++;
+        const ang = rng.next() * Math.PI * 2;
+        const rad = rMin + rng.next() * (rMax - rMin);
+        const x = Math.cos(ang) * rad;
+        const y = Math.sin(ang) * rad;
+        if (x < WORLD_MIN + 220 || x > WORLD_MAX - 220 || y < WORLD_MIN + 220 || y > WORLD_MAX - 220) continue;
+        let ok = true;
+        for (const s of out) {
+          if (s.stratum !== stratum) continue;
+          if (Math.hypot(s.x - x, s.y - y) < minSep) {
+            ok = false;
+            break;
+          }
+        }
+        if (!ok) continue;
+        const id = `${stratum}:${kind}:${out.length}`;
+        out.push({ id, stratum, kind, x: Math.round(x), y: Math.round(y), r: 96 + rng.nextRange(-14, 24) });
+      }
+    };
+
+    // Jardin: 2–4 villages, relatively close to spawn but still spread out.
+    placeMany(STRATA.JARDIN, "village", 2, 4, 380, 1850, 560);
+    // Forge: 1–3 outposts further away.
+    placeMany(STRATA.FORGE, "outpost", 1, 3, 900, 2300, 680);
+    // Abîme: 1–2 sanctuaries far / deep.
+    placeMany(STRATA.ABIME, "sanctuary", 1, 2, 1100, 2450, 820);
+
+    return out;
+  }
+
+  function buildRoadEdges(settlements) {
+    /** @type {{stratum:string,a:{x:number,y:number},b:{x:number,y:number},w:number}[]} */
+    const edges = [];
+    const byStratum = new Map();
+    for (const s of settlements) {
+      if (!byStratum.has(s.stratum)) byStratum.set(s.stratum, []);
+      byStratum.get(s.stratum).push(s);
+    }
+
+    for (const [stratum, list] of byStratum.entries()) {
+      // Always connect to origin as a "main road" anchor (plaza).
+      for (const s of list) {
+        edges.push({ stratum, a: { x: 0, y: 0 }, b: { x: s.x, y: s.y }, w: stratum === STRATA.JARDIN ? 28 : stratum === STRATA.FORGE ? 26 : 24 });
+      }
+
+      // Extra links: each settlement connects to its nearest neighbor.
+      for (const s of list) {
+        let best = null;
+        let bestD = Infinity;
+        for (const t of list) {
+          if (t === s) continue;
+          const d = Math.hypot(t.x - s.x, t.y - s.y);
+          if (d < bestD) {
+            bestD = d;
+            best = t;
+          }
+        }
+        if (best) {
+          edges.push({ stratum, a: { x: s.x, y: s.y }, b: { x: best.x, y: best.y }, w: stratum === STRATA.JARDIN ? 24 : stratum === STRATA.FORGE ? 22 : 20 });
+        }
+      }
+    }
+
+    return edges;
+  }
+
   function safeJsonParse(text, fallback) {
     try {
       return JSON.parse(text);
@@ -1001,6 +1090,7 @@
       this.npcs = null;
       this.workers = null;
       this.projectiles = null;
+      this.enemyProjectiles = null;
       this.pickups = null;
       this.interactables = null;
 
@@ -1019,10 +1109,16 @@
       this._hudLast = 0;
 
       this._lastPlayerDamageAt = 0;
+
+      this._lastEnemyProjectileTickAt = 0;
     }
 
     create() {
       const gs = this.registry.get("gameState");
+
+      // Deterministic settlements + road network (offline/procedural).
+      this._settlements = generateSettlements(gs.world.seed);
+      this._roadEdges = buildRoadEdges(this._settlements);
 
       // Ensure we always start in overworld bounds.
       gs.world.world.dungeon.inDungeon = false;
@@ -1035,6 +1131,7 @@
       this.npcs = this.physics.add.group();
       this.workers = this.physics.add.group();
       this.projectiles = this.physics.add.group();
+      this.enemyProjectiles = this.physics.add.group();
       this.pickups = this.physics.add.group();
       this.interactables = this.physics.add.group();
 
@@ -1179,10 +1276,19 @@
         this._onProjectileHit(/** @type {Phaser.GameObjects.GameObject} */ (proj), /** @type {Phaser.GameObjects.GameObject} */ (mon));
       });
 
+      this.physics.add.overlap(this.enemyProjectiles, this.player, (proj) => {
+        this._onEnemyProjectileHit(/** @type {Phaser.GameObjects.GameObject} */ (proj));
+      });
+
       // Solid collisions
       this.physics.add.collider(this.player, this.solids);
       this.physics.add.collider(this.monsters, this.solids);
       this.physics.add.overlap(this.projectiles, this.solids, (proj) => {
+        const pObj = /** @type {Phaser.GameObjects.GameObject} */ (proj);
+        if (pObj?.active) pObj.destroy();
+      });
+
+      this.physics.add.overlap(this.enemyProjectiles, this.solids, (proj) => {
         const pObj = /** @type {Phaser.GameObjects.GameObject} */ (proj);
         if (pObj?.active) pObj.destroy();
       });
@@ -1242,6 +1348,7 @@
 
       this._movePlayer();
       this._aiTick();
+      this._tickEnemyProjectiles();
 
       // Neo-pixel lighting follows the player.
       if (this.playerLight && this.player && this.player.active) {
@@ -1353,7 +1460,7 @@
 
       if (this.darkOverlay) {
         // Darker in Forge/Abime, softer in Jardin.
-        this.darkOverlay.fillAlpha = isJ ? 0.18 : isF ? 0.30 : 0.34;
+        this.darkOverlay.fillAlpha = isJ ? 0.06 : isF ? 0.30 : 0.34;
       }
 
       if (this.playerLight) {
@@ -1949,6 +2056,67 @@
       }
     }
 
+    _onEnemyProjectileHit(proj) {
+      const pObj = /** @type {Phaser.Physics.Arcade.Image} */ (proj);
+      if (!pObj?.active) return;
+      const dmg = pObj.getData("damage") ?? 0.65;
+      this._applyDamageToPlayer(dmg);
+      pObj.destroy();
+    }
+
+    _spawnEnemyProjectile(x, y, tex, vx, vy, opts = {}) {
+      if (!this.enemyProjectiles) return null;
+      const p = this.physics.add.image(x, y, tex);
+      p.setCircle(3, 1, 1);
+      p.setData("damage", opts.damage ?? 0.65);
+      p.setData("spawnAt", nowMs());
+      p.setData("ttl", opts.ttl ?? 1800);
+      p.setData("homing", !!opts.homing);
+      p.setVelocity(vx, vy);
+      p.setDrag(0, 0);
+      p.setMaxVelocity(340, 340);
+      p.setDepth(14);
+      if (opts.additive) p.setBlendMode(Phaser.BlendModes.ADD);
+      this.enemyProjectiles.add(p);
+      return p;
+    }
+
+    _tickEnemyProjectiles() {
+      if (!this.enemyProjectiles) return;
+      const t = nowMs();
+      if (t - this._lastEnemyProjectileTickAt < 120) return;
+      this._lastEnemyProjectileTickAt = t;
+
+      const px = this.player?.x ?? 0;
+      const py = this.player?.y ?? 0;
+
+      this.enemyProjectiles.children.iterate((child) => {
+        if (!child) return;
+        const p = /** @type {Phaser.Physics.Arcade.Image} */ (child);
+        if (!p.active) return;
+
+        const born = Number(p.getData("spawnAt") ?? 0) || 0;
+        const ttl = Number(p.getData("ttl") ?? 0) || 0;
+        if (ttl > 0 && t - born > ttl) {
+          p.destroy();
+          return;
+        }
+
+        if (p.getData("homing")) {
+          const dx = px - p.x;
+          const dy = py - p.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const nx = dx / len;
+          const ny = dy / len;
+          const v = p.body?.velocity;
+          if (v) {
+            v.x = Phaser.Math.Linear(v.x, nx * 165, 0.08);
+            v.y = Phaser.Math.Linear(v.y, ny * 165, 0.08);
+          }
+        }
+      });
+    }
+
     _killMonster(mon) {
       const gs = this.registry.get("gameState");
 
@@ -2479,7 +2647,8 @@
   const stratumKey = chunk.stratum === STRATA.JARDIN ? "jardin" : chunk.stratum === STRATA.FORGE ? "forge" : "abime";
   const FLOOR_VARIANTS = 4;
   const WALL_VARIANTS = 3;
-  const DETAIL_VARIANTS = 2;
+  const DETAIL_VARIANTS = 3;
+  const PATH_VARIANTS = 3;
 
   const texKey = (kind, idx) => `tile_${kind}_${stratumKey}_${idx}`;
   const pickExisting = (primaryKey, fallbackKey) => (this.textures.exists(primaryKey) ? primaryKey : fallbackKey);
@@ -2490,14 +2659,27 @@
       const instability = 1 - chunk.stability / 100;
 
       // World-gen improvements: reduce maze walls and create readable paths/plazas.
-      // Plaza near origin (spawn area) and cross-roads.
-      const isPlaza = (wx, wy) => Math.hypot(wx, wy) < 200;
+      // Plaza near origin and around settlements; roads are segments connecting them.
+      const isPlaza = (wx, wy) => {
+        if (Math.hypot(wx, wy) < 200) return true;
+        if (Array.isArray(this._settlements)) {
+          for (const s of this._settlements) {
+            if (s.stratum !== chunk.stratum) continue;
+            if (Math.hypot(wx - s.x, wy - s.y) < 120) return true;
+          }
+        }
+        return false;
+      };
+
       const isRoad = (wx, wy) => {
-        const w = 34;
-        const main = Math.abs(wx) < w || Math.abs(wy) < w;
-        const diag = Math.abs(wy - wx) < (w - 10) || Math.abs(wy + wx) < (w - 10);
-        const ring = Math.abs(Math.hypot(wx, wy) - 760) < 28;
-        return main || diag || ring;
+        if (!Array.isArray(this._roadEdges)) return false;
+        let best = Infinity;
+        for (const e of this._roadEdges) {
+          if (e.stratum !== chunk.stratum) continue;
+          const d = pointSegDist(wx, wy, e.a.x, e.a.y, e.b.x, e.b.y);
+          if (d < best) best = d;
+        }
+        return best < (chunk.stratum === STRATA.JARDIN ? 30 : chunk.stratum === STRATA.FORGE ? 28 : 26);
       };
 
       // Chunk-local obstacle clusters (rocks/rubble), deterministic and clumpy.
@@ -2547,7 +2729,9 @@
           }
           const baseKey = wall
             ? pickExisting(texKey("wall", wallV), wallFallback)
-            : pickExisting(texKey("floor", floorV), baseFallback);
+            : road
+              ? pickExisting(`tile_path_${stratumKey}_${floorV % PATH_VARIANTS}`, baseFallback)
+              : pickExisting(texKey("floor", floorV), baseFallback);
 
           // Draw the tile into the chunk RenderTexture.
           rt.drawFrame(baseKey, null, x, y);
@@ -2566,7 +2750,7 @@
             }
           }
 
-          if (!wall && rng.next() < (0.10 + instability * 0.20)) {
+          if (!wall && !road && rng.next() < (0.10 + instability * 0.20)) {
             rt.drawFrame(veinKey, null, x, y, 0.18 + rng.next() * 0.18);
           }
         }
@@ -2582,51 +2766,84 @@
           return { w, h };
         };
 
-        // Village near spawn (origin). Adds a cozy focal point.
-        const chunkCenterWx = (cx + 0.5) * CHUNK_SIZE_PX;
-        const chunkCenterWy = (cy + 0.5) * CHUNK_SIZE_PX;
-        const nearSpawnVillage = Math.hypot(chunkCenterWx, chunkCenterWy) < 520;
-        if (nearSpawnVillage) {
-          const vrng = makeRng(hash32(`${chunk.cx},${chunk.cy}:village`) ^ 0x51a7);
-
-          // Place a few houses in a loose ring.
-          const houseCount = 2 + vrng.nextInt(3);
-          for (let i = 0; i < houseCount; i++) {
-            const ang = (i / houseCount) * Math.PI * 2 + vrng.nextRange(-0.35, 0.35);
-            const rad = 92 + vrng.nextRange(-18, 28);
-            const wx = Math.cos(ang) * rad;
-            const wy = Math.sin(ang) * rad;
-            // Only draw if this chunk contains the position.
-            const inChunk = wx >= cx * CHUNK_SIZE_PX && wx < (cx + 1) * CHUNK_SIZE_PX && wy >= cy * CHUNK_SIZE_PX && wy < (cy + 1) * CHUNK_SIZE_PX;
+        // Villages (2–4) are generated deterministically; draw the parts that fall into this chunk.
+        if (Array.isArray(this._settlements)) {
+          for (const s of this._settlements) {
+            if (s.stratum !== STRATA.JARDIN || s.kind !== "village") continue;
+            const inChunk = s.x >= cx * CHUNK_SIZE_PX && s.x < (cx + 1) * CHUNK_SIZE_PX && s.y >= cy * CHUNK_SIZE_PX && s.y < (cy + 1) * CHUNK_SIZE_PX;
             if (!inChunk) continue;
-            const px = wx - cx * CHUNK_SIZE_PX;
-            const py = wy - cy * CHUNK_SIZE_PX;
-            drawCentered("spr_house", px, py, 1);
-            addSolidRect(px, py + 6, 34, 22);
 
-            // Warm lamp glow next to house (additive image, not baked into RT)
-            const lamp = this.add.image(px + vrng.nextRange(-16, 16), py + 10, "spr_light_forge");
-            lamp.setBlendMode(Phaser.BlendModes.ADD);
-            lamp.setAlpha(0.55);
-            lamp.setScale(0.55);
-            lamp.setDepth(20);
-            container.add(lamp);
-            objectsCreated.push(lamp);
-            this.tweens.add({ targets: lamp, alpha: { from: 0.40, to: 0.62 }, duration: 820 + vrng.nextInt(620), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
-          }
+            const vrng = makeRng(hash32(`v:${s.id}`) ^ 0x51a7);
+            const px0 = s.x - cx * CHUNK_SIZE_PX;
+            const py0 = s.y - cy * CHUNK_SIZE_PX;
 
-          // A central light bloom (soft)
-          if (0 >= cx * CHUNK_SIZE_PX && 0 < (cx + 1) * CHUNK_SIZE_PX && 0 >= cy * CHUNK_SIZE_PX && 0 < (cy + 1) * CHUNK_SIZE_PX) {
-            const px = 0 - cx * CHUNK_SIZE_PX;
-            const py = 0 - cy * CHUNK_SIZE_PX;
-            const glow = this.add.image(px, py, "spr_light_jardin");
+            // Plaza tiles + small fountain landmark (baked, performant)
+            const cTx = clamp(Math.floor(px0 / TILE_SIZE), 2, CHUNK_SIZE_TILES - 3);
+            const cTy = clamp(Math.floor(py0 / TILE_SIZE), 2, CHUNK_SIZE_TILES - 3);
+            for (let oy = -2; oy <= 2; oy++) {
+              for (let ox = -2; ox <= 2; ox++) {
+                if (Math.hypot(ox, oy) > 2.35) continue;
+                const tx = clamp(cTx + ox, 1, CHUNK_SIZE_TILES - 2);
+                const ty = clamp(cTy + oy, 1, CHUNK_SIZE_TILES - 2);
+                const pv = (hash32(`p:${s.id}:${tx},${ty}`) >>> 0) % 3;
+                rt.drawFrame(`tile_path_jardin_${pv}`, null, tx * TILE_SIZE, ty * TILE_SIZE, 0.92);
+              }
+            }
+            drawCentered("spr_fountain_jardin", px0, py0 + 3, 1);
+            addSolidRect(px0, py0 + 10, 26, 18);
+
+            // Central glow marker for village core (kept as additive sprite, not baked).
+            const glow = this.add.image(px0, py0, "spr_light_jardin");
             glow.setBlendMode(Phaser.BlendModes.ADD);
-            glow.setAlpha(0.65);
-            glow.setScale(0.85);
+            glow.setAlpha(0.55);
+            glow.setScale(0.95);
             glow.setDepth(18);
             container.add(glow);
             objectsCreated.push(glow);
-            this.tweens.add({ targets: glow, alpha: { from: 0.55, to: 0.78 }, duration: 1200 + vrng.nextInt(900), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+            this.tweens.add({ targets: glow, alpha: { from: 0.45, to: 0.66 }, duration: 1100 + vrng.nextInt(900), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+
+            // Houses ring
+            const houseCount = 4 + vrng.nextInt(4);
+            for (let i = 0; i < houseCount; i++) {
+              const ang = (i / houseCount) * Math.PI * 2 + vrng.nextRange(-0.25, 0.25);
+              const rad = 78 + vrng.nextRange(-10, 26);
+              const wx = s.x + Math.cos(ang) * rad;
+              const wy = s.y + Math.sin(ang) * rad;
+              if (wx < cx * CHUNK_SIZE_PX || wx >= (cx + 1) * CHUNK_SIZE_PX || wy < cy * CHUNK_SIZE_PX || wy >= (cy + 1) * CHUNK_SIZE_PX) continue;
+              const px = wx - cx * CHUNK_SIZE_PX;
+              const py = wy - cy * CHUNK_SIZE_PX;
+              drawCentered("spr_house", px, py, 1);
+              addSolidRect(px, py + 6, 34, 22);
+
+              // Warm lamp glow
+              const lamp = this.add.image(px + vrng.nextRange(-14, 14), py + 10, "spr_light_forge");
+              lamp.setBlendMode(Phaser.BlendModes.ADD);
+              lamp.setAlpha(0.38);
+              lamp.setScale(0.52);
+              lamp.setDepth(20);
+              container.add(lamp);
+              objectsCreated.push(lamp);
+              this.tweens.add({ targets: lamp, alpha: { from: 0.26, to: 0.50 }, duration: 720 + vrng.nextInt(660), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+            }
+
+            // Flowerbeds (baked into RT)
+            const beds = 3 + vrng.nextInt(4);
+            for (let i = 0; i < beds; i++) {
+              const tx = clamp(Math.floor(px0 / TILE_SIZE) + vrng.nextInt(9) - 4, 2, CHUNK_SIZE_TILES - 3);
+              const ty = clamp(Math.floor(py0 / TILE_SIZE) + vrng.nextInt(9) - 4, 2, CHUNK_SIZE_TILES - 3);
+              rt.drawFrame("spr_flower", null, tx * TILE_SIZE + 2, ty * TILE_SIZE + 2, 0.95);
+              rt.drawFrame("spr_flower", null, tx * TILE_SIZE + 8, ty * TILE_SIZE + 7, 0.92);
+            }
+
+            // A few fence segments to hint at yards (baked)
+            for (let k = 0; k < 4; k++) {
+              const ang = vrng.nextRange(0, Math.PI * 2);
+              const rad = 56 + vrng.nextRange(-8, 22);
+              const fx = px0 + Math.cos(ang) * rad;
+              const fy = py0 + Math.sin(ang) * rad;
+              if (fx < 10 || fx > CHUNK_SIZE_PX - 10 || fy < 10 || fy > CHUNK_SIZE_PX - 10) continue;
+              rt.drawFrame("spr_fence", null, fx - 10, fy - 7, 0.95);
+            }
           }
         }
 
@@ -2665,6 +2882,32 @@
           // flowers: no collider
         }
 
+        // Road dressing: fences, grass tufts, signposts (baked into RT)
+        const roadRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:roadDress`) ^ 0x19a2);
+        const roadDressCount = 8 + roadRng.nextInt(8);
+        for (let i = 0; i < roadDressCount; i++) {
+          const tx = 1 + roadRng.nextInt(CHUNK_SIZE_TILES - 2);
+          const ty = 1 + roadRng.nextInt(CHUNK_SIZE_TILES - 2);
+          const px = tx * TILE_SIZE + TILE_SIZE / 2;
+          const py = ty * TILE_SIZE + TILE_SIZE / 2;
+          const wx = cx * CHUNK_SIZE_PX + px;
+          const wy = cy * CHUNK_SIZE_PX + py;
+          const plaza = isPlaza(wx, wy);
+          const road = !plaza && isRoad(wx, wy);
+          if (!road) continue;
+
+          const r = roadRng.next();
+          if (r < 0.18) {
+            rt.drawFrame("spr_signpost", null, px - 11, py - 11, 0.92);
+          } else if (r < 0.40) {
+            rt.drawFrame("spr_fence", null, px - 10, py - 7, 0.95);
+          } else if (r < 0.78) {
+            rt.drawFrame("spr_grass_tuft", null, px - 7, py - 7, 0.92);
+          } else {
+            rt.drawFrame("spr_flower", null, px - 7, py - 7, 0.90);
+          }
+        }
+
         // Occasional chest/node placement in the world state is handled elsewhere,
         // but visuals are placed via interactables group.
       }
@@ -2700,6 +2943,85 @@
           else if (tex === "spr_pipe_forge") addSolidRect(px, py + 6, 28, 10);
           else if (tex === "spr_vent_forge") addSolidRect(px, py + 6, 18, 12);
         }
+
+        // Road dressing: crates + occasional lamp posts
+        const roadRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:roadDress`) ^ 0x6f11);
+        const roadDressCount = 6 + roadRng.nextInt(6);
+        let lampBudget = 2;
+        for (let i = 0; i < roadDressCount; i++) {
+          const tx = 1 + roadRng.nextInt(CHUNK_SIZE_TILES - 2);
+          const ty = 1 + roadRng.nextInt(CHUNK_SIZE_TILES - 2);
+          const px = tx * TILE_SIZE + TILE_SIZE / 2;
+          const py = ty * TILE_SIZE + TILE_SIZE / 2;
+
+          const wx = cx * CHUNK_SIZE_PX + px;
+          const wy = cy * CHUNK_SIZE_PX + py;
+          const plaza = isPlaza(wx, wy);
+          const road = !plaza && isRoad(wx, wy);
+          if (!road) continue;
+
+          const r = roadRng.next();
+          if (r < 0.62) {
+            drawCentered("spr_crate_forge", px, py, 1);
+            addSolidRect(px, py + 6, 16, 12);
+          } else if (lampBudget > 0) {
+            lampBudget--;
+            drawCentered("spr_lamp_post_forge", px, py, 1);
+            addSolidRect(px, py + 10, 10, 18);
+
+            const glow = this.add.image(px, py - 8, "spr_light_forge");
+            glow.setBlendMode(Phaser.BlendModes.ADD);
+            glow.setAlpha(0.45);
+            glow.setScale(0.45);
+            glow.setDepth(20);
+            container.add(glow);
+            objectsCreated.push(glow);
+            this.tweens.add({ targets: glow, alpha: { from: 0.34, to: 0.55 }, duration: 760 + roadRng.nextInt(540), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+          }
+        }
+
+        // Outposts: small industrial nodes with stronger lighting accents.
+        if (Array.isArray(this._settlements)) {
+          for (const s of this._settlements) {
+            if (s.stratum !== STRATA.FORGE || s.kind !== "outpost") continue;
+            const inChunk = s.x >= cx * CHUNK_SIZE_PX && s.x < (cx + 1) * CHUNK_SIZE_PX && s.y >= cy * CHUNK_SIZE_PX && s.y < (cy + 1) * CHUNK_SIZE_PX;
+            if (!inChunk) continue;
+            const orng = makeRng(hash32(`o:${s.id}`) ^ 0x12c77);
+            const px0 = s.x - cx * CHUNK_SIZE_PX;
+            const py0 = s.y - cy * CHUNK_SIZE_PX;
+
+            // Central machine landmark
+            drawCentered("spr_machine_forge", px0, py0 + 2, 1);
+            addSolidRect(px0, py0 + 10, 30, 22);
+
+            // A few pipes/vents clustered
+            for (let k = 0; k < 5; k++) {
+              const px = px0 + orng.nextRange(-64, 64);
+              const py = py0 + orng.nextRange(-52, 52);
+              const tex = k % 2 === 0 ? "spr_pipe_forge" : "spr_vent_forge";
+              drawCentered(tex, px, py, 1);
+              addSolidRect(px, py + 6, tex === "spr_pipe_forge" ? 28 : 18, 12);
+            }
+
+            // A couple of lamp posts near the node (kept tiny count)
+            for (let k = 0; k < 2; k++) {
+              const lx = px0 + orng.nextRange(-60, 60);
+              const ly = py0 + orng.nextRange(-55, 55);
+              drawCentered("spr_lamp_post_forge", lx, ly, 1);
+              addSolidRect(lx, ly + 10, 10, 18);
+            }
+
+            // A strong warm beacon
+            const beacon = this.add.image(px0, py0, "spr_light_forge");
+            beacon.setBlendMode(Phaser.BlendModes.ADD);
+            beacon.setAlpha(0.78);
+            beacon.setScale(0.85);
+            beacon.setDepth(18);
+            container.add(beacon);
+            objectsCreated.push(beacon);
+            this.tweens.add({ targets: beacon, alpha: { from: 0.55, to: 0.92 }, duration: 680 + orng.nextInt(600), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+          }
+        }
       }
 
       if (chunk.stratum === STRATA.ABIME) {
@@ -2727,6 +3049,106 @@
           if (tex.startsWith("spr_crystal_abime")) addSolidRect(px, py + 6, 18, 14);
           else if (tex === "spr_root_abime") addSolidRect(px, py + 8, 26, 12);
           else if (tex === "spr_totem_abime") addSolidRect(px, py + 8, 16, 18);
+        }
+
+        // Road dressing: rune stones + rubble
+        const roadRng = makeRng(hash32(`${chunk.cx},${chunk.cy}:roadDress`) ^ 0x33c3);
+        const roadDressCount = 5 + roadRng.nextInt(6);
+        for (let i = 0; i < roadDressCount; i++) {
+          const tx = 1 + roadRng.nextInt(CHUNK_SIZE_TILES - 2);
+          const ty = 1 + roadRng.nextInt(CHUNK_SIZE_TILES - 2);
+          const px = tx * TILE_SIZE + TILE_SIZE / 2;
+          const py = ty * TILE_SIZE + TILE_SIZE / 2;
+
+          const wx = cx * CHUNK_SIZE_PX + px;
+          const wy = cy * CHUNK_SIZE_PX + py;
+          const plaza = isPlaza(wx, wy);
+          const road = !plaza && isRoad(wx, wy);
+          if (!road) continue;
+
+          const r = roadRng.next();
+          if (r < 0.55) {
+            const img = this.add.image(px, py, "spr_rune_stone");
+            img.setDepth(-6);
+            container.add(img);
+            objectsCreated.push(img);
+            addSolidRect(px, py + 7, 12, 14);
+
+            if (roadRng.next() < 0.20) {
+              const halo = this.add.image(px, py, "spr_light_abime");
+              halo.setBlendMode(Phaser.BlendModes.ADD);
+              halo.setAlpha(0.26);
+              halo.setScale(0.33);
+              halo.setDepth(18);
+              container.add(halo);
+              objectsCreated.push(halo);
+              this.tweens.add({ targets: halo, alpha: { from: 0.18, to: 0.32 }, duration: 980 + roadRng.nextInt(820), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+            }
+          } else {
+            const img = this.add.image(px, py + 2, "spr_rubble_abime");
+            img.setDepth(-7);
+            container.add(img);
+            objectsCreated.push(img);
+            addSolidRect(px, py + 6, 16, 10);
+          }
+        }
+
+        // Sanctuaries: crystalline focal points with halos.
+        if (Array.isArray(this._settlements)) {
+          for (const s of this._settlements) {
+            if (s.stratum !== STRATA.ABIME || s.kind !== "sanctuary") continue;
+            const inChunk = s.x >= cx * CHUNK_SIZE_PX && s.x < (cx + 1) * CHUNK_SIZE_PX && s.y >= cy * CHUNK_SIZE_PX && s.y < (cy + 1) * CHUNK_SIZE_PX;
+            if (!inChunk) continue;
+            const arng = makeRng(hash32(`a:${s.id}`) ^ 0x77a11);
+            const px0 = s.x - cx * CHUNK_SIZE_PX;
+            const py0 = s.y - cy * CHUNK_SIZE_PX;
+
+            // Arch landmark (static, single object)
+            const arch = this.add.image(px0, py0 - 6, "spr_arch_abime");
+            arch.setDepth(-6);
+            arch.setBlendMode(Phaser.BlendModes.ADD);
+            arch.setAlpha(0.85);
+            container.add(arch);
+            objectsCreated.push(arch);
+            addSolidRect(px0, py0 + 8, 34, 18);
+
+            // Crystal cluster around center
+            const count = 5 + arng.nextInt(5);
+            for (let i = 0; i < count; i++) {
+              const px = px0 + arng.nextRange(-54, 54);
+              const py = py0 + arng.nextRange(-44, 44);
+              const tex = arng.next() < 0.5 ? "spr_crystal_abime_a" : "spr_crystal_abime_b";
+              const img = this.add.image(px, py, tex);
+              img.setDepth(-5);
+              img.setBlendMode(Phaser.BlendModes.ADD);
+              container.add(img);
+              objectsCreated.push(img);
+              addSolidRect(px, py + 6, 18, 14);
+            }
+
+            // Rune ring (few stones)
+            for (let k = 0; k < 4; k++) {
+              const ang = (k / 4) * Math.PI * 2 + arng.nextRange(-0.18, 0.18);
+              const rad = 58 + arng.nextRange(-8, 14);
+              const rx = px0 + Math.cos(ang) * rad;
+              const ry = py0 + Math.sin(ang) * rad;
+              if (rx < 10 || rx > CHUNK_SIZE_PX - 10 || ry < 10 || ry > CHUNK_SIZE_PX - 10) continue;
+              const img = this.add.image(rx, ry, "spr_rune_stone");
+              img.setDepth(-7);
+              container.add(img);
+              objectsCreated.push(img);
+              addSolidRect(rx, ry + 7, 12, 14);
+            }
+
+            const halo = this.add.image(px0, py0, "spr_light_abime");
+            halo.setBlendMode(Phaser.BlendModes.ADD);
+            halo.setAlpha(0.90);
+            halo.setScale(0.95);
+            halo.setDepth(18);
+            container.add(halo);
+            objectsCreated.push(halo);
+            this.tweens.add({ targets: halo, alpha: { from: 0.70, to: 1.0 }, duration: 980 + arng.nextInt(820), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+          }
         }
       }
 
@@ -3010,6 +3432,21 @@
         mon.setData("threat", localThreat);
         mon.setData("stratum", stratum);
 
+        // AI archetypes (small variety, still readable/fair)
+        const roll = rng.next();
+        const aiKind =
+          stratum === STRATA.JARDIN
+            ? (roll < 0.45 ? "skirmisher" : roll < 0.75 ? "charger" : "spitter")
+            : stratum === STRATA.FORGE
+              ? (roll < 0.50 ? "charger" : roll < 0.82 ? "gunner" : "skirmisher")
+              : (roll < 0.45 ? "lurker" : roll < 0.72 ? "summoner" : "skirmisher");
+        mon.setData("aiKind", aiKind);
+        mon.setData("aiSeed", rng.next());
+        mon.setData("lastBurstAt", 0);
+        mon.setData("lastShotAt", 0);
+
+        this._applyIdleBreathe(mon, rng.next());
+
         // Slight random drift
         const vx = rng.nextRange(-40, 40);
         const vy = rng.nextRange(-40, 40);
@@ -3053,12 +3490,120 @@
         const threat = mon.getData("threat") ?? 1;
         const aggroDist = 180 + threat * 25;
 
+        const aiKind = String(mon.getData("aiKind") ?? "charger");
+        const seed = Number(mon.getData("aiSeed") ?? 0.1) || 0.1;
+
         if (d < aggroDist) {
           const dx = this.player.x - mon.x;
           const dy = this.player.y - mon.y;
           const len = Math.hypot(dx, dy) || 1;
-          const sp = 70 + threat * 22;
-          mon.setAcceleration((dx / len) * sp * 7, (dy / len) * sp * 7);
+          const nx = dx / len;
+          const ny = dy / len;
+
+          const baseSp = 70 + threat * 22;
+
+          if (aiKind === "charger") {
+            const sp = baseSp * 1.08;
+            mon.setAcceleration(nx * sp * 8, ny * sp * 8);
+          } else if (aiKind === "skirmisher") {
+            // Maintain a bit of distance + strafe around the player.
+            const desired = 120 + threat * 6;
+            const away = d < desired ? -1 : 1;
+            const px = -ny;
+            const py = nx;
+            const wobble = Math.sin((nowMs() / 260) + seed * 10) * 0.65;
+            const ax = nx * baseSp * 6 * away + px * baseSp * 5 * wobble;
+            const ay = ny * baseSp * 6 * away + py * baseSp * 5 * wobble;
+            mon.setAcceleration(ax, ay);
+          } else if (aiKind === "gunner") {
+            // Forge ranged: keep distance and fire bolts.
+            const desired = 170 + threat * 8;
+            const away = d < desired ? -1 : 1;
+            const px = -ny;
+            const py = nx;
+            const wobble = Math.sin((nowMs() / 220) + seed * 11) * 0.70;
+            const ax = nx * baseSp * 5.8 * away + px * baseSp * 6.2 * wobble;
+            const ay = ny * baseSp * 5.8 * away + py * baseSp * 6.2 * wobble;
+            mon.setAcceleration(ax, ay);
+
+            const t = nowMs();
+            const last = Number(mon.getData("lastShotAt") ?? 0) || 0;
+            if (d < 280 && t - last > 900) {
+              mon.setData("lastShotAt", t);
+              const sx = mon.x + nx * 10;
+              const sy = mon.y + ny * 10;
+              const spd = 215 + threat * 18;
+              this._spawnEnemyProjectile(sx, sy, "spr_enemy_bolt_forge", nx * spd, ny * spd, {
+                damage: 0.55 + threat * 0.08,
+                ttl: 1650,
+                additive: true,
+              });
+            }
+          } else if (aiKind === "spitter") {
+            // Jardin ranged: short, slower shots; stays closer than gunner.
+            const desired = 140 + threat * 6;
+            const away = d < desired ? -1 : 1;
+            const px = -ny;
+            const py = nx;
+            const wobble = Math.sin((nowMs() / 260) + seed * 9) * 0.55;
+            const ax = nx * baseSp * 5.2 * away + px * baseSp * 4.8 * wobble;
+            const ay = ny * baseSp * 5.2 * away + py * baseSp * 4.8 * wobble;
+            mon.setAcceleration(ax, ay);
+
+            const t = nowMs();
+            const last = Number(mon.getData("lastShotAt") ?? 0) || 0;
+            if (d < 230 && t - last > 1100) {
+              mon.setData("lastShotAt", t);
+              const sx = mon.x + nx * 8;
+              const sy = mon.y + ny * 8;
+              const spd = 165 + threat * 14;
+              this._spawnEnemyProjectile(sx, sy, "spr_enemy_spit_jardin", nx * spd, ny * spd, {
+                damage: 0.48 + threat * 0.07,
+                ttl: 1750,
+                additive: true,
+              });
+            }
+          } else if (aiKind === "summoner") {
+            // Abîme summoner: maintains distance, releases homing motes.
+            const desired = 185 + threat * 10;
+            const away = d < desired ? -1 : 1;
+            const px = -ny;
+            const py = nx;
+            const wobble = Math.sin((nowMs() / 240) + seed * 13) * 0.60;
+            const ax = nx * baseSp * 5.6 * away + px * baseSp * 5.8 * wobble;
+            const ay = ny * baseSp * 5.6 * away + py * baseSp * 5.8 * wobble;
+            mon.setAcceleration(ax, ay);
+
+            const t = nowMs();
+            const last = Number(mon.getData("lastShotAt") ?? 0) || 0;
+            if (d < 320 && t - last > 1400) {
+              mon.setData("lastShotAt", t);
+              const base = Math.atan2(ny, nx);
+              const spd = 135 + threat * 14;
+              for (let k = -1; k <= 1; k++) {
+                const a = base + k * 0.20;
+                const vx = Math.cos(a) * spd;
+                const vy = Math.sin(a) * spd;
+                this._spawnEnemyProjectile(mon.x + Math.cos(a) * 10, mon.y + Math.sin(a) * 10, "spr_enemy_mote_abime", vx, vy, {
+                  damage: 0.52 + threat * 0.09,
+                  ttl: 2200,
+                  homing: true,
+                  additive: true,
+                });
+              }
+            }
+          } else {
+            // Lurker (Abîme): slow approach + occasional burst.
+            const sp = baseSp * 0.78;
+            mon.setAcceleration(nx * sp * 6, ny * sp * 6);
+
+            const t = Date.now();
+            const last = Number(mon.getData("lastBurstAt") ?? 0) || 0;
+            if (d < 240 && t - last > 900) {
+              mon.setData("lastBurstAt", t);
+              mon.setVelocity(nx * (240 + threat * 14), ny * (240 + threat * 14));
+            }
+          }
         } else {
           mon.setAcceleration(0, 0);
         }
@@ -3317,6 +3862,63 @@
       g.generateTexture(key, TILE_SIZE, TILE_SIZE);
     };
 
+    const makePathVariant = (key, baseColor, midColor, edgeColor, seed, mode) => {
+      g.clear();
+      g.fillStyle(baseColor, 1);
+      g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+
+      // Directional lighting (top-left highlight) to help a neo-pixel feel without smoothing.
+      g.fillStyle(0xffffff, mode === "jardin" ? 0.10 : 0.06);
+      g.fillRect(0, 0, TILE_SIZE, 2);
+      g.fillRect(0, 0, 2, TILE_SIZE);
+      g.fillStyle(0x000000, mode === "abime" ? 0.20 : 0.16);
+      g.fillRect(0, TILE_SIZE - 2, TILE_SIZE, 2);
+      g.fillRect(TILE_SIZE - 2, 0, 2, TILE_SIZE);
+
+      // Pebbles / bolts / grit
+      speckle(seed ^ 0x6a11, midColor, mode === "forge" ? 0.22 : 0.18, mode === "jardin" ? 14 : 12);
+      speckle(seed ^ 0x8d31, 0x000000, 0.10, 10);
+
+      if (mode === "jardin") {
+        // Soft dirt groove
+        g.lineStyle(1, edgeColor, 0.18);
+        g.beginPath();
+        g.moveTo(1, 11);
+        g.lineTo(6, 9);
+        g.lineTo(12, 11);
+        g.lineTo(15, 8);
+        g.strokePath();
+      }
+
+      if (mode === "forge") {
+        // Panel seams + a subtle hazard hint
+        g.lineStyle(1, edgeColor, 0.16);
+        g.beginPath();
+        g.moveTo(0, 5.5);
+        g.lineTo(16, 5.5);
+        g.strokePath();
+        g.beginPath();
+        g.moveTo(8.5, 0);
+        g.lineTo(8.5, 16);
+        g.strokePath();
+        g.fillStyle(edgeColor, 0.12);
+        g.fillRect(2, 12, 12, 2);
+      }
+
+      if (mode === "abime") {
+        // Slab + rune
+        g.lineStyle(1, edgeColor, 0.14);
+        g.strokeRect(2, 2, 12, 12);
+        g.lineStyle(1, 0xffffff, 0.06);
+        g.beginPath();
+        g.moveTo(8.5, 4);
+        g.lineTo(8.5, 12);
+        g.strokePath();
+      }
+
+      g.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    };
+
     const makeWallVariant = (key, baseColor, edgeColor, seed, mode) => {
       g.clear();
       g.fillStyle(baseColor, 1);
@@ -3393,158 +3995,214 @@
       g.generateTexture(key, TILE_SIZE, TILE_SIZE);
     };
 
-    // Jardin palette (cozy grassland)
-    makeTile("tile_floor_jardin", 0x3fb85b, 0x2c7a40, false);
-    makeWall("tile_wall_jardin", 0x1f5a32, 0x3fb85b);
+    // Jardin palette (bright daytime grassland)
+    // Brighter base to match "plein jour".
+    makeTile("tile_floor_jardin", 0x4ad96e, 0x2c7a40, false);
+    makeWall("tile_wall_jardin", 0x1a6b38, 0x62ffd1);
     makeTile("tile_vein_jardin", 0x000000, 0x62ffd1, true);
 
-    // Add a more "grassy" variant overlay by regenerating with small flowers specks.
+    // Regenerate base grass with directional highlight + richer blades to reduce the tiled look.
     g.clear();
-    g.fillStyle(0x3fb85b, 1);
+    g.fillStyle(0x4ad96e, 1);
     g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-    // grass noise
-    for (let i = 0; i < 22; i++) {
-      const x = (i * 5) % TILE_SIZE;
-      const y = (i * 9) % TILE_SIZE;
-      g.fillStyle(0x2f8f4a, 0.22);
+    g.fillStyle(0xffffff, 0.10);
+    g.fillRect(0, 0, TILE_SIZE, 2);
+    g.fillRect(0, 0, 2, TILE_SIZE);
+    g.fillStyle(0x000000, 0.14);
+    g.fillRect(0, TILE_SIZE - 2, TILE_SIZE, 2);
+    g.fillRect(TILE_SIZE - 2, 0, 2, TILE_SIZE);
+    // grass noise + blades
+    for (let i = 0; i < 26; i++) {
+      const x = (i * 5 + 3) % TILE_SIZE;
+      const y = (i * 9 + 5) % TILE_SIZE;
+      g.fillStyle(0x35b85a, 0.22);
       g.fillRect(x, y, 1, 1);
     }
-    // tiny flowers
-    g.fillStyle(0xffffff, 0.22);
+    for (let i = 0; i < 10; i++) {
+      const x = (i * 3 + 2) % TILE_SIZE;
+      const y = (i * 7 + 4) % TILE_SIZE;
+      g.fillStyle(0x1f7a3d, 0.18);
+      g.fillRect(x, y, 1, 2);
+    }
+    // tiny flowers (rare, subtle)
+    g.fillStyle(0xffffff, 0.18);
     g.fillRect(3, 6, 1, 1);
     g.fillRect(12, 10, 1, 1);
-    g.fillStyle(0xff6fb5, 0.20);
+    g.fillStyle(0xff7fe8, 0.14);
     g.fillRect(7, 12, 1, 1);
-    // No border stroke (prevents grid effect).
     g.generateTexture("tile_floor_jardin", TILE_SIZE, TILE_SIZE);
 
     // Jardin variants
     for (let i = 0; i < 4; i++) {
-      makeTileVariant(`tile_floor_jardin_${i}`, 0x3fb85b, 0x2f8f4a, 0x1f5a32, 0x10a1 ^ (i * 0x9e37), "jardin");
+      makeTileVariant(`tile_floor_jardin_${i}`, 0x4ad96e, 0x35b85a, 0x1f7a3d, 0x10a1 ^ (i * 0x9e37), "jardin");
     }
     for (let i = 0; i < 3; i++) {
-      makeWallVariant(`tile_wall_jardin_${i}`, 0x1f5a32, 0x62ffd1, 0x11b2 ^ (i * 0x7f4a), "jardin");
+      makeWallVariant(`tile_wall_jardin_${i}`, 0x1a6b38, 0x62ffd1, 0x11b2 ^ (i * 0x7f4a), "jardin");
     }
-    for (let i = 0; i < 2; i++) {
-      makeDetailOverlay(`tile_detail_jardin_${i}`, 0x1f5a32, 0x12c3 ^ (i * 0x531), "jardin");
+    for (let i = 0; i < 3; i++) {
+      makePathVariant(`tile_path_jardin_${i}`, 0x9a7b4b, 0xb99763, 0x6d5332, 0x13d1 ^ (i * 0x531), "jardin");
+    }
+    for (let i = 0; i < 3; i++) {
+      makeDetailOverlay(`tile_detail_jardin_${i}`, 0x1f7a3d, 0x12c3 ^ (i * 0x531), "jardin");
     }
 
-    // Forge palette
-    makeTile("tile_floor_forge", 0x120a16, 0xffb000, false);
-    makeWall("tile_wall_forge", 0x0b0a0f, 0xffb000);
+    // Forge palette (industrial)
+    makeTile("tile_floor_forge", 0x1a0f1f, 0xffb000, false);
+    makeWall("tile_wall_forge", 0x0c0812, 0xffb000);
     makeTile("tile_vein_forge", 0x000000, 0xffb000, true);
 
     // Forge variants
     for (let i = 0; i < 4; i++) {
-      makeTileVariant(`tile_floor_forge_${i}`, 0x120a16, 0x1a0e22, 0xffb000, 0x21a1 ^ (i * 0x9e37), "forge");
+      makeTileVariant(`tile_floor_forge_${i}`, 0x1a0f1f, 0x2a1834, 0xffb000, 0x21a1 ^ (i * 0x9e37), "forge");
     }
     for (let i = 0; i < 3; i++) {
-      makeWallVariant(`tile_wall_forge_${i}`, 0x0b0a0f, 0xffb000, 0x22b2 ^ (i * 0x7f4a), "forge");
+      makeWallVariant(`tile_wall_forge_${i}`, 0x0c0812, 0xffb000, 0x22b2 ^ (i * 0x7f4a), "forge");
     }
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
+      makePathVariant(`tile_path_forge_${i}`, 0x34303f, 0x4a4458, 0xffb000, 0x24d1 ^ (i * 0x531), "forge");
+    }
+    for (let i = 0; i < 3; i++) {
       makeDetailOverlay(`tile_detail_forge_${i}`, 0xffb000, 0x23c3 ^ (i * 0x531), "forge");
     }
 
-    // Abime palette
-    makeTile("tile_floor_abime", 0x05040a, 0xff4df2, false);
-    makeWall("tile_wall_abime", 0x05040a, 0xff4df2);
+    // Abime palette (ruins + crystals)
+    makeTile("tile_floor_abime", 0x080616, 0xff4df2, false);
+    makeWall("tile_wall_abime", 0x03020a, 0xff4df2);
     makeTile("tile_vein_abime", 0x000000, 0xff4df2, true);
 
     // Abime variants
     for (let i = 0; i < 4; i++) {
-      makeTileVariant(`tile_floor_abime_${i}`, 0x05040a, 0x0d0a16, 0xff4df2, 0x31a1 ^ (i * 0x9e37), "abime");
+      makeTileVariant(`tile_floor_abime_${i}`, 0x080616, 0x120b25, 0xff4df2, 0x31a1 ^ (i * 0x9e37), "abime");
     }
     for (let i = 0; i < 3; i++) {
-      makeWallVariant(`tile_wall_abime_${i}`, 0x05040a, 0xff4df2, 0x32b2 ^ (i * 0x7f4a), "abime");
+      makeWallVariant(`tile_wall_abime_${i}`, 0x03020a, 0xff4df2, 0x32b2 ^ (i * 0x7f4a), "abime");
     }
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
+      makePathVariant(`tile_path_abime_${i}`, 0x2d1f3a, 0x3c2a4e, 0xff4df2, 0x34d1 ^ (i * 0x531), "abime");
+    }
+    for (let i = 0; i < 3; i++) {
       makeDetailOverlay(`tile_detail_abime_${i}`, 0xff4df2, 0x33c3 ^ (i * 0x531), "abime");
     }
 
     const makeSprite = (key, bodyColor, glowColor, kind) => {
-      const size = 18;
+      const size = 20;
       g.clear();
       g.fillStyle(0x000000, 0);
       g.fillRect(0, 0, size, size);
 
-      // body + head
-      g.fillStyle(bodyColor, 1);
-      g.fillRoundedRect(4, 7, 10, 9, 3);
-      g.fillStyle(bodyColor, 0.95);
-      g.fillCircle(9, 6, 4);
+      const outline = 0x0b0710;
+      const shadow = 0x000000;
 
-      g.fillStyle(glowColor, 0.8);
-      g.fillRect(6, 9, 6, 2);
+      // Ground shadow
+      g.fillStyle(shadow, 0.18);
+      g.fillRect(6, 16, 8, 2);
+
+      // Silhouette (chunky, readable)
+      g.fillStyle(outline, 1);
+      g.fillRect(6, 6, 8, 10);
+      g.fillRect(7, 4, 6, 3);
+      g.fillRect(5, 9, 1, 4);
+      g.fillRect(14, 9, 1, 4);
+
+      // Fill
+      g.fillStyle(bodyColor, 1);
+      g.fillRect(7, 7, 6, 8);
+      g.fillRect(8, 5, 4, 2);
+
+      // Directional highlight (top-left)
+      g.fillStyle(0xffffff, 0.10);
+      g.fillRect(7, 7, 2, 6);
+      g.fillRect(8, 5, 2, 1);
+
+      // Core glow stripe
+      g.fillStyle(glowColor, kind === "monster" ? 0.50 : 0.38);
+      g.fillRect(8, 10, 4, 2);
 
       if (kind === "monster") {
-        // eyes + maw
-        g.fillStyle(glowColor, 0.9);
-        g.fillRect(6, 8, 2, 1);
-        g.fillRect(10, 8, 2, 1);
+        // Eyes + maw (strong readability)
+        g.fillStyle(glowColor, 0.95);
+        g.fillRect(8, 8, 1, 1);
+        g.fillRect(11, 8, 1, 1);
         g.fillStyle(glowColor, 0.55);
-        g.fillRect(6, 12, 6, 2);
+        g.fillRect(8, 13, 4, 1);
+        // Small horns
+        g.fillStyle(outline, 1);
+        g.fillRect(7, 3, 1, 2);
+        g.fillRect(12, 3, 1, 2);
       }
 
       g.generateTexture(key, size, size);
     };
 
     const makeHumanoid = (key, skin, cloth, accent, role) => {
-      const W = 28;
-      const H = 28;
+      const W = 24;
+      const H = 24;
       g.clear();
       g.fillStyle(0x000000, 0);
       g.fillRect(0, 0, W, H);
 
-      const outline = 0x1b1b1b;
+      const outline = 0x0b0710;
+      const darkCloth = 0x000000;
 
-      // Soft ground shadow
+      // Ground shadow
       g.fillStyle(0x000000, 0.16);
-      g.fillRoundedRect(8, 22, 12, 4, 3);
+      g.fillRect(7, 20, 10, 2);
 
-      // Body (rounded, with subtle rim)
-      g.fillStyle(outline, 0.55);
-      g.fillRoundedRect(8, 12, 12, 12, 5);
+      // Body silhouette (outline)
+      g.fillStyle(outline, 1);
+      g.fillRect(8, 10, 8, 10);
+      g.fillRect(9, 6, 6, 4);
+      // Arms
+      g.fillRect(7, 12, 1, 5);
+      g.fillRect(16, 12, 1, 5);
+
+      // Clothes fill
       g.fillStyle(cloth, 1);
-      g.fillRoundedRect(9, 13, 10, 10, 4);
-      g.fillStyle(0xffffff, 0.10);
-      g.fillRoundedRect(10, 14, 3, 8, 2);
+      g.fillRect(9, 11, 6, 8);
 
-      // Head
-      g.fillStyle(outline, 0.55);
-      g.fillCircle(14, 9, 7);
+      // Cloth shade
+      g.fillStyle(darkCloth, 0.12);
+      g.fillRect(13, 11, 2, 8);
+
+      // Head fill
       g.fillStyle(skin, 1);
-      g.fillCircle(14, 9, 6);
-      g.fillStyle(0xffffff, 0.10);
-      g.fillCircle(12, 7, 2);
+      g.fillRect(10, 7, 4, 3);
+      g.fillRect(9, 8, 6, 3);
 
-      // Hair / cap accent
-      g.fillStyle(accent, 0.45);
-      g.fillRoundedRect(9, 3, 10, 6, 3);
+      // Hair/cap accent
+      g.fillStyle(accent, 0.55);
+      g.fillRect(9, 5, 6, 2);
 
       // Eyes
-      g.fillStyle(0x000000, 0.35);
-      g.fillCircle(12, 9, 1.2);
-      g.fillCircle(16, 9, 1.2);
-      g.fillStyle(0xffffff, 0.30);
-      g.fillRect(12, 8, 1, 1);
+      g.fillStyle(0x000000, 0.40);
+      g.fillRect(11, 9, 1, 1);
+      g.fillRect(13, 9, 1, 1);
+      g.fillStyle(0xffffff, 0.18);
+      g.fillRect(10, 7, 1, 1);
 
-      // Scarf / role badge
+      // Scarf / badge
       g.fillStyle(accent, 0.22);
-      g.fillRoundedRect(9, 12, 10, 3, 2);
+      g.fillRect(9, 11, 6, 2);
 
+      // Role markers (tiny, consistent)
       if (role === "quest") {
-        g.fillStyle(accent, 0.40);
-        g.fillCircle(14, 18, 2);
+        g.fillStyle(accent, 0.45);
+        g.fillRect(12, 15, 1, 1);
       } else if (role === "merchant") {
-        g.fillStyle(0xffc062, 0.25);
-        g.fillRoundedRect(8, 18, 12, 3, 2);
+        g.fillStyle(0xffc062, 0.22);
+        g.fillRect(10, 16, 4, 2);
       } else if (role === "guard") {
         g.fillStyle(0xffffff, 0.12);
-        g.fillRoundedRect(9, 16, 3, 8, 2);
+        g.fillRect(10, 14, 1, 6);
       } else if (role === "worker") {
         g.fillStyle(0xffffff, 0.12);
-        g.fillRoundedRect(16, 16, 3, 8, 2);
+        g.fillRect(13, 14, 1, 6);
       }
+
+      // Directional highlight
+      g.fillStyle(0xffffff, 0.08);
+      g.fillRect(9, 11, 1, 6);
+      g.fillRect(10, 8, 1, 2);
 
       g.generateTexture(key, W, H);
     };
@@ -3631,6 +4289,49 @@
     g.fillCircle(8, 6, 2);
     g.generateTexture("spr_flower", 16, 16);
 
+    // Grass tuft
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 14, 14);
+    g.fillStyle(0x0b0710, 0.28);
+    g.fillRect(3, 12, 8, 1);
+    g.fillStyle(0x1f7a3d, 0.35);
+    g.fillRect(6, 6, 1, 7);
+    g.fillRect(4, 7, 1, 6);
+    g.fillRect(8, 7, 1, 6);
+    g.fillStyle(0x4ad96e, 0.22);
+    g.fillRect(5, 7, 1, 4);
+    g.fillRect(7, 7, 1, 4);
+    g.generateTexture("spr_grass_tuft", 14, 14);
+
+    // Fence segment
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 20, 14);
+    g.fillStyle(0x0b0710, 0.65);
+    g.fillRect(3, 3, 2, 9);
+    g.fillRect(15, 3, 2, 9);
+    g.fillStyle(0x6d5332, 0.85);
+    g.fillRect(5, 5, 10, 2);
+    g.fillRect(5, 9, 10, 2);
+    g.fillStyle(0xffffff, 0.08);
+    g.fillRect(5, 5, 4, 1);
+    g.generateTexture("spr_fence", 20, 14);
+
+    // Signpost (village marker)
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 22, 22);
+    g.fillStyle(0x0b0710, 0.65);
+    g.fillRect(10, 6, 2, 14);
+    g.fillStyle(0xb99763, 0.9);
+    g.fillRoundedRect(4, 5, 14, 6, 2);
+    g.fillStyle(0x000000, 0.18);
+    g.fillRect(5, 8, 12, 1);
+    g.fillStyle(0xffffff, 0.10);
+    g.fillRect(5, 6, 4, 1);
+    g.generateTexture("spr_signpost", 22, 22);
+
     // Forge rock A
     g.clear();
     g.fillStyle(0x120a16, 0);
@@ -3673,6 +4374,31 @@
     g.fillRect(7, 9, 2, 8);
     g.fillRect(11, 9, 2, 8);
     g.generateTexture("spr_vent_forge", 22, 22);
+
+    // Forge crate
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 18, 18);
+    g.fillStyle(0x0b0710, 0.80);
+    g.fillRoundedRect(2, 3, 14, 13, 2);
+    g.fillStyle(0xffb000, 0.16);
+    g.fillRect(4, 6, 10, 1);
+    g.fillRect(4, 10, 10, 1);
+    g.fillStyle(0xffffff, 0.08);
+    g.fillRect(3, 4, 4, 2);
+    g.generateTexture("spr_crate_forge", 18, 18);
+
+    // Forge lamp post
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 14, 30);
+    g.fillStyle(0x0b0710, 0.75);
+    g.fillRect(6, 6, 2, 22);
+    g.fillStyle(0x34303f, 0.85);
+    g.fillRoundedRect(3, 3, 8, 6, 2);
+    g.fillStyle(0xffb000, 0.28);
+    g.fillRect(5, 5, 4, 2);
+    g.generateTexture("spr_lamp_post_forge", 14, 30);
 
     // Abime crystal A
     g.clear();
@@ -3720,6 +4446,34 @@
     g.strokeRect(7.5, 6.5, 7, 17);
     g.generateTexture("spr_totem_abime", 22, 30);
 
+    // Abime rubble
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 22, 14);
+    g.fillStyle(0x0b0a12, 0.90);
+    g.fillRoundedRect(2, 6, 18, 6, 3);
+    g.fillStyle(0x000000, 0.18);
+    g.fillRect(3, 10, 16, 2);
+    g.fillStyle(0xff4df2, 0.10);
+    g.fillRect(6, 7, 2, 4);
+    g.fillRect(14, 8, 2, 3);
+    g.generateTexture("spr_rubble_abime", 22, 14);
+
+    // Abime rune stone
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 16, 22);
+    g.fillStyle(0x0b0a12, 0.92);
+    g.fillRoundedRect(3, 5, 10, 14, 3);
+    g.lineStyle(2, 0xff4df2, 0.14);
+    g.strokeCircle(8, 12, 4);
+    g.lineStyle(1, 0xffffff, 0.06);
+    g.beginPath();
+    g.moveTo(8, 8);
+    g.lineTo(8, 16);
+    g.strokePath();
+    g.generateTexture("spr_rune_stone", 16, 22);
+
     // House (simple)
     g.clear();
     g.fillStyle(0x061313, 0);
@@ -3731,6 +4485,49 @@
     g.fillStyle(0x00ffc8, 0.35);
     g.fillRect(14, 16, 6, 6);
     g.generateTexture("spr_house", 34, 30);
+
+    // Jardin fountain (village landmark)
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 28, 26);
+    g.fillStyle(0x0b0a12, 0.82);
+    g.fillRoundedRect(3, 9, 22, 14, 5);
+    g.fillStyle(0x00ffc8, 0.28);
+    g.fillCircle(14, 16, 7);
+    g.fillStyle(0xffffff, 0.10);
+    g.fillCircle(12, 14, 2);
+    g.fillStyle(0x00ffc8, 0.18);
+    g.fillRect(13, 6, 2, 10);
+    g.generateTexture("spr_fountain_jardin", 28, 26);
+
+    // Forge machine (outpost landmark)
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 32, 30);
+    g.fillStyle(0x0b0a12, 0.92);
+    g.fillRoundedRect(5, 9, 22, 18, 4);
+    g.fillStyle(0xffb000, 0.18);
+    g.fillRect(8, 12, 16, 2);
+    g.fillRect(8, 18, 16, 2);
+    g.fillStyle(0xffb000, 0.26);
+    g.fillCircle(16, 21, 4);
+    g.fillStyle(0xffffff, 0.06);
+    g.fillRect(7, 10, 6, 2);
+    g.generateTexture("spr_machine_forge", 32, 30);
+
+    // Abime arch (sanctuary landmark)
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 40, 34);
+    g.fillStyle(0x0b0a12, 0.78);
+    g.fillRoundedRect(7, 10, 26, 20, 10);
+    g.fillStyle(0x05040a, 1);
+    g.fillRoundedRect(12, 14, 16, 16, 8);
+    g.lineStyle(2, 0xff4df2, 0.16);
+    g.strokeRoundedRect(7.5, 10.5, 25, 19, 10);
+    g.fillStyle(0xff4df2, 0.12);
+    g.fillRect(18, 12, 4, 16);
+    g.generateTexture("spr_arch_abime", 40, 34);
 
     // Chest
     g.clear();
@@ -3797,6 +4594,34 @@
     g.lineStyle(2, 0xffffff, 0.18);
     g.strokeCircle(8, 8, 6);
     g.generateTexture("spr_essence", 16, 16);
+
+    // Enemy projectiles (offline/procedural)
+    g.clear();
+    g.fillStyle(0x120a16, 0);
+    g.fillRect(0, 0, 10, 10);
+    g.fillStyle(0xffb000, 0.42);
+    g.fillCircle(5, 5, 4);
+    g.fillStyle(0xffffff, 0.10);
+    g.fillCircle(4, 4, 2);
+    g.generateTexture("spr_enemy_bolt_forge", 10, 10);
+
+    g.clear();
+    g.fillStyle(0x061313, 0);
+    g.fillRect(0, 0, 10, 10);
+    g.fillStyle(0x00ffc8, 0.30);
+    g.fillCircle(5, 5, 4);
+    g.fillStyle(0xff7fe8, 0.18);
+    g.fillCircle(6, 4, 2);
+    g.generateTexture("spr_enemy_spit_jardin", 10, 10);
+
+    g.clear();
+    g.fillStyle(0x05040a, 0);
+    g.fillRect(0, 0, 12, 12);
+    g.fillStyle(0xff4df2, 0.30);
+    g.fillCircle(6, 6, 5);
+    g.fillStyle(0xffffff, 0.06);
+    g.fillCircle(5, 5, 2);
+    g.generateTexture("spr_enemy_mote_abime", 12, 12);
 
     // Pillar
     g.clear();
@@ -3884,7 +4709,8 @@
       g.generateTexture(key, S, S);
     };
 
-    makeBg("bg_jardin", 0xbfe9ff, 0x59d48b, "jardin");
+    // Brighter sky-tint for a clear daytime Jardin.
+    makeBg("bg_jardin", 0xd7f3ff, 0x77e2a2, "jardin");
     makeBg("bg_forge", 0x140b10, 0xffb000, "forge");
     makeBg("bg_abime", 0x06040b, 0xff4df2, "abime");
 
@@ -4464,7 +5290,9 @@
       if (game) return;
 
       const config = {
-        type: Phaser.AUTO,
+        // NOTE: EZGalaxy runs Phaser in a custom environment and provides an explicit canvas.
+        // Phaser requires an explicit renderer type in this case (AUTO throws).
+        type: Phaser.CANVAS,
         canvas: ui.canvas,
         backgroundColor: "#05040a",
         pixelArt: true,
@@ -4489,6 +5317,7 @@
       } catch (err) {
         logger.info("Erreur: impossible de démarrer Phaser." );
         logger.info(String(err?.message ?? err));
+        if (err?.stack) logger.info(String(err.stack));
         throw err;
       }
     }
