@@ -69,63 +69,16 @@
       document.head.appendChild(s);
     });
 
-  const loadModule = async (src) => {
-    const moduleUrl = new URL(src, location.href);
-
-    /** @type {{url: string, status: number, statusText: string, contentType: string, redirected: boolean, finalUrl: string, peek: string} | null} */
-    let probe = null;
-
-    // First, probe the resource to surface 404/fallback issues.
-    try {
-      const r = await fetch(moduleUrl.href, { cache: "no-store" });
-      if (!r.ok) {
-        showFatal(`Failed to fetch module: ${src}`, `HTTP ${r.status} ${r.statusText}\nURL: ${moduleUrl.href}`);
-        return;
-      }
-      const ct = r.headers.get("content-type") || "(none)";
-      const text = await r.text();
-      const peek = text.slice(0, 220).replace(/\s+/g, " ");
-      probe = {
-        url: moduleUrl.href,
-        status: r.status,
-        statusText: r.statusText,
-        contentType: ct,
-        redirected: r.redirected,
-        finalUrl: r.url || moduleUrl.href,
-        peek,
-      };
-
-      if (peek.toLowerCase().includes("<!doctype") || peek.toLowerCase().includes("<html")) {
-        showFatal(`Module served as HTML: ${src}`, `Content-Type: ${ct}\nURL: ${moduleUrl.href}\nFirst chars: ${peek}`);
-        return;
-      }
-
-      // ES modules require a JS MIME type when servers send X-Content-Type-Options: nosniff.
-      // Many API/static gateways incorrectly serve .js as application/octet-stream or text/plain.
-      const ctLower = ct.toLowerCase();
-      const looksJs = ctLower.includes("javascript") || ctLower.includes("ecmascript") || ctLower.includes("module");
-      if (!looksJs) {
-        showFatal(`Bad module Content-Type for ${src}`, `Content-Type: ${ct}\nURL: ${probe.finalUrl}\nFirst chars: ${peek}`);
-        return;
-      }
-    } catch (e) {
-      showFatal(`Failed to fetch module: ${src}`, e);
-      return;
-    }
-
-    // Then, import it to get a real error message if dependencies fail.
-    try {
-      await import(moduleUrl.href);
-    } catch (e) {
-      if (probe) {
-        showFatal(
-          `Failed to import module: ${src}`,
-          `${e && (e.stack || e.message) ? (e.stack || e.message) : String(e)}\n\nProbe:\n- status: ${probe.status} ${probe.statusText}\n- content-type: ${probe.contentType}\n- redirected: ${probe.redirected}\n- final url: ${probe.finalUrl}\n- first chars: ${probe.peek}`
-        );
-      } else {
-        showFatal(`Failed to import module: ${src}`, e);
-      }
-    }
+  // Use a static <script type="module"> which works properly with import maps.
+  // Dynamic import() doesn't always respect the page's import map for nested imports.
+  const loadModule = (src) => {
+    const s = document.createElement("script");
+    s.type = "module";
+    s.src = src;
+    s.onerror = (e) => {
+      showFatal(`Failed to load module script: ${src}`, e);
+    };
+    document.head.appendChild(s);
   };
 
   if (engine === "2d") {
