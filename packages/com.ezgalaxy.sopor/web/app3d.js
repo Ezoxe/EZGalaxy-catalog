@@ -1,9 +1,9 @@
-import * as THREE from "./vendor/three.module.js";
-import { EffectComposer } from "./vendor/three-addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "./vendor/three-addons/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "./vendor/three-addons/postprocessing/UnrealBloomPass.js";
-import { ShaderPass } from "./vendor/three-addons/postprocessing/ShaderPass.js";
-import { PixelShader } from "./vendor/three-addons/shaders/PixelShader.js";
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { PixelShader } from "three/addons/shaders/PixelShader.js";
 
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
