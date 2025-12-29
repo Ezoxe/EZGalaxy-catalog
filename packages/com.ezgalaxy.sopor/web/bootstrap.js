@@ -33,6 +33,16 @@
     showFatal("Unhandled promise rejection", anyE?.reason || e);
   });
 
+  // Helpful hint: import maps support varies by browser.
+  try {
+    // @ts-ignore
+    if (typeof HTMLScriptElement !== "undefined" && HTMLScriptElement.supports && !HTMLScriptElement.supports("importmap")) {
+      showFatal("Browser lacks importmap support", "Your browser does not support <script type=importmap>. Use a modern Chromium/Firefox, or we must rewrite addon imports.");
+    }
+  } catch {
+    // ignore
+  }
+
   const url = new URL(location.href);
   const params = url.searchParams;
   const rawEngine = (params.get("engine") || "").toLowerCase();
@@ -59,14 +69,33 @@
       document.head.appendChild(s);
     });
 
-  const loadModule = (src) => {
-    const s = document.createElement("script");
-    s.type = "module";
-    s.src = src;
-    s.onerror = (e) => {
-      showFatal(`Failed to load module: ${src}`, e);
-    };
-    document.head.appendChild(s);
+  const loadModule = async (src) => {
+    const moduleUrl = new URL(src, location.href);
+
+    // First, probe the resource to surface 404/fallback issues.
+    try {
+      const r = await fetch(moduleUrl.href, { cache: "no-store" });
+      if (!r.ok) {
+        showFatal(`Failed to fetch module: ${src}`, `HTTP ${r.status} ${r.statusText}\nURL: ${moduleUrl.href}`);
+        return;
+      }
+      const ct = r.headers.get("content-type") || "(none)";
+      const peek = (await r.text()).slice(0, 180).replace(/\s+/g, " ");
+      if (peek.toLowerCase().includes("<!doctype") || peek.toLowerCase().includes("<html")) {
+        showFatal(`Module served as HTML: ${src}`, `Content-Type: ${ct}\nURL: ${moduleUrl.href}\nFirst chars: ${peek}`);
+        return;
+      }
+    } catch (e) {
+      showFatal(`Failed to fetch module: ${src}`, e);
+      return;
+    }
+
+    // Then, import it to get a real error message if dependencies fail.
+    try {
+      await import(moduleUrl.href);
+    } catch (e) {
+      showFatal(`Failed to import module: ${src}`, e);
+    }
   };
 
   if (engine === "2d") {
