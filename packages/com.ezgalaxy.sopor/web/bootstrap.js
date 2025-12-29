@@ -22,7 +22,6 @@
   };
 
   window.addEventListener("error", (e) => {
-    // Resource errors sometimes come through with target/src.
     const anyE = /** @type {any} */ (e);
     const src = anyE?.target?.src || anyE?.target?.href;
     if (src) showFatal("Resource failed to load", src);
@@ -33,11 +32,34 @@
     showFatal("Unhandled promise rejection", anyE?.reason || e);
   });
 
-  // Helpful hint: import maps support varies by browser.
+  // Compute the base URL for vendor files (same directory as this script / the HTML)
+  const baseUrl = new URL(".", document.currentScript ? document.currentScript.src : location.href).href;
+
+  // Dynamically inject import map with absolute URLs before loading any modules
+  const injectImportMap = () => {
+    const map = {
+      imports: {
+        "three": baseUrl + "vendor/three.module.js",
+        "three/addons/": baseUrl + "vendor/three-addons/"
+      }
+    };
+    const script = document.createElement("script");
+    script.type = "importmap";
+    script.textContent = JSON.stringify(map);
+    document.head.appendChild(script);
+  };
+
+  // Import maps must be injected before any module loading
   try {
-    // @ts-ignore
+    injectImportMap();
+  } catch (e) {
+    showFatal("Failed to inject import map", e);
+  }
+
+  // Check import map support
+  try {
     if (typeof HTMLScriptElement !== "undefined" && HTMLScriptElement.supports && !HTMLScriptElement.supports("importmap")) {
-      showFatal("Browser lacks importmap support", "Your browser does not support <script type=importmap>. Use a modern Chromium/Firefox, or we must rewrite addon imports.");
+      showFatal("Browser lacks importmap support", "Your browser does not support <script type=importmap>. Use a modern Chromium/Firefox.");
     }
   } catch {
     // ignore
@@ -69,12 +91,10 @@
       document.head.appendChild(s);
     });
 
-  // Use a static <script type="module"> which works properly with import maps.
-  // Dynamic import() doesn't always respect the page's import map for nested imports.
   const loadModule = (src) => {
     const s = document.createElement("script");
     s.type = "module";
-    s.src = src;
+    s.src = baseUrl + src;
     s.onerror = (e) => {
       showFatal(`Failed to load module script: ${src}`, e);
     };
@@ -82,7 +102,6 @@
   };
 
   if (engine === "2d") {
-    // Legacy Phaser build
     loadScript("vendor/phaser.min.js")
       .then(() => loadScript("weapons.js"))
       .then(() => loadScript("app.js"))
