@@ -1,4 +1,38 @@
 (function () {
+  const showFatal = (title, err) => {
+    try {
+      const app = document.getElementById("app") || document.body;
+      const box = document.createElement("div");
+      box.style.position = "fixed";
+      box.style.inset = "12px";
+      box.style.padding = "12px";
+      box.style.background = "rgba(0,0,0,0.75)";
+      box.style.border = "1px solid rgba(255,77,242,0.35)";
+      box.style.color = "rgba(255,255,255,0.95)";
+      box.style.fontFamily = "ui-monospace, Menlo, Consolas, monospace";
+      box.style.fontSize = "12px";
+      box.style.whiteSpace = "pre-wrap";
+      box.style.zIndex = "999999";
+      const msg = err && (err.stack || err.message || String(err));
+      box.textContent = `[Sopor bootstrap] ${title}\n\n${msg || "(no details)"}`;
+      app.appendChild(box);
+    } catch {
+      // ignore
+    }
+  };
+
+  window.addEventListener("error", (e) => {
+    // Resource errors sometimes come through with target/src.
+    const anyE = /** @type {any} */ (e);
+    const src = anyE?.target?.src || anyE?.target?.href;
+    if (src) showFatal("Resource failed to load", src);
+    else showFatal("Runtime error", anyE?.error || anyE?.message || e);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const anyE = /** @type {any} */ (e);
+    showFatal("Unhandled promise rejection", anyE?.reason || e);
+  });
+
   const url = new URL(location.href);
   const params = url.searchParams;
   const rawEngine = (params.get("engine") || "").toLowerCase();
@@ -29,6 +63,9 @@
     const s = document.createElement("script");
     s.type = "module";
     s.src = src;
+    s.onerror = (e) => {
+      showFatal(`Failed to load module: ${src}`, e);
+    };
     document.head.appendChild(s);
   };
 
@@ -39,6 +76,7 @@
       .then(() => loadScript("app.js"))
       .catch((err) => {
         console.error("Failed to load 2D engine", err);
+        showFatal("Failed to load 2D engine", err);
       });
     return;
   }
