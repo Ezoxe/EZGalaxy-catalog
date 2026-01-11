@@ -69,6 +69,13 @@
       "function": "MMO RPG offline en pixel art néon-organique : monde continu, NPC complets, quêtes de stabilité communautaires simulées, Essence Chromatique (monnaie=énergie), piliers de région, 15+ armes, sauvegardes par pseudo, musique procédurale évolutive.",
       "path": "packages/com.ezgalaxy.sopor",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.terminal",
+      "title": "Terminal Customizer",
+      "function": "Générateur de fichiers de personnalisation pour terminaux (Kitty, Alacritty, WezTerm, Windows Terminal). Éditeur de couleurs graphique, preview live, import/export, thèmes prédéfinis, presets via Community Data API.",
+      "path": "packages/com.ezgalaxy.terminal",
+      "version": "1.0.0"
     }
   ]
 }

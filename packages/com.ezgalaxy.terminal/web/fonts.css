@@ -1,0 +1,95 @@
+/*
+ * Web Fonts for Terminal Customizer
+ *
+ * Fonts incluses (offline / local):
+ * - JetBrains Mono
+ * - Fira Code
+ * - Source Code Pro
+ * - Hack
+ * - Cascadia Code
+ */
+
+/* JetBrains Mono - Regular & Bold */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/jetbrains-mono-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/jetbrains-mono-700.woff2') format('woff2');
+}
+
+/* Fira Code - Regular & Bold */
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/fira-code-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/fira-code-700.woff2') format('woff2');
+}
+
+/* Source Code Pro - Regular & Bold */
+@font-face {
+  font-family: 'Source Code Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/source-code-pro-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Source Code Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/source-code-pro-700.woff2') format('woff2');
+}
+
+/* Hack - Regular & Bold */
+@font-face {
+  font-family: 'Hack';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/hack-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Hack';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/hack-700.woff2') format('woff2');
+}
+
+/* Cascadia Code - Regular & Bold */
+@font-face {
+  font-family: 'Cascadia Code';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/cascadia-code-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Cascadia Code';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/cascadia-code-700.woff2') format('woff2');
+}
