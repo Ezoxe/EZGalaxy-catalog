@@ -930,7 +930,8 @@
     lines.push(`scrollback_lines ${Math.max(0, Number(state.behavior.scrollback) || 0)}`);
     lines.push(`enable_audio_bell ${state.behavior.bell === 'audio' ? 'yes' : 'no'}`);
     lines.push(`visual_bell_duration ${state.behavior.bell === 'visual' ? '0.15' : '0'}`);
-    lines.push(`confirm_os_window_close ${state.behavior.confirmClose ? 'yes' : 'no'}`);
+    // Kitty expects an integer for this option.
+    lines.push(`confirm_os_window_close ${state.behavior.confirmClose ? 1 : 0}`);
 
     // Kitty advanced
     if (state.kitty) {
@@ -1681,7 +1682,13 @@
         recognized = true;
       }
       if (key === 'confirm_os_window_close') {
-        next.behavior.confirmClose = value === 'yes' || value === '1' || value === 'true';
+        const v = String(value || '').trim().toLowerCase();
+        if (v === 'yes' || v === 'true') next.behavior.confirmClose = true;
+        else if (v === 'no' || v === 'false') next.behavior.confirmClose = false;
+        else {
+          const n = Number.parseInt(v, 10);
+          next.behavior.confirmClose = Number.isFinite(n) && n > 0;
+        }
         recognized = true;
       }
 
