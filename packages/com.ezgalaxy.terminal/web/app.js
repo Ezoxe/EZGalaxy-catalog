@@ -218,11 +218,28 @@
       opacity: 100,
       blur: 0,
       padding: { top: 10, right: 10, bottom: 10, left: 10 },
+      wallpaper: 'aurora',
+      floating: true,
     },
     behavior: {
       scrollback: 10000,
       bell: 'none',
       confirmClose: false,
+    },
+    kitty: {
+      ligatures: true,
+      tabBarStyle: 'powerline',
+      tabBarEdge: 'top',
+      tabTitleTemplate: '{title}',
+      colors: {
+        url_color: '#89dceb',
+        active_tab_background: '#11111b',
+        active_tab_foreground: '#cdd6f4',
+        inactive_tab_background: '#1e1e2e',
+        inactive_tab_foreground: '#a6adc8',
+      },
+      directives: [],
+      rawLines: '',
     },
   };
 
@@ -434,26 +451,190 @@
     return data;
   }
 
-  function createPreviewHtml(state) {
-    const showCursor = true;
+  // Interactive terminal emulator state
+  const term = {
+    cwd: '/home/alice',
+    user: 'alice',
+    host: 'ezgalaxy',
+    history: [],
+    historyIndex: -1,
+    fs: {
+      '/home/alice': {
+        type: 'dir',
+        entries: {
+          projects: { type: 'dir', entries: { src: { type: 'dir', entries: {} }, assets: { type: 'dir', entries: {} }, 'README.md': { type: 'file', content: 'EZGalaxy Terminal Customizer\n' }, 'app.js': { type: 'file', content: '// demo\n' } } },
+          '.zshrc': { type: 'file', content: '# fake shell rc\n' },
+        },
+      },
+      '/': { type: 'dir', entries: { home: { type: 'dir', ref: '/home' } } },
+      '/home': { type: 'dir', entries: { alice: { type: 'dir', ref: '/home/alice' } } },
+    },
+  };
 
-    const cursorClass = ['cursor', state.cursor.shape];
-    if (!state.cursor.blink) cursorClass.push('no-blink');
+  function resolvePath(inputPath) {
+    if (!inputPath || inputPath === '~') return `/home/${term.user}`;
+    if (inputPath.startsWith('~/')) return `/home/${term.user}/${inputPath.slice(2)}`.replace(/\/+/g, '/');
+    if (inputPath.startsWith('/')) return inputPath.replace(/\/+/g, '/');
+    const base = term.cwd.endsWith('/') ? term.cwd.slice(0, -1) : term.cwd;
+    return `${base}/${inputPath}`.replace(/\/+/g, '/');
+  }
 
-    const cursorStyle = [];
-    if (state.cursor.shape === 'beam') cursorStyle.push(`width:${clamp(Number(state.cursor.beamWidth) || 2, 1, 8)}px`);
-    if (state.cursor.shape === 'underline') cursorStyle.push(`height:${clamp(Number(state.cursor.beamWidth) || 2, 1, 8)}px`);
+  function normalizePath(path) {
+    const parts = path.split('/');
+    const out = [];
+    for (const p of parts) {
+      if (!p || p === '.') continue;
+      if (p === '..') out.pop();
+      else out.push(p);
+    }
+    return '/' + out.join('/');
+  }
 
-    return `
-      <div class="terminal-line"><span class="prompt"><span class="user">alice</span>@ezgalaxy</span>:<span class="path">~/projects</span> <span class="git-branch">(main)</span> <span class="command">ls -la</span></div>
-      <div class="terminal-line"><span class="comment"># Dossiers</span></div>
-      <div class="terminal-line"><span class="dir">drwxr-xr-x</span>  <span class="user">alice</span>  staff  <span class="number">4096</span>  <span class="dir">src</span></div>
-      <div class="terminal-line"><span class="dir">drwxr-xr-x</span>  <span class="user">alice</span>  staff  <span class="number">4096</span>  <span class="dir">assets</span></div>
-      <div class="terminal-line"><span class="comment"># Fichiers</span></div>
-      <div class="terminal-line"><span class="file">-rw-r--r--</span>  <span class="user">alice</span>  staff  <span class="number"> 512</span>  <span class="file">README.md</span></div>
-      <div class="terminal-line"><span class="file">-rwxr-xr-x</span>  <span class="user">alice</span>  staff  <span class="number">8192</span>  <span class="exec">build.sh</span></div>
-      <div class="terminal-line"><span class="prompt">➜</span> <span class="command">echo</span> <span class="string">"Hello"</span> <span class="keyword">&&</span> <span class="command">node</span> <span class="file">app.js</span>${showCursor ? ` <span class="${cursorClass.join(' ')}" style="${cursorStyle.join(';')}"></span>` : ''}</div>
-    `.trim();
+  function getNode(path) {
+    const p = normalizePath(path);
+    const direct = term.fs[p];
+    if (direct) return direct;
+
+    // resolve via refs
+    const segs = p.split('/').filter(Boolean);
+    let curPath = '/';
+    let node = term.fs['/'];
+    for (const seg of segs) {
+      if (!node || node.type !== 'dir') return null;
+      const entry = node.entries?.[seg];
+      if (!entry) return null;
+      if (entry.ref) {
+        curPath = entry.ref;
+        node = term.fs[curPath];
+      } else if (entry.type === 'dir') {
+        curPath = `${curPath === '/' ? '' : curPath}/${seg}`;
+        term.fs[curPath] = term.fs[curPath] || entry;
+        node = term.fs[curPath];
+      } else {
+        return entry;
+      }
+    }
+    return node;
+  }
+
+  function formatPrompt() {
+    const home = `/home/${term.user}`;
+    const short = term.cwd.startsWith(home) ? `~${term.cwd.slice(home.length) || ''}` : term.cwd;
+    return `${term.user}@${term.host}:${short} $`;
+  }
+
+  function appendLine(html) {
+    const screen = $('terminal-screen');
+    if (!screen) return;
+    const div = document.createElement('div');
+    div.className = 'terminal-line';
+    div.innerHTML = html;
+    screen.appendChild(div);
+    screen.scrollTop = screen.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function runCommand(line) {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    // echo command line
+    appendLine(`<span class="prompt">${escapeHtml(formatPrompt())}</span> <span class="command">${escapeHtml(trimmed)}</span>`);
+
+    const [cmdRaw, ...rest] = trimmed.split(/\s+/);
+    const cmd = cmdRaw.toLowerCase();
+    const args = rest;
+
+    if (cmd === 'help') {
+      appendLine(`<span class="comment">Commandes: help, ls, cd, pwd, cat, echo, clear, whoami, date</span>`);
+      return;
+    }
+
+    if (cmd === 'clear') {
+      const screen = $('terminal-screen');
+      if (screen) screen.innerHTML = '';
+      return;
+    }
+
+    if (cmd === 'pwd') {
+      appendLine(escapeHtml(term.cwd));
+      return;
+    }
+
+    if (cmd === 'whoami') {
+      appendLine(escapeHtml(term.user));
+      return;
+    }
+
+    if (cmd === 'date') {
+      appendLine(escapeHtml(new Date().toString()));
+      return;
+    }
+
+    if (cmd === 'echo') {
+      appendLine(escapeHtml(args.join(' ')));
+      return;
+    }
+
+    if (cmd === 'cd') {
+      const target = args[0] || '~';
+      const resolved = normalizePath(resolvePath(target));
+      const node = getNode(resolved);
+      if (!node || node.type !== 'dir') {
+        appendLine(`<span class="variable">cd:</span> <span class="comment">no such file or directory:</span> ${escapeHtml(target)}`);
+        return;
+      }
+      term.cwd = resolved;
+      return;
+    }
+
+    if (cmd === 'ls') {
+      const target = args[0] ? normalizePath(resolvePath(args[0])) : term.cwd;
+      const node = getNode(target);
+      if (!node || node.type !== 'dir') {
+        appendLine(`<span class="variable">ls:</span> <span class="comment">cannot access</span> ${escapeHtml(args[0] || '')}`);
+        return;
+      }
+      const names = Object.keys(node.entries || {});
+      const rendered = names
+        .map((name) => {
+          const entry = node.entries[name];
+          const cls = entry.type === 'dir' || entry.ref ? 'dir' : 'file';
+          return `<span class="${cls}">${escapeHtml(name)}</span>`;
+        })
+        .join('  ');
+      appendLine(rendered || '<span class="comment">(empty)</span>');
+      return;
+    }
+
+    if (cmd === 'cat') {
+      const target = args[0];
+      if (!target) {
+        appendLine('<span class="comment">usage: cat file</span>');
+        return;
+      }
+      const resolved = normalizePath(resolvePath(target));
+      const node = getNode(resolved);
+      if (!node || node.type !== 'file') {
+        appendLine(`<span class="variable">cat:</span> <span class="comment">no such file:</span> ${escapeHtml(target)}`);
+        return;
+      }
+      const content = node.content || '';
+      for (const l of String(content).split(/\r?\n/)) {
+        appendLine(escapeHtml(l));
+      }
+      return;
+    }
+
+    appendLine(`<span class="comment">Commande inconnue:</span> ${escapeHtml(cmdRaw)} <span class="comment">(essayez</span> <span class="keyword">help</span><span class="comment">)</span>`);
   }
 
   function applyPreview(state) {
@@ -482,13 +663,23 @@
     preview.style.setProperty('--term-magenta', normal[5] || '#f5c2e7');
     preview.style.setProperty('--term-cyan', normal[6] || '#89dceb');
 
-    preview.innerHTML = createPreviewHtml(state);
-
     if (state.font.bold) {
       preview.style.fontWeight = '700';
     } else {
       preview.style.fontWeight = '400';
     }
+
+    const cursorEl = $('terminal-cursor');
+    if (cursorEl) {
+      cursorEl.className = ['cursor', state.cursor.shape, state.cursor.blink ? '' : 'no-blink'].filter(Boolean).join(' ');
+      if (state.cursor.shape === 'beam') cursorEl.style.width = `${clamp(Number(state.cursor.beamWidth) || 2, 1, 8)}px`;
+      else cursorEl.style.width = '';
+      if (state.cursor.shape === 'underline') cursorEl.style.height = `${clamp(Number(state.cursor.beamWidth) || 2, 1, 8)}px`;
+      else cursorEl.style.height = '';
+    }
+
+    const promptEl = $('terminal-prompt');
+    if (promptEl) promptEl.textContent = formatPrompt();
   }
 
   function computeExport(state) {
@@ -535,6 +726,7 @@
     lines.push(`foreground ${colors.foreground}`);
     lines.push(`selection_background ${colors.selection}`);
     lines.push(`cursor ${colors.cursor}`);
+    if (state.kitty?.colors?.url_color) lines.push(`url_color ${state.kitty.colors.url_color}`);
     lines.push('');
 
     for (let i = 0; i < 8; i++) lines.push(`color${i} ${colors.ansiNormal[i]}`);
@@ -560,6 +752,41 @@
     lines.push(`enable_audio_bell ${state.behavior.bell === 'audio' ? 'yes' : 'no'}`);
     lines.push(`visual_bell_duration ${state.behavior.bell === 'visual' ? '0.15' : '0'}`);
     lines.push(`confirm_os_window_close ${state.behavior.confirmClose ? 'yes' : 'no'}`);
+
+    // Kitty advanced
+    if (state.kitty) {
+      lines.push('');
+      lines.push('# Kitty advanced');
+      lines.push(`enable_ligatures ${state.kitty.ligatures ? 'always' : 'never'}`);
+      if (state.kitty.tabBarStyle) lines.push(`tab_bar_style ${state.kitty.tabBarStyle}`);
+      if (state.kitty.tabBarEdge) lines.push(`tab_bar_edge ${state.kitty.tabBarEdge}`);
+      if (state.kitty.tabTitleTemplate) lines.push(`tab_title_template ${state.kitty.tabTitleTemplate}`);
+      const kc = state.kitty.colors || {};
+      if (kc.active_tab_background) lines.push(`active_tab_background ${kc.active_tab_background}`);
+      if (kc.active_tab_foreground) lines.push(`active_tab_foreground ${kc.active_tab_foreground}`);
+      if (kc.inactive_tab_background) lines.push(`inactive_tab_background ${kc.inactive_tab_background}`);
+      if (kc.inactive_tab_foreground) lines.push(`inactive_tab_foreground ${kc.inactive_tab_foreground}`);
+
+      const directives = Array.isArray(state.kitty.directives) ? state.kitty.directives : [];
+      const directiveLines = directives
+        .map((d) => {
+          const k = String(d?.key || '').trim();
+          if (!k) return '';
+          const v = d?.value == null ? '' : String(d.value).trim();
+          return v ? `${k} ${v}` : k;
+        })
+        .filter(Boolean);
+      if (directiveLines.length) {
+        lines.push('');
+        lines.push('# Directives');
+        lines.push(...directiveLines);
+      }
+      if (state.kitty.rawLines && String(state.kitty.rawLines).trim()) {
+        lines.push('');
+        lines.push('# Raw lines');
+        lines.push(String(state.kitty.rawLines).trim());
+      }
+    }
 
     return { filename: 'kitty.conf', mime: 'text/plain', content: lines.join('\n') + '\n' };
   }
@@ -776,6 +1003,12 @@
       base.colors.ansiBright[i] = normalizeHexColor(base.colors.ansiBright[i]) || DEFAULT_STATE.colors.ansiBright[i];
     }
 
+    if (!base.kitty || typeof base.kitty !== 'object') base.kitty = deepClone(DEFAULT_STATE.kitty);
+    if (!Array.isArray(base.kitty.directives)) base.kitty.directives = [];
+    base.kitty.directives = base.kitty.directives
+      .map((d) => ({ key: String(d?.key || '').trim(), value: d?.value == null ? '' : String(d.value) }))
+      .filter((d) => d.key.length > 0);
+
     return base;
   }
 
@@ -960,6 +1193,9 @@
     $('opacity-value').textContent = `${state.window.opacity}%`;
     $('blur').value = state.window.blur;
 
+    $('wallpaper').value = state.window.wallpaper || 'aurora';
+    $('floating-window').checked = state.window.floating !== false;
+
     $('padding-top').value = state.window.padding.top;
     $('padding-right').value = state.window.padding.right;
     $('padding-bottom').value = state.window.padding.bottom;
@@ -968,6 +1204,92 @@
     $('scrollback').value = state.behavior.scrollback;
     $('bell').value = state.behavior.bell;
     $('confirm-close').checked = !!state.behavior.confirmClose;
+
+    const kittySection = $('kitty-advanced-section');
+    if (kittySection) kittySection.classList.toggle('hidden', state.terminal !== 'kitty');
+    if ($('kitty-ligatures')) $('kitty-ligatures').checked = state.kitty?.ligatures !== false;
+    if ($('kitty-tab-bar-style')) $('kitty-tab-bar-style').value = state.kitty?.tabBarStyle || 'powerline';
+    if ($('kitty-tab-bar-edge')) $('kitty-tab-bar-edge').value = state.kitty?.tabBarEdge || 'top';
+    if ($('kitty-tab-title-template')) $('kitty-tab-title-template').value = state.kitty?.tabTitleTemplate || '{title}';
+    if ($('kitty-raw-lines')) $('kitty-raw-lines').value = state.kitty?.rawLines || '';
+  }
+
+  function renderKittyDirectives(state) {
+    const list = $('kitty-directives');
+    if (!list) return;
+
+    const directives = Array.isArray(state.kitty?.directives) ? state.kitty.directives : [];
+    list.innerHTML = '';
+
+    if (!directives.length) {
+      const empty = document.createElement('div');
+      empty.className = 'terminal-info';
+      empty.textContent = 'Aucune directive ajoutée.';
+      list.appendChild(empty);
+      return;
+    }
+
+    directives.forEach((d, index) => {
+      const row = document.createElement('div');
+      row.className = 'kitty-directive-row';
+
+      const keyInput = document.createElement('input');
+      keyInput.className = 'form-input';
+      keyInput.value = String(d?.key || '');
+      keyInput.placeholder = 'clé';
+
+      const valueInput = document.createElement('input');
+      valueInput.className = 'form-input';
+      valueInput.value = d?.value == null ? '' : String(d.value);
+      valueInput.placeholder = 'valeur';
+
+      const commit = () => {
+        const next = deepClone(state);
+        next.kitty = next.kitty || deepClone(DEFAULT_STATE.kitty);
+        next.kitty.directives = Array.isArray(next.kitty.directives) ? next.kitty.directives.slice() : [];
+        if (!next.kitty.directives[index]) next.kitty.directives[index] = { key: '', value: '' };
+        next.kitty.directives[index] = {
+          key: String(keyInput.value || '').trim(),
+          value: String(valueInput.value || '').trim(),
+        };
+        state = sanitizeState(next);
+        saveStateToLocalStorage(state);
+        renderConfig(state);
+      };
+
+      keyInput.addEventListener('blur', commit);
+      valueInput.addEventListener('blur', commit);
+      keyInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          commit();
+          valueInput.focus();
+        }
+      });
+      valueInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          commit();
+          valueInput.blur();
+        }
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'kitty-directive-actions';
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'kitty-directive-remove';
+      remove.dataset.act = 'removeKittyDirective';
+      remove.dataset.index = String(index);
+      remove.textContent = 'Supprimer';
+
+      actions.appendChild(remove);
+      row.appendChild(keyInput);
+      row.appendChild(valueInput);
+      row.appendChild(actions);
+      list.appendChild(row);
+    });
   }
 
   function renderSwatches(state) {
@@ -982,6 +1304,20 @@
     for (const sw of buildSpecialSwatches(state)) special.appendChild(createSwatchElement(sw));
     for (const sw of buildAnsiSwatches(state, 'ansiNormal')) normal.appendChild(createSwatchElement(sw));
     for (const sw of buildAnsiSwatches(state, 'ansiBright')) bright.appendChild(createSwatchElement(sw));
+
+    const kitty = $('kitty-colors');
+    if (kitty) {
+      kitty.innerHTML = '';
+      const kittySw = [
+        { key: 'url_color', label: 'URL' },
+        { key: 'active_tab_background', label: 'TAB+' },
+        { key: 'active_tab_foreground', label: 'TAB+FG' },
+        { key: 'inactive_tab_background', label: 'TAB' },
+        { key: 'inactive_tab_foreground', label: 'TABFG' },
+      ].map((x) => ({ group: 'kitty', key: x.key, label: x.label, value: state.kitty?.colors?.[x.key] || '#ffffff' }));
+
+      for (const sw of kittySw) kitty.appendChild(createSwatchElement(sw));
+    }
   }
 
   function updateSwatchesFromState(state) {
@@ -994,6 +1330,9 @@
         const index = Number(el.dataset.index);
         const arr = group === 'ansiBright' ? state.colors.ansiBright : state.colors.ansiNormal;
         setSwatchColor(el, arr[index]);
+      } else if (group === 'kitty') {
+        const key = el.dataset.key;
+        setSwatchColor(el, state.kitty?.colors?.[key] || '#ffffff');
       }
     }
   }
@@ -1011,6 +1350,10 @@
       next.colors.ansiNormal[Number(swatchEl.dataset.index)] = hex;
     } else if (group === 'ansiBright') {
       next.colors.ansiBright[Number(swatchEl.dataset.index)] = hex;
+    } else if (group === 'kitty') {
+      next.kitty = next.kitty || deepClone(DEFAULT_STATE.kitty);
+      next.kitty.colors = next.kitty.colors || {};
+      next.kitty.colors[swatchEl.dataset.key] = hex;
     }
 
     return next;
@@ -1047,7 +1390,16 @@
   }
 
   function parseKittyConf(text) {
-    const next = { colors: {}, font: {}, cursor: {}, window: {}, behavior: {} };
+    const next = {
+      colors: {},
+      font: {},
+      cursor: {},
+      window: {},
+      behavior: {},
+      kitty: { colors: {}, directives: [], rawLines: '' },
+    };
+
+    const unknownLines = [];
 
     const lines = text.split(/\r?\n/);
     for (const lineRaw of lines) {
@@ -1058,11 +1410,24 @@
 
       const key = m[1];
       const value = m[2].trim();
+      let recognized = false;
 
-      if (key === 'background') next.colors.background = normalizeHexColor(value);
-      if (key === 'foreground') next.colors.foreground = normalizeHexColor(value);
-      if (key === 'cursor') next.colors.cursor = normalizeHexColor(value);
-      if (key === 'selection_background') next.colors.selection = normalizeHexColor(value);
+      if (key === 'background') {
+        next.colors.background = normalizeHexColor(value);
+        recognized = true;
+      }
+      if (key === 'foreground') {
+        next.colors.foreground = normalizeHexColor(value);
+        recognized = true;
+      }
+      if (key === 'cursor') {
+        next.colors.cursor = normalizeHexColor(value);
+        recognized = true;
+      }
+      if (key === 'selection_background') {
+        next.colors.selection = normalizeHexColor(value);
+        recognized = true;
+      }
 
       const colorN = key.match(/^color(\d{1,2})$/);
       if (colorN) {
@@ -1077,27 +1442,105 @@
             if (!next.colors.ansiBright) next.colors.ansiBright = [];
             next.colors.ansiBright[idx - 8] = hex;
           }
+          recognized = true;
         }
       }
 
-      if (key === 'font_family') next.font.family = value;
-      if (key === 'font_size') next.font.size = Number(value);
+      if (key === 'font_family') {
+        next.font.family = value;
+        recognized = true;
+      }
+      if (key === 'font_size') {
+        next.font.size = Number(value);
+        recognized = true;
+      }
 
-      if (key === 'cursor_shape') next.cursor.shape = value;
-      if (key === 'cursor_beam_thickness') next.cursor.beamWidth = Number(value);
-      if (key === 'cursor_underline_thickness') next.cursor.beamWidth = Number(value);
-      if (key === 'cursor_blink_interval') next.cursor.blink = Number(value) > 0;
+      if (key === 'cursor_shape') {
+        next.cursor.shape = value;
+        recognized = true;
+      }
+      if (key === 'cursor_beam_thickness') {
+        next.cursor.beamWidth = Number(value);
+        recognized = true;
+      }
+      if (key === 'cursor_underline_thickness') {
+        next.cursor.beamWidth = Number(value);
+        recognized = true;
+      }
+      if (key === 'cursor_blink_interval') {
+        next.cursor.blink = Number(value) > 0;
+        recognized = true;
+      }
 
-      if (key === 'background_opacity') next.window.opacity = Math.round(clamp(Number(value), 0, 1) * 100);
-      if (key === 'background_blur') next.window.blur = Number(value);
-      if (key === 'window_padding_width') next.window.paddingX = Number(value);
-      if (key === 'window_padding_height') next.window.paddingY = Number(value);
+      if (key === 'background_opacity') {
+        next.window.opacity = Math.round(clamp(Number(value), 0, 1) * 100);
+        recognized = true;
+      }
+      if (key === 'background_blur') {
+        next.window.blur = Number(value);
+        recognized = true;
+      }
+      if (key === 'window_padding_width') {
+        next.window.paddingX = Number(value);
+        recognized = true;
+      }
+      if (key === 'window_padding_height') {
+        next.window.paddingY = Number(value);
+        recognized = true;
+      }
 
-      if (key === 'scrollback_lines') next.behavior.scrollback = Number(value);
-      if (key === 'enable_audio_bell') next.behavior.bell = value === 'yes' ? 'audio' : 'none';
-      if (key === 'visual_bell_duration') next.behavior.bell = Number(value) > 0 ? 'visual' : (next.behavior.bell || 'none');
-      if (key === 'confirm_os_window_close') next.behavior.confirmClose = value === 'yes';
+      if (key === 'scrollback_lines') {
+        next.behavior.scrollback = Number(value);
+        recognized = true;
+      }
+      if (key === 'enable_audio_bell') {
+        next.behavior.bell = value === 'yes' ? 'audio' : 'none';
+        recognized = true;
+      }
+      if (key === 'visual_bell_duration') {
+        next.behavior.bell = Number(value) > 0 ? 'visual' : (next.behavior.bell || 'none');
+        recognized = true;
+      }
+      if (key === 'confirm_os_window_close') {
+        next.behavior.confirmClose = value === 'yes' || value === '1' || value === 'true';
+        recognized = true;
+      }
+
+      // Kitty advanced (common)
+      if (key === 'enable_ligatures') {
+        next.kitty.ligatures = value.toLowerCase() !== 'never';
+        recognized = true;
+      }
+      if (key === 'tab_bar_style') {
+        next.kitty.tabBarStyle = value;
+        recognized = true;
+      }
+      if (key === 'tab_bar_edge') {
+        next.kitty.tabBarEdge = value;
+        recognized = true;
+      }
+      if (key === 'tab_title_template') {
+        next.kitty.tabTitleTemplate = value;
+        recognized = true;
+      }
+      if (key === 'url_color') {
+        next.kitty.colors.url_color = normalizeHexColor(value) || value;
+        recognized = true;
+      }
+      if (
+        key === 'active_tab_background' ||
+        key === 'active_tab_foreground' ||
+        key === 'inactive_tab_background' ||
+        key === 'inactive_tab_foreground'
+      ) {
+        next.kitty.colors[key] = normalizeHexColor(value) || value;
+        recognized = true;
+      }
+
+      if (!recognized) unknownLines.push(`${key} ${value}`);
     }
+
+    if (unknownLines.length) next.kitty.rawLines = unknownLines.join('\n');
 
     const patch = {};
     if (Object.keys(next.colors).length) patch.colors = next.colors;
@@ -1105,6 +1548,9 @@
     if (Object.keys(next.cursor).length) patch.cursor = next.cursor;
     if (Object.keys(next.window).length) patch.window = next.window;
     if (Object.keys(next.behavior).length) patch.behavior = next.behavior;
+    if (Object.keys(next.kitty.colors).length || next.kitty.rawLines || next.kitty.ligatures != null || next.kitty.tabBarStyle || next.kitty.tabBarEdge || next.kitty.tabTitleTemplate) {
+      patch.kitty = next.kitty;
+    }
 
     if (next.window.paddingX != null || next.window.paddingY != null) {
       patch.window = patch.window || {};
@@ -1356,24 +1802,7 @@
     }
   }
 
-  function ensurePresetCss() {
-    // Minimal CSS for preset list items (keeps change localized to JS).
-    if (document.getElementById('preset-css')) return;
-    const style = document.createElement('style');
-    style.id = 'preset-css';
-    style.textContent = `
-      .preset-item { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:12px; border:1px solid var(--border); border-radius:10px; background: rgba(0,0,0,0.15); margin-bottom:10px; }
-      .preset-item-title { font-weight:600; }
-      .preset-item-meta { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
-      .preset-item-actions { display:flex; gap:8px; }
-      .preset-item-actions .ez-btn { padding: 8px 10px; }
-    `;
-    document.head.appendChild(style);
-  }
-
   function init() {
-    ensurePresetCss();
-
     let state = sanitizeState(loadStateFromLocalStorage() || DEFAULT_STATE);
 
     // Initial render
@@ -1382,6 +1811,25 @@
     renderTerminalInfo(state);
     applyPreview(state);
     renderConfig(state);
+    renderKittyDirectives(state);
+
+    const desk = $('desktop-preview');
+    if (desk) desk.dataset.wallpaper = state.window.wallpaper || 'aurora';
+
+    const winEl = $('terminal-window');
+    if (winEl) {
+      winEl.dataset.floating = state.window.floating !== false ? 'true' : 'false';
+      if (state.window.floating === false) {
+        winEl.style.left = '';
+        winEl.style.top = '';
+        winEl.style.width = '';
+        winEl.style.height = '';
+      }
+    }
+
+    // Seed terminal with some context
+    appendLine('<span class="comment"># EZGalaxy terminal preview (faux)</span>');
+    appendLine('<span class="comment"># Astuce:</span> <span class="keyword">help</span> <span class="comment">pour voir les commandes</span>');
 
     // Events: delegated actions
     document.addEventListener('click', async (ev) => {
@@ -1436,10 +1884,25 @@
           state = imported;
           saveStateToLocalStorage(state);
           applyStateToForm(state);
+          renderKittyDirectives(state);
           updateSwatchesFromState(state);
           renderTerminalInfo(state);
           applyPreview(state);
           renderConfig(state);
+
+          const desk = $('desktop-preview');
+          if (desk) desk.dataset.wallpaper = state.window.wallpaper || 'aurora';
+          const win = $('terminal-window');
+          if (win) {
+            win.dataset.floating = state.window.floating !== false ? 'true' : 'false';
+            if (state.window.floating === false) {
+              win.style.left = '';
+              win.style.top = '';
+              win.style.width = '';
+              win.style.height = '';
+            }
+          }
+
           closeAllModals();
           toast('success', 'Preset chargé', item?.data?.name || item.record_key);
         });
@@ -1482,6 +1945,66 @@
         }
         return;
       }
+
+      if (act === 'addKittyDirective') {
+        const keyEl = $('kitty-directive-key');
+        const valEl = $('kitty-directive-value');
+        if (!keyEl || !valEl) return;
+
+        const key = String(keyEl.value || '').trim();
+        const value = String(valEl.value || '').trim();
+        if (!key) {
+          toast('warning', 'Clé requise', 'Entrez une clé de directive Kitty');
+          return;
+        }
+
+        const next = deepClone(state);
+        next.kitty = next.kitty || deepClone(DEFAULT_STATE.kitty);
+        next.kitty.directives = Array.isArray(next.kitty.directives) ? next.kitty.directives.slice() : [];
+        next.kitty.directives.push({ key, value });
+        state = sanitizeState(next);
+        saveStateToLocalStorage(state);
+        keyEl.value = '';
+        valEl.value = '';
+        renderKittyDirectives(state);
+        renderConfig(state);
+        return;
+      }
+
+      if (act === 'addKittyDirectivePreset') {
+        const key = String(actEl.dataset.key || '').trim();
+        if (!key) return;
+        let value = String(actEl.dataset.value || '').trim();
+        if (value.toUpperCase() === 'PROMPT') {
+          value = window.prompt(`Valeur pour: ${key}`, '') || '';
+          value = value.trim();
+          if (!value) return;
+        }
+
+        const next = deepClone(state);
+        next.kitty = next.kitty || deepClone(DEFAULT_STATE.kitty);
+        next.kitty.directives = Array.isArray(next.kitty.directives) ? next.kitty.directives.slice() : [];
+        next.kitty.directives.push({ key, value });
+        state = sanitizeState(next);
+        saveStateToLocalStorage(state);
+        renderKittyDirectives(state);
+        renderConfig(state);
+        toast('success', 'Directive ajoutée', `${key} ${value}`);
+        return;
+      }
+
+      if (act === 'removeKittyDirective') {
+        const idx = Number(actEl.dataset.index);
+        if (!Number.isFinite(idx)) return;
+        const next = deepClone(state);
+        next.kitty = next.kitty || deepClone(DEFAULT_STATE.kitty);
+        next.kitty.directives = (next.kitty.directives || []).filter((_, i) => i !== idx);
+        state = sanitizeState(next);
+        saveStateToLocalStorage(state);
+        renderKittyDirectives(state);
+        renderConfig(state);
+        return;
+      }
     });
 
     // Swatch click
@@ -1506,7 +2029,33 @@
       state = sanitizeState({ ...state, terminal: $('terminal-select').value });
       saveStateToLocalStorage(state);
       renderTerminalInfo(state);
+      applyStateToForm(state);
+      renderKittyDirectives(state);
       renderConfig(state);
+    });
+
+    $('wallpaper').addEventListener('change', () => {
+      const wallpaper = $('wallpaper').value;
+      state = sanitizeState({ ...state, window: { ...state.window, wallpaper } });
+      saveStateToLocalStorage(state);
+      const desk = $('desktop-preview');
+      if (desk) desk.dataset.wallpaper = wallpaper;
+    });
+
+    $('floating-window').addEventListener('change', () => {
+      const floating = $('floating-window').checked;
+      state = sanitizeState({ ...state, window: { ...state.window, floating } });
+      saveStateToLocalStorage(state);
+      const win = $('terminal-window');
+      if (win) {
+        win.dataset.floating = floating ? 'true' : 'false';
+        if (!floating) {
+          win.style.left = '';
+          win.style.top = '';
+          win.style.width = '';
+          win.style.height = '';
+        }
+      }
     });
 
     $('theme-select').addEventListener('change', () => {
@@ -1600,6 +2149,70 @@
       renderConfig(state);
     });
 
+    // Kitty advanced
+    if ($('kitty-ligatures')) {
+      $('kitty-ligatures').addEventListener('change', () => {
+        state = sanitizeState({ ...state, kitty: { ...state.kitty, ligatures: $('kitty-ligatures').checked } });
+        saveStateToLocalStorage(state);
+        renderConfig(state);
+      });
+    }
+
+    if ($('kitty-tab-bar-style')) {
+      $('kitty-tab-bar-style').addEventListener('change', () => {
+        state = sanitizeState({ ...state, kitty: { ...state.kitty, tabBarStyle: $('kitty-tab-bar-style').value } });
+        saveStateToLocalStorage(state);
+        renderConfig(state);
+      });
+    }
+
+    if ($('kitty-tab-bar-edge')) {
+      $('kitty-tab-bar-edge').addEventListener('change', () => {
+        state = sanitizeState({ ...state, kitty: { ...state.kitty, tabBarEdge: $('kitty-tab-bar-edge').value } });
+        saveStateToLocalStorage(state);
+        renderConfig(state);
+      });
+    }
+
+    if ($('kitty-tab-title-template')) {
+      $('kitty-tab-title-template').addEventListener('input', () => {
+        state = sanitizeState({ ...state, kitty: { ...state.kitty, tabTitleTemplate: $('kitty-tab-title-template').value } });
+        saveStateToLocalStorage(state);
+        renderConfig(state);
+      });
+    }
+
+    if ($('kitty-raw-lines')) {
+      $('kitty-raw-lines').addEventListener('input', () => {
+        state = sanitizeState({ ...state, kitty: { ...state.kitty, rawLines: $('kitty-raw-lines').value } });
+        saveStateToLocalStorage(state);
+        renderConfig(state);
+      });
+    }
+
+    const submitKittyDirective = () => {
+      const btn = document.querySelector('[data-act="addKittyDirective"]');
+      if (btn) btn.click();
+    };
+
+    if ($('kitty-directive-key')) {
+      $('kitty-directive-key').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          submitKittyDirective();
+        }
+      });
+    }
+
+    if ($('kitty-directive-value')) {
+      $('kitty-directive-value').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          submitKittyDirective();
+        }
+      });
+    }
+
     const padIds = ['padding-top', 'padding-right', 'padding-bottom', 'padding-left'];
     for (const id of padIds) {
       $(id).addEventListener('input', () => {
@@ -1651,10 +2264,25 @@
         $('theme-select').value = 'custom';
         saveStateToLocalStorage(state);
         applyStateToForm(state);
+        renderKittyDirectives(state);
         updateSwatchesFromState(state);
         renderTerminalInfo(state);
         applyPreview(state);
         renderConfig(state);
+
+        const desk = $('desktop-preview');
+        if (desk) desk.dataset.wallpaper = state.window.wallpaper || 'aurora';
+        const win = $('terminal-window');
+        if (win) {
+          win.dataset.floating = state.window.floating !== false ? 'true' : 'false';
+          if (state.window.floating === false) {
+            win.style.left = '';
+            win.style.top = '';
+            win.style.width = '';
+            win.style.height = '';
+          }
+        }
+
         closeAllModals();
         toast('success', 'Import réussi', file.name);
       } catch (e) {
@@ -1680,10 +2308,25 @@
         $('theme-select').value = 'custom';
         saveStateToLocalStorage(state);
         applyStateToForm(state);
+        renderKittyDirectives(state);
         updateSwatchesFromState(state);
         renderTerminalInfo(state);
         applyPreview(state);
         renderConfig(state);
+
+        const desk = $('desktop-preview');
+        if (desk) desk.dataset.wallpaper = state.window.wallpaper || 'aurora';
+        const win = $('terminal-window');
+        if (win) {
+          win.dataset.floating = state.window.floating !== false ? 'true' : 'false';
+          if (state.window.floating === false) {
+            win.style.left = '';
+            win.style.top = '';
+            win.style.width = '';
+            win.style.height = '';
+          }
+        }
+
         closeAllModals();
         toast('success', 'Import réussi', file.name);
       } catch (e) {
@@ -1699,6 +2342,115 @@
     // Ensure click on backdrop closes modal
     for (const backdrop of document.querySelectorAll('.modal-backdrop')) {
       backdrop.addEventListener('click', () => closeAllModals());
+    }
+
+    // Terminal typing
+    const input = $('terminal-input');
+    const inputRow = $('terminal-input-row');
+    const screen = $('terminal-screen');
+    const preview = $('terminal-preview');
+
+    const focusInput = () => {
+      if (!input) return;
+      input.focus();
+      const sel = window.getSelection();
+      if (!sel) return;
+      const range = document.createRange();
+      range.selectNodeContents(input);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    };
+
+    if (preview) preview.addEventListener('mousedown', () => focusInput());
+    if (inputRow) inputRow.addEventListener('mousedown', () => focusInput());
+    if (screen) screen.addEventListener('mousedown', () => focusInput());
+
+    if (input) {
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          const cmd = input.textContent || '';
+          input.textContent = '';
+          term.history.push(cmd);
+          term.historyIndex = term.history.length;
+          runCommand(cmd);
+          const promptEl = $('terminal-prompt');
+          if (promptEl) promptEl.textContent = formatPrompt();
+          return;
+        }
+
+        if (ev.key === 'ArrowUp') {
+          ev.preventDefault();
+          term.historyIndex = Math.max(0, term.historyIndex - 1);
+          input.textContent = term.history[term.historyIndex] || '';
+          focusInput();
+          return;
+        }
+
+        if (ev.key === 'ArrowDown') {
+          ev.preventDefault();
+          term.historyIndex = Math.min(term.history.length, term.historyIndex + 1);
+          input.textContent = term.history[term.historyIndex] || '';
+          focusInput();
+          return;
+        }
+
+        if (ev.key === 'Tab') {
+          ev.preventDefault();
+          // minimal autocomplete for ls/cd
+          const cur = (input.textContent || '').trim();
+          if (cur.startsWith('cd ') || cur.startsWith('cat ') || cur.startsWith('ls ')) {
+            const parts = cur.split(/\s+/);
+            const prefix = parts[1] || '';
+            const baseDir = term.cwd;
+            const node = getNode(baseDir);
+            const entries = Object.keys(node?.entries || {});
+            const match = entries.find((n) => n.startsWith(prefix));
+            if (match) {
+              parts[1] = match;
+              input.textContent = parts.join(' ') + ' ';
+              focusInput();
+            }
+          }
+          return;
+        }
+      });
+
+      window.setTimeout(() => focusInput(), 50);
+    }
+
+    // Draggable window
+    const win = $('terminal-window');
+    const bar = document.querySelector('.terminal-titlebar');
+    let dragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    if (bar && win) {
+      bar.addEventListener('mousedown', (ev) => {
+        if (state.window.floating === false) return;
+        dragging = true;
+        const rect = win.getBoundingClientRect();
+        dragOffsetX = ev.clientX - rect.left;
+        dragOffsetY = ev.clientY - rect.top;
+        ev.preventDefault();
+      });
+
+      window.addEventListener('mousemove', (ev) => {
+        if (!dragging) return;
+        const desk = $('desktop-preview');
+        if (!desk) return;
+        const drect = desk.getBoundingClientRect();
+        const x = clamp(ev.clientX - drect.left - dragOffsetX, 0, drect.width - 80);
+        const y = clamp(ev.clientY - drect.top - dragOffsetY, 0, drect.height - 60);
+        win.style.left = `${x}px`;
+        win.style.top = `${y}px`;
+      });
+
+      window.addEventListener('mouseup', () => {
+        dragging = false;
+      });
     }
   }
 
