@@ -555,18 +555,12 @@
 .terminal-preview-wrapper {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: 
-    linear-gradient(45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.02) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.02) 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: transparent;
   border-radius: var(--border-radius-sm);
-  min-height: 350px;
+  min-height: 420px;
 }
 
 /* ============================================
@@ -575,7 +569,8 @@
 .desktop-preview {
   position: relative;
   width: 100%;
-  min-height: 350px;
+  height: 100%;
+  min-height: 0;
   border-radius: var(--border-radius-sm);
   overflow: hidden;
 }
@@ -620,28 +615,24 @@
   pointer-events: none;
 }
 
-.terminal-window {
+.desktop-preview .terminal-window {
   position: absolute;
-  left: 20px;
-  top: 20px;
-  max-width: calc(100% - 40px);
-  max-height: calc(100% - 40px);
+  inset: 16px;
 }
 
-.terminal-window[data-floating="true"] {
+.desktop-preview .terminal-window[data-floating="true"] {
   resize: both;
   overflow: hidden;
   min-width: 360px;
   min-height: 240px;
+  width: calc(100% - 32px);
+  height: calc(100% - 32px);
 }
 
-.terminal-window[data-floating="false"] {
-  position: relative;
-  left: 0;
-  top: 0;
+.desktop-preview .terminal-window[data-floating="false"] {
+  inset: 0;
   width: 100%;
-  max-width: 700px;
-  margin: 0 auto;
+  height: 100%;
 }
 
 .terminal-titlebar {
@@ -658,7 +649,10 @@
    ============================================ */
 .terminal-window {
   width: 100%;
-  max-width: 700px;
+  height: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 
@@ -669,6 +663,7 @@
 .terminal-titlebar {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   padding: 10px 14px;
   background: rgba(0, 0, 0, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -698,13 +693,14 @@
 }
 
 .terminal-preview {
+  flex: 1;
   padding: var(--term-padding, 16px);
   background: var(--term-bg, #1e1e2e);
   font-family: var(--term-font, 'JetBrains Mono'), monospace;
   font-size: var(--term-font-size, 13px);
   line-height: var(--term-line-height, 1.4);
   color: var(--term-fg, #cdd6f4);
-  min-height: 280px;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -727,16 +723,12 @@
   flex: 1;
   outline: none;
   white-space: pre;
+  caret-color: var(--term-cursor, #f5e0dc);
 }
 
 .terminal-input:empty::before {
   content: 'Tapez une commande (help)';
   color: rgba(255, 255, 255, 0.35);
-}
-
-#terminal-cursor {
-  width: 0.6em;
-  height: 1.2em;
 }
 
 .terminal-line {
@@ -807,31 +799,25 @@
   color: var(--term-cyan, #89dceb);
 }
 
-.terminal-preview .cursor {
-  display: inline-block;
-  width: 0.6em;
-  height: 1.2em;
-  background: var(--term-cursor, #f5e0dc);
-  animation: blink 1s step-end infinite;
-  vertical-align: text-bottom;
-}
 
-.terminal-preview .cursor.no-blink {
-  animation: none;
-}
-
-.terminal-preview .cursor.beam {
-  width: 2px;
-}
-
-.terminal-preview .cursor.underline {
-  height: 3px;
-  width: 0.6em;
-  vertical-align: baseline;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
+/* ============================================
+   Help Tooltip
+   ============================================ */
+.help-tooltip {
+  position: fixed;
+  z-index: 20000;
+  max-width: 340px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(12, 14, 22, 0.92);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  transform: translateY(6px);
 }
 
 .terminal-line {

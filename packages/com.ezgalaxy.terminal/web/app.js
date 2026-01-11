@@ -669,17 +669,196 @@
       preview.style.fontWeight = '400';
     }
 
-    const cursorEl = $('terminal-cursor');
-    if (cursorEl) {
-      cursorEl.className = ['cursor', state.cursor.shape, state.cursor.blink ? '' : 'no-blink'].filter(Boolean).join(' ');
-      if (state.cursor.shape === 'beam') cursorEl.style.width = `${clamp(Number(state.cursor.beamWidth) || 2, 1, 8)}px`;
-      else cursorEl.style.width = '';
-      if (state.cursor.shape === 'underline') cursorEl.style.height = `${clamp(Number(state.cursor.beamWidth) || 2, 1, 8)}px`;
-      else cursorEl.style.height = '';
-    }
+    // Use the real caret inside the contenteditable input.
+    // (A separate "fake" cursor tends to drift to bottom-right when input is empty.)
+    const inputEl = $('terminal-input');
+    if (inputEl) inputEl.style.caretColor = state.colors.cursor;
 
     const promptEl = $('terminal-prompt');
     if (promptEl) promptEl.textContent = formatPrompt();
+  }
+
+  function installHelpTooltips() {
+    const tooltip = $('help-tooltip');
+    if (!tooltip) return;
+
+    const HELP_BY_ID = {
+      'terminal-select': "Choisis le terminal cible: ça change le format d'export et certaines options disponibles.",
+      'theme-select': 'Applique une palette de base (tu peux ensuite retoucher chaque couleur).',
+      'font-family': 'Police utilisée dans le terminal (aperçu + export selon terminal).',
+      'font-family-custom': 'Nom exact de la police installée sur ta machine.',
+      'font-size': 'Taille de police du terminal.',
+      'line-height': 'Interligne (espace vertical entre les lignes).',
+      'font-bold': 'Force le gras dans l’aperçu (Kitty: préfère régler bold_font si besoin).',
+      'cursor-blink': 'Active/désactive le clignotement du curseur (export selon terminal).',
+      'beam-width': 'Épaisseur du curseur beam/underline (export selon terminal).',
+      opacity: "Transparence de l'arrière-plan (100% = opaque).",
+      blur: "Flou d'arrière-plan (si supporté par le terminal).",
+      'padding-top': 'Padding interne du terminal (haut).',
+      'padding-right': 'Padding interne du terminal (droite).',
+      'padding-bottom': 'Padding interne du terminal (bas).',
+      'padding-left': 'Padding interne du terminal (gauche).',
+      wallpaper: "Fond d'écran uniquement pour l'aperçu (ne change pas l'export).",
+      'floating-window': "Active le mode fenêtre (déplaçable/redimensionnable) dans l'aperçu.",
+      scrollback: 'Nombre de lignes conservées dans l’historique (scrollback).',
+      bell: 'Type de bell (sonore/visuelle/désactivée).',
+      'confirm-close': 'Demande confirmation avant fermeture (export selon terminal).',
+      'kitty-ligatures': 'Kitty: active les ligatures (always/never).',
+      'kitty-tab-bar-style': 'Kitty: style de la barre d’onglets.',
+      'kitty-tab-bar-edge': 'Kitty: position de la barre d’onglets (haut/bas).',
+      'kitty-tab-title-template': 'Kitty: template du titre d’onglet.',
+      'kitty-raw-lines': 'Lignes brutes ajoutées telles quelles dans kitty.conf (une directive par ligne).',
+      'kitty-directive-key': 'Clé de directive Kitty (ex: background_image).',
+      'kitty-directive-value': 'Valeur de directive Kitty (ex: /path/image.png).',
+    };
+
+    const describeSwatch = (el) => {
+      const group = el.dataset.group;
+      if (group === 'special') {
+        const key = el.dataset.key;
+        const name =
+          key === 'background'
+            ? 'Arrière-plan'
+            : key === 'foreground'
+              ? 'Texte'
+              : key === 'cursor'
+                ? 'Curseur'
+                : key === 'selection'
+                  ? 'Sélection'
+                  : key;
+        return `Couleur: ${name} (clic = ouvrir le picker)`;
+      }
+      if (group === 'ansiNormal' || group === 'ansiBright') {
+        const idx = Number(el.dataset.index);
+        const base = group === 'ansiBright' ? 'ANSI bright' : 'ANSI normal';
+        return `Couleur: ${base} ${Number.isFinite(idx) ? idx : ''} (clic = ouvrir le picker)`;
+      }
+      if (group === 'kitty') {
+        const key = el.dataset.key;
+        return `Kitty: ${key} (clic = ouvrir le picker)`;
+      }
+      return 'Clic pour choisir une couleur.';
+    };
+
+    const describeCursorShape = (el) => {
+      const s = el.dataset.shape;
+      if (s === 'block') return 'Curseur: bloc (export selon terminal).';
+      if (s === 'beam') return 'Curseur: barre verticale (beam).';
+      if (s === 'underline') return 'Curseur: souligné (underline).';
+      return 'Forme du curseur.';
+    };
+
+    const describePreset = (el) => {
+      const key = String(el.dataset.key || '').trim();
+      let value = String(el.dataset.value || '').trim();
+      if (value.toUpperCase() === 'PROMPT') value = '…';
+      return `Ajoute une directive Kitty: ${key} ${value}`.trim();
+    };
+
+    const getHelpText = (el) => {
+      if (!el) return '';
+
+      if (el.classList?.contains('kitty-preset')) return describePreset(el);
+      if (el.classList?.contains('color-swatch')) return describeSwatch(el);
+      if (el.classList?.contains('cursor-shape')) return describeCursorShape(el);
+
+      if (el.id && HELP_BY_ID[el.id]) return HELP_BY_ID[el.id];
+
+      // Prefer explicit data-help if present.
+      const dataHelp = el.dataset?.help;
+      if (dataHelp) return String(dataHelp);
+
+      // Fallback: try to find the label of the surrounding form-group.
+      const group = el.closest?.('.form-group');
+      const label = group?.querySelector?.('.form-label');
+      const labelText = label?.textContent?.trim();
+      if (labelText) return `Modifie: ${labelText}`;
+
+      // Last fallback: button text
+      const txt = el.textContent?.trim();
+      if (txt && txt.length <= 60) return txt;
+      return '';
+    };
+
+    const show = (text, x, y) => {
+      if (!text) return;
+      tooltip.textContent = text;
+      tooltip.classList.remove('hidden');
+      tooltip.setAttribute('aria-hidden', 'false');
+
+      const pad = 14;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Position then clamp once we know size
+      tooltip.style.left = '0px';
+      tooltip.style.top = '0px';
+      const rect = tooltip.getBoundingClientRect();
+
+      let left = x + 14;
+      let top = y + 18;
+      if (left + rect.width + pad > vw) left = vw - rect.width - pad;
+      if (top + rect.height + pad > vh) top = y - rect.height - 14;
+      left = Math.max(pad, left);
+      top = Math.max(pad, top);
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    };
+
+    const hide = () => {
+      tooltip.classList.add('hidden');
+      tooltip.setAttribute('aria-hidden', 'true');
+      tooltip.textContent = '';
+    };
+
+    let active = null;
+    document.addEventListener(
+      'pointerover',
+      (ev) => {
+        const t = ev.target;
+        if (!t) return;
+        const el = t.closest?.(
+          '.color-swatch, .cursor-shape, .kitty-preset, input, select, textarea, button'
+        );
+        if (!el) return;
+        // Ignore modal backdrops etc
+        if (el.classList?.contains('modal-backdrop')) return;
+        const text = getHelpText(el);
+        if (!text) return;
+        active = el;
+        show(text, ev.clientX, ev.clientY);
+      },
+      true
+    );
+
+    document.addEventListener(
+      'pointermove',
+      (ev) => {
+        if (!active) return;
+        const text = getHelpText(active);
+        if (!text) {
+          hide();
+          active = null;
+          return;
+        }
+        show(text, ev.clientX, ev.clientY);
+      },
+      true
+    );
+
+    document.addEventListener(
+      'pointerout',
+      (ev) => {
+        if (!active) return;
+        const related = ev.relatedTarget;
+        if (related && active.contains?.(related)) return;
+        hide();
+        active = null;
+      },
+      true
+    );
+
+    // Avoid sticky tooltip during scrolling
+    document.addEventListener('scroll', () => hide(), true);
   }
 
   function computeExport(state) {
@@ -1826,6 +2005,8 @@
         winEl.style.height = '';
       }
     }
+
+    installHelpTooltips();
 
     // Seed terminal with some context
     appendLine('<span class="comment"># EZGalaxy terminal preview (faux)</span>');
