@@ -324,13 +324,18 @@
       const raw = await res.json();
       const items = (Array.isArray(raw) ? raw : [])
         .map((c) => {
-          const cca2 = String(c.cca2 || '').toLowerCase();
-          const nameFr = c.translations?.fra?.common || c.name?.common || '';
-          const nameFrOfficial = c.translations?.fra?.official || '';
-          const nameCommon = c.name?.common || '';
-          const nameOfficial = c.name?.official || '';
-          const altSpellings = Array.isArray(c.altSpellings) ? c.altSpellings : [];
-          const flagsPng = c.flags?.png || '';
+          const cca2 = String((c && c.cca2) || '').toLowerCase();
+          const translations = (c && c.translations) ? c.translations : null;
+          const fra = translations && translations.fra ? translations.fra : null;
+          const nameObj = (c && c.name) ? c.name : null;
+          const flagsObj = (c && c.flags) ? c.flags : null;
+
+          const nameFr = (fra && fra.common) ? fra.common : ((nameObj && nameObj.common) ? nameObj.common : '');
+          const nameFrOfficial = (fra && fra.official) ? fra.official : '';
+          const nameCommon = (nameObj && nameObj.common) ? nameObj.common : '';
+          const nameOfficial = (nameObj && nameObj.official) ? nameObj.official : '';
+          const altSpellings = (c && Array.isArray(c.altSpellings)) ? c.altSpellings : [];
+          const flagsPng = (flagsObj && flagsObj.png) ? flagsObj.png : '';
 
           const alt = uniqStrings([
             nameFr,
@@ -343,7 +348,7 @@
           return {
             code: cca2,
             name: String(nameFr || nameCommon || '').trim(),
-            alt,
+            alt: alt,
             flagUrl: cca2 ? `${FLAG_CDN}/${cca2}.png` : flagsPng,
             flagUrlFallback: flagsPng
           };
@@ -440,26 +445,28 @@
     const items = Array.isArray(lbs[mode]) ? lbs[mode] : [];
     const now = new Date().toISOString();
 
-    const existing = items.find((x) => normalize(x?.pseudo) === normalize(pseudo));
+    const existing = items.find((x) => normalize(x && x.pseudo) === normalize(pseudo));
     const bestScore = existing ? Math.max(Number(existing.score || 0), Number(score || 0)) : Number(score || 0);
 
-    const next = items.filter((x) => normalize(x?.pseudo) !== normalize(pseudo));
+    const next = items.filter((x) => normalize(x && x.pseudo) !== normalize(pseudo));
     next.push({ pseudo, score: bestScore, date: now });
     next.sort((a, b) => (b.score || 0) - (a.score || 0));
     lbs[mode] = next.slice(0, 10);
     localStorage.setItem(STORAGE_LOCAL_LB, JSON.stringify(lbs));
 
-    const best = lbs[mode].find((x) => normalize(x.pseudo) === normalize(pseudo));
-    return { leaderboard: lbs[mode], best: best?.score ?? bestScore, isNew: !existing || bestScore > Number(existing?.score || 0) };
+    const best = lbs[mode].find((x) => normalize(x && x.pseudo) === normalize(pseudo));
+    const bestValue = best && typeof best.score !== 'undefined' ? best.score : bestScore;
+    const existingScore = existing ? Number(existing.score || 0) : 0;
+    return { leaderboard: lbs[mode], best: bestValue, isNew: !existing || bestScore > existingScore };
   }
 
   function sanitizeLeaderboardItems(items) {
     const out = [];
     for (const it of items || []) {
-      const pseudo = String(it?.pseudo || '').trim();
-      const score = Number(it?.score || 0);
+      const pseudo = String((it && it.pseudo) || '').trim();
+      const score = Number((it && it.score) || 0);
       if (!pseudo || !Number.isFinite(score)) continue;
-      out.push({ pseudo, score, date: it?.date });
+      out.push({ pseudo, score, date: it ? it.date : undefined });
     }
     out.sort((a, b) => b.score - a.score);
     return out.slice(0, 10);
@@ -478,7 +485,7 @@
       if (res.status === 404) return local;
       if (!res.ok) return local;
       const data = await res.json();
-      const items = Array.isArray(data.data?.items) ? data.data.items : [];
+      const items = data && data.data && Array.isArray(data.data.items) ? data.data.items : [];
       return sanitizeLeaderboardItems(items);
     } catch (e) {
       console.warn('Failed to fetch leaderboard:', e);
@@ -507,12 +514,12 @@
 
       if (existingRes.ok) {
         const existing = await existingRes.json();
-        items = Array.isArray(existing.data?.items) ? existing.data.items : [];
+        items = existing && existing.data && Array.isArray(existing.data.items) ? existing.data.items : [];
       }
 
       // Merge/update best score per pseudo
       const merged = sanitizeLeaderboardItems(items);
-      const existingCloud = merged.find((x) => normalize(x.pseudo) === normalize(pseudo));
+      const existingCloud = merged.find((x) => normalize(x && x.pseudo) === normalize(pseudo));
       const bestCloudScore = existingCloud ? Math.max(existingCloud.score, Number(score || 0)) : Number(score || 0);
 
       const withoutPseudo = merged.filter((x) => normalize(x.pseudo) !== normalize(pseudo));
@@ -744,14 +751,16 @@
   function bindEvents() {
     // Pseudo input
     const pseudoInput = $id('pseudo-input');
-    pseudoInput?.addEventListener('input', (e) => {
-      App.pseudo = e.target.value.trim();
-      localStorage.setItem(STORAGE_PSEUDO, App.pseudo);
-      updateStartButton();
-    });
+    if (pseudoInput) {
+      pseudoInput.addEventListener('input', (e) => {
+        App.pseudo = e.target.value.trim();
+        localStorage.setItem(STORAGE_PSEUDO, App.pseudo);
+        updateStartButton();
+      });
+    }
 
     // Initialize pseudo from saved value
-    App.pseudo = pseudoInput?.value.trim() || '';
+    App.pseudo = (pseudoInput && pseudoInput.value ? pseudoInput.value.trim() : '') || '';
 
     // Mode selection
     $$('.mode-card').forEach(card => {
@@ -774,11 +783,14 @@
     });
 
     // Start button
-    $id('start-btn')?.addEventListener('click', startGame);
+    const startBtn = $id('start-btn');
+    if (startBtn) startBtn.addEventListener('click', startGame);
 
     // Game over buttons
-    $id('replay-btn')?.addEventListener('click', () => startGame());
-    $id('home-btn')?.addEventListener('click', showHomeScreen);
+    const replayBtn = $id('replay-btn');
+    if (replayBtn) replayBtn.addEventListener('click', () => startGame());
+    const homeBtn = $id('home-btn');
+    if (homeBtn) homeBtn.addEventListener('click', showHomeScreen);
   }
 
   function updateStartButton() {
@@ -824,10 +836,11 @@
     // Save score (local + cloud if configured)
     saveScore(App.mode, App.pseudo, App.score).then((result) => {
       if (!recordEl) return;
-      if (result?.isNew) {
-        recordEl.textContent = result?.api ? '🏆 Nouveau record (cloud) !' : '🏆 Nouveau record (local) !';
+      if (result && result.isNew) {
+        recordEl.textContent = result.api ? '🏆 Nouveau record (cloud) !' : '🏆 Nouveau record (local) !';
       } else {
-        recordEl.textContent = `Record: ${result?.best ?? App.score} pts`;
+        const best = result && typeof result.best !== 'undefined' ? result.best : App.score;
+        recordEl.textContent = `Record: ${best} pts`;
       }
       loadLeaderboards();
     });
@@ -885,8 +898,9 @@
     const flagImg = $id('flag-image');
     flagImg.className = 'flag-image';
     flagImg.onerror = () => {
-      if (App.currentCountry?.flagUrlFallback && flagImg.src !== App.currentCountry.flagUrlFallback) {
-        flagImg.src = App.currentCountry.flagUrlFallback;
+      const fb = App.currentCountry && App.currentCountry.flagUrlFallback ? App.currentCountry.flagUrlFallback : '';
+      if (fb && flagImg.src !== fb) {
+        flagImg.src = fb;
       }
     };
     flagImg.src = App.currentCountry.flagUrl;
