@@ -6,8 +6,14 @@
   const STORAGE_PSEUDO = 'ez.flaggame.pseudo';
   const STORAGE_API_BASE = 'ez.community.baseUrl';
   const STORAGE_API_TOKEN = 'ez.community.token';
+  const STORAGE_COUNTRIES_CACHE = 'ez.flaggame.countries.cache.v1';
+  const STORAGE_LOCAL_LB = 'ez.flaggame.leaderboards.local.v1';
   const FLAG_CDN = 'https://flagcdn.com/256x192';
+  const RESTCOUNTRIES_URL = 'https://restcountries.com/v3.1/all?fields=cca2,name,translations,altSpellings,flags';
   const TIMER_DURATION = 8000; // 8 seconds for hard mode
+  const COUNTRIES_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+  let COUNTRIES_RUNTIME = null;
 
   // ===== Country Database (195 countries) =====
   const COUNTRIES = [
@@ -256,6 +262,129 @@
     return arr;
   }
 
+  function safeJsonParse(s) {
+    try { return JSON.parse(s); } catch { return null; }
+  }
+
+  function uniqStrings(arr) {
+    const out = [];
+    const seen = new Set();
+    for (const v of arr || []) {
+      const s = String(v || '').trim();
+      if (!s) continue;
+      const k = normalize(s);
+      if (!k) continue;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(s);
+    }
+    return out;
+  }
+
+  function ensureCountryShape(country) {
+    const code = String(country.code || '').toLowerCase();
+    const name = String(country.name || '').trim();
+    const alt = Array.isArray(country.alt) ? country.alt : [];
+    const fallbackUrl = country.flagUrlFallback || country.flagUrl2 || country.flagsPng || '';
+    return {
+      code,
+      name,
+      alt: uniqStrings([name, ...alt]),
+      flagUrl: country.flagUrl || `${FLAG_CDN}/${code}.png`,
+      flagUrlFallback: fallbackUrl
+    };
+  }
+
+  function getCountries() {
+    const list = Array.isArray(COUNTRIES_RUNTIME) && COUNTRIES_RUNTIME.length
+      ? COUNTRIES_RUNTIME
+      : COUNTRIES;
+    return list.map(ensureCountryShape).filter((c) => c.code && c.name);
+  }
+
+  async function loadCountries() {
+    // Prefer cache
+    const cached = safeJsonParse(localStorage.getItem(STORAGE_COUNTRIES_CACHE));
+    if (cached && cached.at && Array.isArray(cached.items)) {
+      const age = Date.now() - Number(cached.at);
+      if (age >= 0 && age < COUNTRIES_CACHE_TTL_MS && cached.items.length >= 150) {
+        COUNTRIES_RUNTIME = cached.items;
+        App.countriesReady = true;
+        App.countriesError = null;
+        updateCountriesStatus();
+        updateStartButton();
+        return;
+      }
+    }
+
+    // Fetch from RestCountries (full list)
+    try {
+      const res = await fetch(RESTCOUNTRIES_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.json();
+      const items = (Array.isArray(raw) ? raw : [])
+        .map((c) => {
+          const cca2 = String(c.cca2 || '').toLowerCase();
+          const nameFr = c.translations?.fra?.common || c.name?.common || '';
+          const nameFrOfficial = c.translations?.fra?.official || '';
+          const nameCommon = c.name?.common || '';
+          const nameOfficial = c.name?.official || '';
+          const altSpellings = Array.isArray(c.altSpellings) ? c.altSpellings : [];
+          const flagsPng = c.flags?.png || '';
+
+          const alt = uniqStrings([
+            nameFr,
+            nameFrOfficial,
+            nameCommon,
+            nameOfficial,
+            ...altSpellings
+          ]);
+
+          return {
+            code: cca2,
+            name: String(nameFr || nameCommon || '').trim(),
+            alt,
+            flagUrl: cca2 ? `${FLAG_CDN}/${cca2}.png` : flagsPng,
+            flagUrlFallback: flagsPng
+          };
+        })
+        .filter((c) => c.code && c.name);
+
+      if (items.length < 150) throw new Error('Dataset too small');
+
+      COUNTRIES_RUNTIME = items;
+      localStorage.setItem(STORAGE_COUNTRIES_CACHE, JSON.stringify({ at: Date.now(), items }));
+      App.countriesReady = true;
+      App.countriesError = null;
+      updateCountriesStatus();
+      updateStartButton();
+    } catch (e) {
+      console.warn('Failed to load countries from RestCountries:', e);
+      // Fallback to embedded list (partial) so the game still runs.
+      COUNTRIES_RUNTIME = null;
+      App.countriesReady = true;
+      App.countriesError = 'Impossible de charger la liste complète (fallback partiel)';
+      updateCountriesStatus();
+      updateStartButton();
+      toast('error', 'Chargement pays: fallback (réseau)');
+    }
+  }
+
+  function updateCountriesStatus() {
+    const el = $id('countries-status');
+    if (!el) return;
+    if (!App.countriesReady) {
+      el.textContent = '🌍 Chargement des pays et drapeaux…';
+      return;
+    }
+    const n = getCountries().length;
+    if (App.countriesError) {
+      el.textContent = `⚠️ ${App.countriesError} — ${n} drapeaux disponibles`;
+    } else {
+      el.textContent = `✅ ${n} drapeaux chargés`;
+    }
+  }
+
   function toast(type, message) {
     const container = $id('toast-container');
     const el = document.createElement('div');
@@ -282,7 +411,9 @@
     isAnswered: false,
     leaderboard: { easy: [], normal: [], hard: [] },
     activeLeaderboardTab: 'easy',
-    preloadedImages: []
+    preloadedImages: [],
+    countriesReady: false,
+    countriesError: null
   };
 
   // ===== API Functions =====
@@ -292,74 +423,120 @@
     return { baseUrl, token, available: !!(baseUrl && token) };
   }
 
+  function getLocalLeaderboards() {
+    const parsed = safeJsonParse(localStorage.getItem(STORAGE_LOCAL_LB));
+    if (!parsed || typeof parsed !== 'object') {
+      return { easy: [], normal: [], hard: [] };
+    }
+    return {
+      easy: Array.isArray(parsed.easy) ? parsed.easy : [],
+      normal: Array.isArray(parsed.normal) ? parsed.normal : [],
+      hard: Array.isArray(parsed.hard) ? parsed.hard : []
+    };
+  }
+
+  function saveLocalScore(mode, pseudo, score) {
+    const lbs = getLocalLeaderboards();
+    const items = Array.isArray(lbs[mode]) ? lbs[mode] : [];
+    const now = new Date().toISOString();
+
+    const existing = items.find((x) => normalize(x?.pseudo) === normalize(pseudo));
+    const bestScore = existing ? Math.max(Number(existing.score || 0), Number(score || 0)) : Number(score || 0);
+
+    const next = items.filter((x) => normalize(x?.pseudo) !== normalize(pseudo));
+    next.push({ pseudo, score: bestScore, date: now });
+    next.sort((a, b) => (b.score || 0) - (a.score || 0));
+    lbs[mode] = next.slice(0, 10);
+    localStorage.setItem(STORAGE_LOCAL_LB, JSON.stringify(lbs));
+
+    const best = lbs[mode].find((x) => normalize(x.pseudo) === normalize(pseudo));
+    return { leaderboard: lbs[mode], best: best?.score ?? bestScore, isNew: !existing || bestScore > Number(existing?.score || 0) };
+  }
+
+  function sanitizeLeaderboardItems(items) {
+    const out = [];
+    for (const it of items || []) {
+      const pseudo = String(it?.pseudo || '').trim();
+      const score = Number(it?.score || 0);
+      if (!pseudo || !Number.isFinite(score)) continue;
+      out.push({ pseudo, score, date: it?.date });
+    }
+    out.sort((a, b) => b.score - a.score);
+    return out.slice(0, 10);
+  }
+
   async function fetchLeaderboard(mode) {
     const { baseUrl, token, available } = getApiConfig();
-    if (!available) return [];
+    const local = getLocalLeaderboards()[mode] || [];
+    if (!available) return local;
 
     try {
-      const res = await fetch(`${baseUrl}/api/community/${EXTENSION_ID}/scores-${mode}`, {
+      const recordKey = `lb_${mode}`;
+      const res = await fetch(`${baseUrl}/api/community/${EXTENSION_ID}/leaderboards/${recordKey}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) return [];
+      if (res.status === 404) return local;
+      if (!res.ok) return local;
       const data = await res.json();
-      
-      // Convert records to array and sort by score
-      const scores = Object.entries(data.records || {}).map(([key, record]) => ({
-        pseudo: record.data?.pseudo || key,
-        score: record.data?.score || 0,
-        date: record.data?.date
-      }));
-      scores.sort((a, b) => b.score - a.score);
-      return scores.slice(0, 10);
+      const items = Array.isArray(data.data?.items) ? data.data.items : [];
+      return sanitizeLeaderboardItems(items);
     } catch (e) {
       console.warn('Failed to fetch leaderboard:', e);
-      return [];
+      return local;
     }
   }
 
   async function saveScore(mode, pseudo, score) {
     const { baseUrl, token, available } = getApiConfig();
+    // Always save locally so it works offline.
+    const localResult = saveLocalScore(mode, pseudo, score);
+
     if (!available) {
-      toast('info', 'Score local uniquement (API non connectée)');
-      return;
+      toast('info', 'Score sauvegardé localement');
+      return { local: true, api: false, leaderboard: localResult.leaderboard, best: localResult.best, isNew: localResult.isNew };
     }
 
-    const recordKey = pseudo.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    
     try {
-      // First, check if there's an existing score
+      const recordKey = `lb_${mode}`;
+      // Read existing leaderboard record
+      let items = [];
       const existingRes = await fetch(
-        `${baseUrl}/api/community/${EXTENSION_ID}/scores-${mode}/${recordKey}`,
+        `${baseUrl}/api/community/${EXTENSION_ID}/leaderboards/${recordKey}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
-      
+
       if (existingRes.ok) {
         const existing = await existingRes.json();
-        if (existing.data?.score >= score) {
-          toast('info', `Ton record reste ${existing.data.score} points`);
-          return;
-        }
+        items = Array.isArray(existing.data?.items) ? existing.data.items : [];
       }
 
-      // Save new high score
-      await fetch(`${baseUrl}/api/community/${EXTENSION_ID}/scores-${mode}/${recordKey}`, {
+      // Merge/update best score per pseudo
+      const merged = sanitizeLeaderboardItems(items);
+      const existingCloud = merged.find((x) => normalize(x.pseudo) === normalize(pseudo));
+      const bestCloudScore = existingCloud ? Math.max(existingCloud.score, Number(score || 0)) : Number(score || 0);
+
+      const withoutPseudo = merged.filter((x) => normalize(x.pseudo) !== normalize(pseudo));
+      withoutPseudo.push({ pseudo, score: bestCloudScore, date: new Date().toISOString() });
+      withoutPseudo.sort((a, b) => b.score - a.score);
+      const next = withoutPseudo.slice(0, 10);
+
+      await fetch(`${baseUrl}/api/community/${EXTENSION_ID}/leaderboards/${recordKey}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          data: {
-            pseudo,
-            score,
-            date: new Date().toISOString()
-          }
+          data: { items: next }
         })
       });
-      toast('success', '🏆 Nouveau record sauvegardé !');
+
+      toast('success', 'Score sauvegardé (cloud)');
+      return { local: true, api: true, leaderboard: next, best: localResult.best, isNew: localResult.isNew || (!existingCloud || bestCloudScore > existingCloud.score) };
     } catch (e) {
       console.error('Failed to save score:', e);
-      toast('error', 'Erreur de sauvegarde');
+      toast('error', 'Sauvegarde cloud impossible (local OK)');
+      return { local: true, api: false, leaderboard: localResult.leaderboard, best: localResult.best, isNew: localResult.isNew };
     }
   }
 
@@ -370,7 +547,7 @@
       const idx = (startIndex + i) % App.countries.length;
       const country = App.countries[idx];
       const img = new Image();
-      img.src = `${FLAG_CDN}/${country.code}.png`;
+      img.src = country.flagUrl;
       App.preloadedImages.push(img);
     }
   }
@@ -425,7 +602,8 @@
     `;
 
     bindEvents();
-    loadLeaderboards();
+    updateCountriesStatus();
+    updateStartButton();
   }
 
   function renderHomeScreen() {
@@ -443,6 +621,8 @@
                    maxlength="20">
           </div>
         </div>
+
+        <p id="countries-status" class="ez-muted" style="margin: 0 0 16px 0;"></p>
 
         <div class="mode-section">
           <h3>🎮 Choisis ton mode</h3>
@@ -604,7 +784,7 @@
   function updateStartButton() {
     const btn = $id('start-btn');
     if (btn) {
-      btn.disabled = !App.pseudo || !App.mode;
+      btn.disabled = !App.pseudo || !App.mode || !App.countriesReady;
     }
   }
 
@@ -637,15 +817,31 @@
     $id('screen-gameover').classList.remove('screen-hidden');
     
     $id('final-score').textContent = App.score;
-    
-    // Save score and show result
-    saveScore(App.mode, App.pseudo, App.score);
+
+    const recordEl = $id('record-message');
+    if (recordEl) recordEl.textContent = 'Sauvegarde du score…';
+
+    // Save score (local + cloud if configured)
+    saveScore(App.mode, App.pseudo, App.score).then((result) => {
+      if (!recordEl) return;
+      if (result?.isNew) {
+        recordEl.textContent = result?.api ? '🏆 Nouveau record (cloud) !' : '🏆 Nouveau record (local) !';
+      } else {
+        recordEl.textContent = `Record: ${result?.best ?? App.score} pts`;
+      }
+      loadLeaderboards();
+    });
   }
 
   function startGame() {
+    const all = getCountries();
+    if (!all.length) {
+      toast('error', 'Impossible de démarrer : pays non chargés');
+      return;
+    }
     App.lives = 3;
     App.score = 0;
-    App.countries = shuffle(COUNTRIES);
+    App.countries = shuffle(all);
     App.countryIndex = 0;
     App.isAnswered = false;
 
@@ -675,7 +871,7 @@
 
     // Get next country (loop if needed)
     if (App.countryIndex >= App.countries.length) {
-      App.countries = shuffle(COUNTRIES);
+      App.countries = shuffle(getCountries());
       App.countryIndex = 0;
     }
     
@@ -688,7 +884,12 @@
     // Update flag image
     const flagImg = $id('flag-image');
     flagImg.className = 'flag-image';
-    flagImg.src = `${FLAG_CDN}/${App.currentCountry.code}.png`;
+    flagImg.onerror = () => {
+      if (App.currentCountry?.flagUrlFallback && flagImg.src !== App.currentCountry.flagUrlFallback) {
+        flagImg.src = App.currentCountry.flagUrlFallback;
+      }
+    };
+    flagImg.src = App.currentCountry.flagUrl;
 
     // Hide feedback
     $id('feedback').style.display = 'none';
@@ -758,7 +959,7 @@
 
   function generateChoices(correct, count) {
     const choices = [correct];
-    const available = COUNTRIES.filter(c => c.code !== correct.code);
+    const available = getCountries().filter(c => c.code !== correct.code);
     const shuffled = shuffle(available);
     
     for (let i = 0; i < count - 1 && i < shuffled.length; i++) {
@@ -916,5 +1117,10 @@
   }
 
   // ===== Initialize =====
-  document.addEventListener('DOMContentLoaded', render);
+  document.addEventListener('DOMContentLoaded', () => {
+    App.countriesReady = false;
+    render();
+    loadLeaderboards();
+    loadCountries();
+  });
 })();
