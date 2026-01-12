@@ -76,6 +76,13 @@
       "function": "Générateur de fichiers de personnalisation pour terminaux (Kitty, Alacritty, WezTerm, Windows Terminal). Éditeur de couleurs graphique, preview live, import/export, thèmes prédéfinis, presets via Community Data API.",
       "path": "packages/com.ezgalaxy.terminal",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.flaggame",
+      "title": "Flag Game",
+      "function": "Jeu de drapeaux en mode survie : devine le pays à partir de son drapeau. 3 modes (facile, normal, difficile), 3 vies, classement en ligne via Community Data API.",
+      "path": "packages/com.ezgalaxy.flaggame",
+      "version": "1.0.0"
     }
   ]
 }

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.flaggame",
+  "title": "Flag Game",
+  "function": "Jeu de drapeaux en mode survie : devine le pays à partir de son drapeau. 3 modes de difficulté, classement en ligne, 3 vies.",
+  "version": "1.0.0",
+  "createdAt": "2026-01-12",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}
