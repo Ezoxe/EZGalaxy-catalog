@@ -12,6 +12,8 @@
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+  let scheduleTerminalCaret = null;
+
   const THEMES = {
     dracula: {
       name: 'Dracula',
@@ -645,6 +647,8 @@
     preview.style.setProperty('--term-bg', hexToRgba(state.colors.background, alpha));
     preview.style.setProperty('--term-fg', state.colors.foreground);
     preview.style.setProperty('--term-cursor', state.colors.cursor);
+    preview.style.setProperty('--term-blur', `${clamp(Number(state.window.blur) || 0, 0, 64)}px`);
+    preview.style.setProperty('--term-caret-thickness', `${clamp(Number(state.cursor.beamWidth) || 2, 1, 8)}px`);
 
     const padding = state.window.padding;
     preview.style.setProperty('--term-padding', `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`);
@@ -669,13 +673,123 @@
       preview.style.fontWeight = '400';
     }
 
-    // Use the real caret inside the contenteditable input.
-    // (A separate "fake" cursor tends to drift to bottom-right when input is empty.)
-    const inputEl = $('terminal-input');
-    if (inputEl) inputEl.style.caretColor = state.colors.cursor;
+    // Visual caret to reflect cursor shape/thickness/blink.
+    const caretEl = $('terminal-caret');
+    if (caretEl) {
+      caretEl.classList.remove('block', 'beam', 'underline', 'blink', 'no-blink');
+      caretEl.classList.add(state.cursor.shape);
+      caretEl.classList.add(state.cursor.blink ? 'blink' : 'no-blink');
+    }
+
+    if (typeof scheduleTerminalCaret === 'function') scheduleTerminalCaret();
 
     const promptEl = $('terminal-prompt');
     if (promptEl) promptEl.textContent = formatPrompt();
+  }
+
+  function installTerminalCaretSync(getState) {
+    const input = $('terminal-input');
+    const caret = $('terminal-caret');
+    const preview = $('terminal-preview');
+    const inputRow = $('terminal-input-row');
+
+    if (!input || !caret || !preview || !inputRow) return;
+
+    let raf = 0;
+    let charW = 8;
+    let lineH = 16;
+
+    const measureMetrics = () => {
+      const probe = document.createElement('span');
+      probe.textContent = 'M';
+      probe.style.position = 'absolute';
+      probe.style.left = '-9999px';
+      probe.style.top = '-9999px';
+      probe.style.whiteSpace = 'pre';
+      probe.style.fontFamily = getComputedStyle(preview).fontFamily;
+      probe.style.fontSize = getComputedStyle(preview).fontSize;
+      probe.style.lineHeight = getComputedStyle(preview).lineHeight;
+      document.body.appendChild(probe);
+      const r = probe.getBoundingClientRect();
+      document.body.removeChild(probe);
+      if (r.width) charW = r.width;
+      if (r.height) lineH = r.height;
+      preview.style.setProperty('--term-char-w', `${Math.max(6, Math.round(charW))}px`);
+      preview.style.setProperty('--term-line-px', `${Math.max(12, Math.round(lineH))}px`);
+    };
+
+    const getCaretRect = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return null;
+      if (!input.contains(sel.anchorNode)) return null;
+
+      const range = sel.getRangeAt(0).cloneRange();
+      range.collapse(true);
+      const rects = range.getClientRects();
+      if (rects && rects.length) return rects[0];
+      const r = range.getBoundingClientRect();
+      if (r && (r.width || r.height)) return r;
+      return null;
+    };
+
+    const update = () => {
+      const state = getState();
+      if (document.activeElement !== input) {
+        caret.style.display = 'none';
+        return;
+      }
+
+      caret.style.display = '';
+      const pRect = preview.getBoundingClientRect();
+      const rect = getCaretRect();
+
+      // Fallback when empty or browser doesn't provide a caret rect
+      let left;
+      let top;
+      let height;
+
+      if (rect) {
+        left = rect.left - pRect.left;
+        top = rect.top - pRect.top;
+        height = rect.height || lineH;
+      } else {
+        const iRect = input.getBoundingClientRect();
+        left = iRect.left - pRect.left;
+        top = iRect.top - pRect.top;
+        height = iRect.height || lineH;
+      }
+
+      const thickness = clamp(Number(state.cursor.beamWidth) || 2, 1, 8);
+      if (state.cursor.shape === 'underline') {
+        caret.style.left = `${Math.max(0, left)}px`;
+        caret.style.top = `${Math.max(0, top + Math.max(0, height - thickness))}px`;
+      } else {
+        caret.style.left = `${Math.max(0, left)}px`;
+        caret.style.top = `${Math.max(0, top)}px`;
+      }
+    };
+
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        measureMetrics();
+        update();
+      });
+    };
+
+    // Keep caret position synced
+    input.addEventListener('input', schedule);
+    input.addEventListener('keydown', () => window.setTimeout(schedule, 0));
+    input.addEventListener('keyup', schedule);
+    input.addEventListener('pointerup', schedule);
+    input.addEventListener('focus', schedule);
+    input.addEventListener('blur', schedule);
+    document.addEventListener('selectionchange', schedule);
+    window.addEventListener('resize', schedule);
+
+    schedule();
+    return schedule;
   }
 
   function installHelpTooltips() {
@@ -2538,6 +2652,9 @@
     const screen = $('terminal-screen');
     const preview = $('terminal-preview');
 
+    const scheduleCaret = installTerminalCaretSync(() => state) || (() => {});
+    scheduleTerminalCaret = scheduleCaret;
+
     const focusInput = () => {
       if (!input) return;
       input.focus();
@@ -2548,6 +2665,8 @@
       range.collapse(false);
       sel.removeAllRanges();
       sel.addRange(range);
+
+      scheduleCaret();
     };
 
     if (preview) preview.addEventListener('mousedown', () => focusInput());
@@ -2565,6 +2684,7 @@
           runCommand(cmd);
           const promptEl = $('terminal-prompt');
           if (promptEl) promptEl.textContent = formatPrompt();
+          scheduleCaret();
           return;
         }
 
@@ -2573,6 +2693,7 @@
           term.historyIndex = Math.max(0, term.historyIndex - 1);
           input.textContent = term.history[term.historyIndex] || '';
           focusInput();
+          scheduleCaret();
           return;
         }
 
@@ -2581,6 +2702,7 @@
           term.historyIndex = Math.min(term.history.length, term.historyIndex + 1);
           input.textContent = term.history[term.historyIndex] || '';
           focusInput();
+          scheduleCaret();
           return;
         }
 
@@ -2599,6 +2721,7 @@
               parts[1] = match;
               input.textContent = parts.join(' ') + ' ';
               focusInput();
+              scheduleCaret();
             }
           }
           return;
@@ -2618,6 +2741,17 @@
     if (bar && win) {
       bar.addEventListener('mousedown', (ev) => {
         if (state.window.floating === false) return;
+
+        // If we are centered via CSS transform, convert to pixel left/top before dragging.
+        const desk = $('desktop-preview');
+        if (desk) {
+          const drect = desk.getBoundingClientRect();
+          const rect = win.getBoundingClientRect();
+          win.style.transform = 'none';
+          if (!win.style.left) win.style.left = `${rect.left - drect.left}px`;
+          if (!win.style.top) win.style.top = `${rect.top - drect.top}px`;
+        }
+
         dragging = true;
         const rect = win.getBoundingClientRect();
         dragOffsetX = ev.clientX - rect.left;
