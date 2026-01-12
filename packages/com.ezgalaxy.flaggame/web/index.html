@@ -12,12 +12,75 @@
   <!-- App Styles -->
   <link rel="stylesheet" href="./style.css">
 
-  <!-- App Script -->
-  <script defer src="./app.js"></script>
+  <!-- App Script (ES5-compatible to avoid black screens on old WebViews) -->
+  <script defer src="./app-es5.js"></script>
 </head>
 <body>
-  <div id="app" class="app ez-fade-in"></div>
+  <div id="app" class="app ez-fade-in">
+    <div class="ez-wrap">
+      <div class="ez-card">
+        <h1 style="margin:0 0 8px 0">🚩 Flag Game</h1>
+        <p class="ez-muted" style="margin:0">Chargement… (si ça reste vide, une erreur JS sera affichée)</p>
+      </div>
+    </div>
+  </div>
   <div id="toast-container"></div>
+
+  <script>
+    (function () {
+      function ensureOverlay() {
+        var el = document.getElementById('ez-error-overlay');
+        if (el) return el;
+        el = document.createElement('pre');
+        el.id = 'ez-error-overlay';
+        el.style.position = 'fixed';
+        el.style.left = '12px';
+        el.style.right = '12px';
+        el.style.bottom = '12px';
+        el.style.maxHeight = '50vh';
+        el.style.overflow = 'auto';
+        el.style.padding = '12px';
+        el.style.borderRadius = '10px';
+        el.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+        el.style.background = 'rgba(239, 68, 68, 0.12)';
+        el.style.color = '#fee2e2';
+        el.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        el.style.fontSize = '12px';
+        el.style.whiteSpace = 'pre-wrap';
+        el.style.zIndex = 999999;
+        el.style.display = 'none';
+        document.body.appendChild(el);
+        return el;
+      }
+
+      function showError(msg) {
+        var el = ensureOverlay();
+        el.style.display = 'block';
+        el.textContent = String(msg || 'Erreur inconnue');
+      }
+
+      window.onerror = function (message, source, lineno, colno, error) {
+        var parts = [];
+        parts.push('Erreur JavaScript détectée');
+        if (message) parts.push('Message: ' + message);
+        if (source) parts.push('Source: ' + source);
+        if (lineno) parts.push('Ligne: ' + lineno);
+        if (colno) parts.push('Col: ' + colno);
+        if (error && error.stack) parts.push('Stack:\n' + error.stack);
+        showError(parts.join('\n'));
+        return false;
+      };
+
+      window.onunhandledrejection = function (ev) {
+        try {
+          showError('Promise rejection: ' + (ev && ev.reason ? ev.reason : ev));
+        } catch (e) {
+          showError('Promise rejection');
+        }
+      };
+    })();
+  </script>
+
   <noscript>Cette page nécessite JavaScript pour fonctionner.</noscript>
 </body>
 </html>
