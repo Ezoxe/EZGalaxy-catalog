@@ -12,20 +12,6 @@
   <!-- App Styles -->
   <link rel="stylesheet" href="./style.css">
 
-  <!-- App Script (ES5-compatible to avoid black screens on old WebViews) -->
-  <script defer src="./app-es5.js"></script>
-</head>
-<body>
-  <div id="app" class="app ez-fade-in">
-    <div class="ez-wrap">
-      <div class="ez-card">
-        <h1 style="margin:0 0 8px 0">🚩 Flag Game</h1>
-        <p class="ez-muted" style="margin:0">Chargement… (si ça reste vide, une erreur JS sera affichée)</p>
-      </div>
-    </div>
-  </div>
-  <div id="toast-container"></div>
-
   <script>
     (function () {
       function ensureOverlay() {
@@ -49,7 +35,7 @@
         el.style.whiteSpace = 'pre-wrap';
         el.style.zIndex = 999999;
         el.style.display = 'none';
-        document.body.appendChild(el);
+        (document.body || document.documentElement).appendChild(el);
         return el;
       }
 
@@ -58,6 +44,11 @@
         el.style.display = 'block';
         el.textContent = String(msg || 'Erreur inconnue');
       }
+
+      window.__ezShowError = showError;
+      window.__ezScriptError = function (src) {
+        showError('Erreur de chargement du script: ' + src);
+      };
 
       window.onerror = function (message, source, lineno, colno, error) {
         var parts = [];
@@ -80,6 +71,20 @@
       };
     })();
   </script>
+
+  <!-- App Script (ES5-compatible to avoid black screens on old WebViews) -->
+  <script defer src="./app-es5.js" crossorigin="anonymous" onerror="window.__ezScriptError && window.__ezScriptError('./app-es5.js')"></script>
+</head>
+<body>
+  <div id="app" class="app ez-fade-in">
+    <div class="ez-wrap">
+      <div class="ez-card">
+        <h1 style="margin:0 0 8px 0">🚩 Flag Game</h1>
+        <p class="ez-muted" style="margin:0">Chargement… (si ça reste vide, une erreur JS sera affichée)</p>
+      </div>
+    </div>
+  </div>
+  <div id="toast-container"></div>
 
   <noscript>Cette page nécessite JavaScript pour fonctionner.</noscript>
 </body>

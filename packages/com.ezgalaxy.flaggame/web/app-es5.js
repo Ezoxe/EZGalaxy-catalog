@@ -16,6 +16,23 @@
 
   var TIMER_DURATION_MS = 8000;
 
+  function storageGet(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storageSet(key, value) {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function $id(id) { return document.getElementById(id); }
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $all(sel, root) { return (root || document).querySelectorAll(sel); }
@@ -103,10 +120,20 @@
 
   function xhrJson(method, url, token, body, cb) {
     var xhr = new XMLHttpRequest();
-    xhr.open(method, url, true);
-    xhr.setRequestHeader('Accept', 'application/json');
-    if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-    if (body) xhr.setRequestHeader('Content-Type', 'application/json');
+    try {
+      xhr.open(method, url, true);
+    } catch (e) {
+      cb(0, null, null);
+      return;
+    }
+    try {
+      xhr.setRequestHeader('Accept', 'application/json');
+      if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+      if (body) xhr.setRequestHeader('Content-Type', 'application/json');
+    } catch (e2) {
+      cb(0, null, null);
+      return;
+    }
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState !== 4) return;
@@ -124,13 +151,13 @@
   }
 
   function getApiConfig() {
-    var baseUrl = localStorage.getItem(STORAGE_API_BASE);
-    var token = localStorage.getItem(STORAGE_API_TOKEN);
+    var baseUrl = storageGet(STORAGE_API_BASE);
+    var token = storageGet(STORAGE_API_TOKEN);
     return { baseUrl: baseUrl, token: token, available: !!(baseUrl && token) };
   }
 
   function getLocalLeaderboards() {
-    var parsed = safeJsonParse(localStorage.getItem(STORAGE_LOCAL_LB));
+    var parsed = safeJsonParse(storageGet(STORAGE_LOCAL_LB));
     if (!parsed) return { easy: [], normal: [], hard: [] };
     return {
       easy: parsed.easy && parsed.easy.length ? parsed.easy : [],
@@ -140,7 +167,7 @@
   }
 
   function writeLocalLeaderboards(lbs) {
-    localStorage.setItem(STORAGE_LOCAL_LB, JSON.stringify(lbs));
+    storageSet(STORAGE_LOCAL_LB, JSON.stringify(lbs));
   }
 
   function sanitizeLeaderboard(items) {
@@ -302,7 +329,7 @@
   }
 
   function loadCountries() {
-    var cached = safeJsonParse(localStorage.getItem(STORAGE_COUNTRIES_CACHE));
+    var cached = safeJsonParse(storageGet(STORAGE_COUNTRIES_CACHE));
     if (cached && cached.at && cached.items && cached.items.length) {
       var age = Date.now() - Number(cached.at);
       if (age >= 0 && age < COUNTRIES_CACHE_TTL_MS && cached.items.length >= 150) {
@@ -356,7 +383,7 @@
         return;
       }
 
-      localStorage.setItem(STORAGE_COUNTRIES_CACHE, JSON.stringify({ at: Date.now(), items: items }));
+      storageSet(STORAGE_COUNTRIES_CACHE, JSON.stringify({ at: Date.now(), items: items }));
       setCountries(items, null);
     });
   }
@@ -397,7 +424,7 @@
   }
 
   function renderHome() {
-    var savedPseudo = localStorage.getItem(STORAGE_PSEUDO) || '';
+    var savedPseudo = storageGet(STORAGE_PSEUDO) || '';
     return ''
       + '<div class="ez-card ez-fade-in">'
       + '  <div class="pseudo-section">'
@@ -468,7 +495,7 @@
       App.pseudo = String(pseudoInput.value || '').trim();
       pseudoInput.oninput = function (e) {
         App.pseudo = String(e.target.value || '').trim();
-        localStorage.setItem(STORAGE_PSEUDO, App.pseudo);
+        storageSet(STORAGE_PSEUDO, App.pseudo);
         updateStartButton();
       };
     }
