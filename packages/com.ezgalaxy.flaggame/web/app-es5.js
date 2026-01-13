@@ -16,19 +16,37 @@
 
   var TIMER_DURATION_MS = 8000;
 
+  var MemoryStore = {};
+  var StorageState = { persistent: true, warned: false };
+
+  function storageProbe() {
+    try {
+      var k = '__ez_probe__';
+      localStorage.setItem(k, '1');
+      localStorage.removeItem(k);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  StorageState.persistent = storageProbe();
+
   function storageGet(key) {
     try {
       return localStorage.getItem(key);
     } catch (e) {
-      return null;
+      return Object.prototype.hasOwnProperty.call(MemoryStore, key) ? MemoryStore[key] : null;
     }
   }
 
   function storageSet(key, value) {
     try {
       localStorage.setItem(key, value);
+      MemoryStore[key] = value;
       return true;
     } catch (e) {
+      MemoryStore[key] = value;
       return false;
     }
   }
@@ -156,6 +174,16 @@
     return { baseUrl: baseUrl, token: token, available: !!(baseUrl && token) };
   }
 
+  function updateStorageStatus() {
+    var el = $id('storage-status');
+    if (!el) return;
+    var api = getApiConfig();
+    var parts = [];
+    parts.push(StorageState.persistent ? '💾 Stockage local: OK' : '💾 Stockage local: BLOQUÉ (scores non persistants)');
+    parts.push(api.available ? '☁️ Cloud: configuré' : '☁️ Cloud: non configuré');
+    el.textContent = parts.join(' — ');
+  }
+
   function getLocalLeaderboards() {
     var parsed = safeJsonParse(storageGet(STORAGE_LOCAL_LB));
     if (!parsed) return { easy: [], normal: [], hard: [] };
@@ -230,7 +258,12 @@
 
     var api = getApiConfig();
     if (!api.available) {
-      toast('info', 'Score enregistré (local)');
+      if (!StorageState.persistent && !StorageState.warned) {
+        StorageState.warned = true;
+        toast('error', 'Stockage local bloqué: score non persistant');
+      } else {
+        toast('info', StorageState.persistent ? 'Score enregistré (local)' : 'Score enregistré (mémoire)');
+      }
       return cb({ api: false, local: true, isNew: localRes.isNew, best: localRes.best });
     }
 
@@ -419,6 +452,7 @@
 
     bindHomeEvents();
     updateCountriesStatus();
+    updateStorageStatus();
     updateStartButton();
     loadLeaderboards();
   }
@@ -434,6 +468,7 @@
       + '    </div>'
       + '  </div>'
       + '  <p id="countries-status" class="ez-muted" style="margin: 0 0 16px 0;"></p>'
+      + '  <p id="storage-status" class="ez-muted" style="margin: -6px 0 16px 0;"></p>'
       + '  <div class="mode-section">'
       + '    <h3>🎮 Choisis ton mode</h3>'
       + '    <div class="mode-cards">'
@@ -903,6 +938,9 @@
   // Boot
   document.addEventListener('DOMContentLoaded', function () {
     try {
+      if (!StorageState.persistent && window.__ezShowError) {
+        window.__ezShowError('⚠️ Stockage local bloqué par le WebView.\nLes scores ne seront pas persistants sans API Cloud.');
+      }
       render();
       loadCountries();
     } catch (e) {
