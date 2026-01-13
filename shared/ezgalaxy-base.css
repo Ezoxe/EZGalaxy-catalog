@@ -7,7 +7,7 @@
 
   Important:
   - When EZGalaxy installs a package, it downloads ONLY the package folder.
-  - So: copy this file into your package (e.g. packages/<id>/web/ezgalaxy-base.css)
+  - So: copy this file into your package (e.g. packages/apps/<id>/web/ezgalaxy-base.css)
     and reference it from your entry HTML.
 */
 

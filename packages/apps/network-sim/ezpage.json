@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "network-sim",
+  "title": "Network Sim",
+  "function": "Simulation réseau (package standard)",
+  "version": "1.0.0",
+  "createdAt": "2025-12-23",
+  "author": "EZGalaxy",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": false
+  }
+}

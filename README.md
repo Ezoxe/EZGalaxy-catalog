@@ -10,9 +10,10 @@ Objectif : proposer une nouvelle page pour qu’elle apparaisse dans le catalogu
 
 Étapes :
 1. Fork le dépôt officiel `Ezoxe/EZGalaxy-catalog`.
-2. Crée un dossier de package : `packages/<id>/`.
-3. Ajoute le manifest : `packages/<id>/ezpage.json`.
-4. Ajoute les fichiers web (minimum) : `packages/<id>/web/index.html` (+ JS/CSS si besoin).
+2. Crée un dossier de package : `packages/apps/<id>/`.
+3. Ajoute le manifest : `packages/apps/<id>/ezpage.json`.
+4. Ajoute les fichiers web (minimum) : `packages/apps/<id>/web/index.html` (+ JS/CSS si besoin).
+5. Ajoute le fichier d’autorisation : `packages/apps/<id>/web/ezgalaxy-authorization.json`.
 5. Déclare ton package dans `catalog.json` (à la racine) en ajoutant une entrée dans `packages[]`.
 6. Ouvre une Pull Request.
 
@@ -23,7 +24,7 @@ Rappels :
 
 Style / animations :
 - Le template fournit des fichiers de style dans `shared/` (base + animations).
-- Pour qu’ils fonctionnent après installation, copie-les dans ton package (ex: `packages/<id>/web/`).
+- Pour qu’ils fonctionnent après installation, copie-les dans ton package (ex: `packages/apps/<id>/web/`).
 
 IA + BDD :
 - Voir `AI_GUIDE.md` pour les contraintes (sécurité, style, réseau) et les points importants si une page a besoin de persistance/BDD.
@@ -37,10 +38,12 @@ Structure minimale du dépôt :
 ```
 catalog.json
 packages/
-  <id>/
-    ezpage.json
-    web/
-      index.html
+  apps/
+    <id>/
+      ezpage.json
+      web/
+        ezgalaxy-authorization.json
+        index.html
 ```
 
 Configuration dans EZGalaxy :
@@ -51,3 +54,4 @@ Configuration dans EZGalaxy :
 Style / IA :
 - Les fichiers `shared/ezgalaxy-base.css` et `shared/ezgalaxy-animations.css` sont là pour être copiés dans tes packages.
 - Le guide `AI_GUIDE.md` donne un “prompt” et des règles pour générer des packages conformes.
+- Si une app demande des droits plus “libres” (ex: réseau sortant), ils doivent être déclarés dans `web/ezgalaxy-authorization.json` pour traçabilité.

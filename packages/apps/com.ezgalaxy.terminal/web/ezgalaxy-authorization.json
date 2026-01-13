@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.terminal",
+  "updatedAt": "2026-01-13",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": {
+        "allowedOrigins": []
+      },
+      "justification": "Autorise les appels réseau nécessaires au fonctionnement (principalement endpoints same-origin d’EZGalaxy, ex: /api/...). Aucun domaine externe requis."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": [],
+        "dataTypes": []
+      },
+      "justification": "TODO: Décrire les presets/thèmes stockés via la Community Data API."
+    }
+  ]
+}

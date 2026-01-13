@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.example",
+  "updatedAt": "2026-01-13",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": {
+        "allowedOrigins": [
+          "https://api.github.com"
+        ]
+      },
+      "justification": "Démonstration d'appel HTTP sortant (exemple)."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": false,
+      "details": {
+        "collections": [],
+        "dataTypes": []
+      },
+      "justification": ""
+    }
+  ]
+}

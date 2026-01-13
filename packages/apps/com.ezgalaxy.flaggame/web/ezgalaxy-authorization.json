@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.flaggame",
+  "updatedAt": "2026-01-13",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": {
+        "allowedOrigins": [
+          "https://flagcdn.com",
+          "https://restcountries.com"
+        ]
+      },
+      "justification": "Téléchargement des drapeaux (flagcdn.com) et récupération de la liste des pays (restcountries.com) nécessaires au gameplay."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": [],
+        "dataTypes": []
+      },
+      "justification": "TODO: Décrire les données de classement stockées via la Community Data API."
+    }
+  ]
+}

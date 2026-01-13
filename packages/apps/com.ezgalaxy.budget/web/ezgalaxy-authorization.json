@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.budget",
+  "updatedAt": "2026-01-13",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": {
+        "allowedOrigins": []
+      },
+      "justification": "Autorise les appels réseau nécessaires au fonctionnement (principalement endpoints same-origin d’EZGalaxy, ex: /api/...). Aucun domaine externe requis."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": [],
+        "dataTypes": []
+      },
+      "justification": "TODO: Décrire quelles données sont lues/écrites via la Community Data API."
+    }
+  ]
+}

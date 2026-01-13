@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.osint",
+  "updatedAt": "2026-01-13",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": false,
+      "details": {
+        "allowedOrigins": []
+      },
+      "justification": ""
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": [],
+        "dataTypes": []
+      },
+      "justification": "TODO: Décrire les sauvegardes et données stockées via la Community Data API."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "packageId": "test",
+  "updatedAt": "2026-01-13",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": false,
+      "details": {
+        "allowedOrigins": []
+      },
+      "justification": ""
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": false,
+      "details": {
+        "collections": [],
+        "dataTypes": []
+      },
+      "justification": ""
+    }
+  ]
+}
