@@ -586,10 +586,14 @@ function getEnglishFallback() {
   };
 }
 
+// Alias for compatibility
+export const getCurrentLocale = getLocale;
+
 // Export singleton instance for convenience
 export default {
   initI18n,
   getLocale,
+  getCurrentLocale,
   setLocale,
   toggleLocale,
   t,

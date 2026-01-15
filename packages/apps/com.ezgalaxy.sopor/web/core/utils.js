@@ -602,3 +602,42 @@ export function isMobile() {
 export function getDevicePixelRatio() {
   return window.devicePixelRatio || 1;
 }
+
+// ========== Additional random utilities ==========
+
+/**
+ * Generate random number between min and max
+ * @param {number} min 
+ * @param {number} max 
+ * @returns {number}
+ */
+export function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+/**
+ * Pick a random element from array
+ * @param {Array} arr 
+ * @returns {any}
+ */
+export function pickRandom(arr) {
+  if (!arr || arr.length === 0) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Alias for makeRng for compatibility
+ * @param {number} seed 
+ * @returns {RNG}
+ */
+export function createRNG(seed) {
+  return makeRng(seed);
+}
+
+/**
+ * Check if device is mobile
+ * @returns {boolean}
+ */
+export function isMobileDevice() {
+  return isMobile() || isTouchDevice();
+}

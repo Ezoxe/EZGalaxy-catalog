@@ -6,6 +6,10 @@
 import { APP_ID, SAVE_SCHEMA, PLAYER_HP_DEFAULT, PLAYER_ESSENCE_DEFAULT, PLAYER_ESSENCE_MAX_DEFAULT } from './constants.js';
 import { hash32, safeJsonParse, cloneDeep } from './utils.js';
 
+// Re-export constants for compatibility
+export const SAVE_KEY = `ezg:${APP_ID}:save`;
+export const SAVE_VERSION = SAVE_SCHEMA;
+
 // ========== Key Generation ==========
 
 /**
