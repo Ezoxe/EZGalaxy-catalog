@@ -168,3 +168,128 @@ export const BREAKPOINTS = Object.freeze({
   MOBILE_LANDSCAPE: 768,
   MOBILE_PORTRAIT: 480,
 });
+
+// Equipment slots
+export const EQUIPMENT_SLOTS = Object.freeze({
+  WEAPON: "weapon",
+  ARMOR: "armor",
+  ACCESSORY: "accessory",
+  ACCESSORY_1: "accessory_1",
+  ACCESSORY_2: "accessory_2",
+  CONSUMABLE: "consumable",
+});
+
+// Game states
+export const GAME_STATE = Object.freeze({
+  LOADING: "loading",
+  MENU: "menu",
+  PLAYING: "playing",
+  PAUSED: "paused",
+  DIALOGUE: "dialogue",
+  INVENTORY: "inventory",
+  DEAD: "dead",
+  CUTSCENE: "cutscene",
+});
+
+// Status effects
+export const STATUS_EFFECTS = Object.freeze({
+  BURN: "burn",
+  FREEZE: "freeze",
+  BLEED: "bleed",
+  STUN: "stun",
+  POISON: "poison",
+  SLOW: "slow",
+});
+
+// Skills tree definition
+export const SKILLS = Object.freeze({
+  // Eveil branch
+  MEDITATION: {
+    id: "meditation",
+    branch: "eveil",
+    icon: "🧘",
+    cost: 1,
+    prereqs: [],
+  },
+  INNER_SIGHT: {
+    id: "inner_sight",
+    branch: "eveil",
+    icon: "👁",
+    cost: 1,
+    prereqs: ["meditation"],
+  },
+  ESSENCE_REGEN: {
+    id: "essence_regen",
+    branch: "eveil",
+    icon: "✨",
+    cost: 2,
+    prereqs: ["inner_sight"],
+  },
+  AWAKENING: {
+    id: "awakening",
+    branch: "eveil",
+    icon: "🌟",
+    cost: 3,
+    prereqs: ["essence_regen"],
+  },
+  
+  // Combat branch
+  POWER_STRIKE: {
+    id: "power_strike",
+    branch: "combat",
+    icon: "⚔",
+    cost: 1,
+    prereqs: [],
+  },
+  COMBO_MASTER: {
+    id: "combo_master",
+    branch: "combat",
+    icon: "💥",
+    cost: 1,
+    prereqs: ["power_strike"],
+  },
+  CRITICAL_FOCUS: {
+    id: "critical_focus",
+    branch: "combat",
+    icon: "🎯",
+    cost: 2,
+    prereqs: ["combo_master"],
+  },
+  BERSERKER: {
+    id: "berserker",
+    branch: "combat",
+    icon: "😤",
+    cost: 3,
+    prereqs: ["critical_focus"],
+  },
+  
+  // Essence branch
+  ESSENCE_BOLT: {
+    id: "essence_bolt",
+    branch: "essence",
+    icon: "⚡",
+    cost: 1,
+    prereqs: [],
+  },
+  ESSENCE_SHIELD: {
+    id: "essence_shield",
+    branch: "essence",
+    icon: "🛡",
+    cost: 1,
+    prereqs: ["essence_bolt"],
+  },
+  ESSENCE_NOVA: {
+    id: "essence_nova",
+    branch: "essence",
+    icon: "💫",
+    cost: 2,
+    prereqs: ["essence_shield"],
+  },
+  ESSENCE_MASTERY: {
+    id: "essence_mastery",
+    branch: "essence",
+    icon: "🔮",
+    cost: 3,
+    prereqs: ["essence_nova"],
+  },
+});
