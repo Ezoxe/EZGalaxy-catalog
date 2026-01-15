@@ -680,6 +680,59 @@ export function startNewGamePlus(storyState, characterState) {
  * @property {string} [style]
  */
 
+// ========== Compatibility Aliases ==========
+
+/**
+ * Advance story to next act (compatibility wrapper)
+ * @param {object} storyState 
+ * @returns {object|null}
+ */
+export function advanceStory(storyState) {
+  const config = STORY_CONFIG[storyState.currentAct];
+  if (!config || !config.nextAct) return null;
+  return startAct(storyState, config.nextAct);
+}
+
+/**
+ * Check quest progress (compatibility wrapper)
+ * @param {object} storyState 
+ * @param {string} type 
+ * @param {number} amount 
+ * @returns {Array}
+ */
+export function checkQuestProgress(storyState, type, amount = 1) {
+  const results = [];
+  const actId = storyState.currentAct;
+  const actProgress = storyState.objectiveProgress[actId];
+  if (!actProgress) return results;
+  
+  for (const [objId, progress] of Object.entries(actProgress)) {
+    if (!progress.completed) {
+      const result = updateObjective(storyState, actId, objId, amount);
+      if (result.success) results.push(result);
+    }
+  }
+  return results;
+}
+
+/**
+ * Get dialogue for current act (compatibility wrapper)
+ * @param {object} storyState 
+ * @param {string} dialogueType 
+ * @returns {object|null}
+ */
+export function getDialogue(storyState, dialogueType) {
+  const config = STORY_CONFIG[storyState.currentAct];
+  if (!config) return null;
+  
+  switch (dialogueType) {
+    case 'intro': return config.introDialogue || null;
+    case 'completion': return config.completionDialogue || null;
+    case 'boss': return config.bossIntroDialogue || null;
+    default: return null;
+  }
+}
+
 export default {
   STORY_ACTS,
   STORY_CONFIG,
@@ -693,6 +746,9 @@ export default {
   areAllObjectivesComplete,
   completeAct,
   canStartAct,
+  advanceStory,
+  checkQuestProgress,
+  getDialogue,
   
   formatDialogue,
   createDialogueSequence,

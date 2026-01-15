@@ -640,6 +640,23 @@ function generateDungeonRewards(dungeon) {
  * @property {boolean} cleared
  */
 
+// ========== Compatibility Aliases ==========
+
+// Alias for generateFloor
+export const generateDungeonFloor = generateFloor;
+
+/**
+ * Get dungeon theme for stratum (compatibility wrapper)
+ * @param {string} stratum 
+ * @returns {string}
+ */
+export function getDungeonThemeForStratum(stratum) {
+  for (const [key, theme] of Object.entries(DUNGEON_THEMES)) {
+    if (theme.biomeOverride === stratum) return key;
+  }
+  return Object.keys(DUNGEON_THEMES)[0];
+}
+
 export default {
   DUNGEON_CONFIG,
   DUNGEON_THEMES,
@@ -647,6 +664,8 @@ export default {
   
   createDungeon,
   generateFloor,
+  generateDungeonFloor,
+  getDungeonThemeForStratum,
   
   isFloorCleared,
   updateFloorStatus,

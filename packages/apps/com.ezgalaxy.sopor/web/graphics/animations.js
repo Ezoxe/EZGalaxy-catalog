@@ -587,6 +587,11 @@ export function createEnemyAnimations(animator, archetype) {
   ], { loop: false });
 }
 
+// ========== Compatibility Aliases ==========
+
+// Alias for createFloatAnim
+export const createFloatingAnimation = createFloatAnim;
+
 export default {
   ANIMATION_TYPE,
   EASING,
@@ -616,6 +621,7 @@ export default {
   createWalkBob,
   createBreathingAnim,
   createFloatAnim,
+  createFloatingAnimation,
   createSpinAnim,
   
   // Presets

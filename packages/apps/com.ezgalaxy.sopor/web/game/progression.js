@@ -689,3 +689,34 @@ export default {
   createCharacterState,
   addXp,
 };
+
+// ========== Compatibility Aliases ==========
+
+// Alias for createCharacterState
+export const createPlayerProgression = createCharacterState;
+
+// Alias for addXp (camelCase variant)
+export const addXP = addXp;
+
+// Alias for upgradeSkill
+export const unlockSkill = upgradeSkill;
+
+// Alias for calculateFinalStats
+export const calculateStats = calculateFinalStats;
+
+/**
+ * Level up (compatibility wrapper)
+ * @param {object} character 
+ * @returns {object}
+ */
+export function levelUp(character) {
+  if (!character) return { success: false };
+  const xpNeeded = xpForLevel(character.level + 1);
+  if (character.xp >= xpNeeded) {
+    character.level++;
+    character.xp -= xpNeeded;
+    character.skillPoints = (character.skillPoints || 0) + 1;
+    return { success: true, newLevel: character.level };
+  }
+  return { success: false };
+}

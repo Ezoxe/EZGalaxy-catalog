@@ -658,6 +658,65 @@ function normalizeAngle(a) {
  * @property {Array} expired
  */
 
+// ========== Compatibility Aliases ==========
+
+/**
+ * Start an attack (compatibility wrapper)
+ * @param {CombatState} state 
+ * @param {object} weapon 
+ * @param {number} timestamp 
+ * @returns {boolean}
+ */
+export function startAttack(state, weapon, timestamp) {
+  if (!isAttackReady(state, weapon?.cooldownMs || 500)) return false;
+  markAttackUsed(state);
+  updateCombo(state, timestamp);
+  return true;
+}
+
+/**
+ * Update combat state (compatibility wrapper)
+ * @param {CombatState} state 
+ * @param {number} delta 
+ * @returns {object}
+ */
+export function updateCombat(state, delta) {
+  // Check invulnerability expiry
+  if (state.invulnerable && nowMs() >= state.invulnerableUntil) {
+    state.invulnerable = false;
+  }
+  // Check parry window expiry
+  if (state.parrying && nowMs() >= state.parryWindowEnd) {
+    endParry(state);
+  }
+  return { state };
+}
+
+/**
+ * Try to parry (compatibility wrapper)
+ * @param {CombatState} state 
+ * @returns {boolean}
+ */
+export function tryParry(state) {
+  return startParry(state);
+}
+
+/**
+ * Process combat damage (compatibility wrapper)
+ * @param {object} attacker 
+ * @param {object} defender 
+ * @param {object} damageResult 
+ * @param {object} options 
+ * @returns {object}
+ */
+export function processCombatDamage(attacker, defender, damageResult, options = {}) {
+  const parryResult = checkParry(defender.combatState || defender);
+  if (parryResult.parried) {
+    return processParry(attacker, defender, parryResult);
+  }
+  return applyDamage(defender, damageResult, options);
+}
+
 export default {
   createCombatState,
   updateCombo,
@@ -685,4 +744,9 @@ export default {
   markAttackUsed,
   calculateAimDirection,
   isInMeleeRange,
+  // Compatibility aliases
+  startAttack,
+  updateCombat,
+  tryParry,
+  processCombatDamage,
 };

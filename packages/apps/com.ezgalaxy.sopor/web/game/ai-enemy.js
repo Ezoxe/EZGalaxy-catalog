@@ -986,12 +986,50 @@ export function addDamageAggro(ai, sourceId, damage) {
  * @property {object|null} special
  */
 
+// ========== Compatibility Aliases ==========
+
+// Alias for ARCHETYPE_CONFIGS
+export const ENEMY_ARCHETYPES = ARCHETYPE_CONFIGS;
+
+// Alias for tickAI
+export const updateEnemy = tickAI;
+
+// Alias for pickArchetypeForStratum
+export const getArchetypeForStratum = pickArchetypeForStratum;
+
+/**
+ * Create a complete enemy entity
+ * @param {string} archetype - Enemy archetype
+ * @param {number} x - X position
+ * @param {number} y - Y position
+ * @param {number} threatLevel - Threat level multiplier
+ * @param {object} rng - Random number generator
+ * @returns {object} - Enemy entity
+ */
+export function createEnemy(archetype, x, y, threatLevel = 1, rng = null) {
+  return {
+    id: `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    archetype,
+    x,
+    y,
+    stats: createEnemyStats(archetype, threatLevel, rng),
+    ai: createAIState(),
+    alive: true,
+    facing: 0,
+    hitFlash: 0,
+  };
+}
+
 export default {
   ARCHETYPE_CONFIGS,
+  ENEMY_ARCHETYPES,
   STRATUM_ENEMIES,
   createEnemyStats,
+  createEnemy,
   pickArchetypeForStratum,
+  getArchetypeForStratum,
   createAIState,
   tickAI,
+  updateEnemy,
   addDamageAggro,
 };

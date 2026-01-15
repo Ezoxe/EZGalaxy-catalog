@@ -722,6 +722,65 @@ export function getExplorationPercent(worldState) {
  * @property {Array} items
  */
 
+// ========== Compatibility Aliases ==========
+
+/**
+ * Generate a complete world (compatibility wrapper)
+ * @param {number} seed 
+ * @param {string} biome 
+ * @param {number} width 
+ * @param {number} height 
+ * @returns {object}
+ */
+export function generateWorld(seed, biome, width = 100, height = 100) {
+  return createWorldState(seed, biome);
+}
+
+/**
+ * Create room data structure (compatibility wrapper)
+ * @param {object} room 
+ * @returns {object}
+ */
+export function createRoomData(room) {
+  return {
+    id: `room_${room.x}_${room.y}`,
+    ...room,
+    entities: [],
+    items: [],
+    cleared: false,
+  };
+}
+
+/**
+ * Get biome configuration (compatibility wrapper)
+ * @param {string} biome 
+ * @returns {object}
+ */
+export function getBiomeConfig(biome) {
+  return BIOME_CONFIG[biome] || BIOME_CONFIG[STRATA.JARDIN];
+}
+
+/**
+ * Place decorations in a room (compatibility wrapper)
+ * @param {object} room 
+ * @param {object} rng 
+ * @returns {Array}
+ */
+export function placeDecorations(room, rng) {
+  const decorations = [];
+  const count = rng ? rng.nextInt(5) + 2 : Math.floor(Math.random() * 5) + 2;
+  
+  for (let i = 0; i < count; i++) {
+    decorations.push({
+      x: room.x + (rng ? rng.nextRange(1, room.w - 1) : Math.random() * (room.w - 2) + 1),
+      y: room.y + (rng ? rng.nextRange(1, room.h - 1) : Math.random() * (room.h - 2) + 1),
+      type: 'decoration',
+      variant: rng ? rng.nextInt(4) : Math.floor(Math.random() * 4),
+    });
+  }
+  return decorations;
+}
+
 export default {
   WORLD_SIZE,
   ROOM_PARAMS,
@@ -732,6 +791,10 @@ export default {
   generateCorridors,
   createTileMap,
   createWorldState,
+  generateWorld,
+  createRoomData,
+  getBiomeConfig,
+  placeDecorations,
   
   isWalkable,
   getTileAt,

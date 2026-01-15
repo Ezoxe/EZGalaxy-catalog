@@ -618,12 +618,35 @@ export function createAmbientEffects(biome, bounds) {
   return system;
 }
 
+// ========== Compatibility Aliases ==========
+
+// Alias for createDashTrail
+export const createDashTrailEffect = createDashTrail;
+
+// Alias for renderParticles
+export const drawParticles = renderParticles;
+
+/**
+ * Create biome ambient effect (compatibility wrapper)
+ * @param {object} system 
+ * @param {string} biome 
+ * @param {number} x 
+ * @param {number} y 
+ * @param {number} width 
+ * @param {number} height 
+ * @returns {object}
+ */
+export function createBiomeAmbientEffect(system, biome, x, y, width, height) {
+  return createAmbientEffects(biome, { x, y, width, height });
+}
+
 export default {
   // Particle System
   createParticleSystem,
   addParticle,
   updateParticles,
   renderParticles,
+  drawParticles,
   
   // Emitters
   createEmitter,
@@ -632,9 +655,11 @@ export default {
   createHitEffect,
   createDeathEffect,
   createDashTrail,
+  createDashTrailEffect,
   createHealEffect,
   createLevelUpEffect,
   createStatusParticles,
+  createBiomeAmbientEffect,
   
   // Screen Effects
   createScreenShake,
