@@ -13,7 +13,22 @@
       box.style.fontSize = "12px";
       box.style.whiteSpace = "pre-wrap";
       box.style.zIndex = "999999";
-      const msg = err && (err.stack || err.message || String(err));
+      let msg = "";
+      if (err) {
+        if (err instanceof Event) {
+          // For Event objects (like script load errors), extract useful info
+          const target = err.target;
+          if (target && target.src) {
+            msg = `Failed to load: ${target.src}`;
+          } else if (target && target.href) {
+            msg = `Failed to load: ${target.href}`;
+          } else {
+            msg = `Event type: ${err.type || "unknown"}`;
+          }
+        } else {
+          msg = err.stack || err.message || String(err);
+        }
+      }
       box.textContent = `[Sopor bootstrap] ${title}\n\n${msg || "(no details)"}`;
       app.appendChild(box);
     } catch {
