@@ -253,7 +253,7 @@ export function createEnemyStats(archetype, threatLevel = 1, rng = null) {
 /**
  * Pick random archetype for stratum
  * @param {string} stratum 
- * @param {object} rng 
+ * @param {object} [rng] - Optional RNG, uses Math.random if not provided
  * @returns {string}
  */
 export function pickArchetypeForStratum(stratum, rng) {
@@ -262,7 +262,8 @@ export function pickArchetypeForStratum(stratum, rng) {
   let total = 0;
   for (const e of pool) total += e.weight;
   
-  let roll = rng.next() * total;
+  const random = rng ? rng.next() : Math.random();
+  let roll = random * total;
   for (const e of pool) {
     roll -= e.weight;
     if (roll <= 0) return e.archetype;
