@@ -105,10 +105,10 @@ export function progressionKey(usernameNorm) {
 
 /**
  * Create default world state for a new game
- * @param {string} usernameNorm - Normalized username
+ * @param {string} [usernameNorm] - Normalized username (defaults to 'player')
  * @returns {object}
  */
-export function defaultWorldState(usernameNorm) {
+export function defaultWorldState(usernameNorm = 'player') {
   const seed = hash32(usernameNorm);
   return {
     schema: SAVE_SCHEMA,
