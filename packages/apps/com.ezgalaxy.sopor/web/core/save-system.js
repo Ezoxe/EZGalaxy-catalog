@@ -10,6 +10,69 @@ import { hash32, safeJsonParse, cloneDeep } from './utils.js';
 export const SAVE_KEY = `ezg:${APP_ID}:save`;
 export const SAVE_VERSION = SAVE_SCHEMA;
 
+// ========== Storage Availability Check ==========
+
+/**
+ * Check if localStorage is available
+ * @returns {boolean}
+ */
+function isStorageAvailable() {
+  try {
+    const test = '__storage_test__';
+    localStorage.setItem(test, test);
+    localStorage.removeItem(test);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Cache the result
+const storageAvailable = isStorageAvailable();
+
+/**
+ * Safe localStorage getter
+ * @param {string} key 
+ * @returns {string|null}
+ */
+function safeGetItem(key) {
+  if (!storageAvailable) return null;
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Safe localStorage setter
+ * @param {string} key 
+ * @param {string} value 
+ * @returns {boolean}
+ */
+function safeSetItem(key, value) {
+  if (!storageAvailable) return false;
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Safe localStorage remover
+ * @param {string} key 
+ */
+function safeRemoveItem(key) {
+  if (!storageAvailable) return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore
+  }
+}
+
 // ========== Key Generation ==========
 
 /**
@@ -326,20 +389,18 @@ function ensureRequiredFields(state) {
  */
 export function loadSave(usernameNorm) {
   const key = saveKeyForUsernameNorm(usernameNorm);
-  const raw = localStorage.getItem(key);
+  const raw = safeGetItem(key);
   
   if (!raw) {
     // Try loading from older schema
     const oldKey = `ezg:${APP_ID}:save:v1:${usernameNorm}`;
-    const oldRaw = localStorage.getItem(oldKey);
+    const oldRaw = safeGetItem(oldKey);
     if (oldRaw) {
       const parsed = safeJsonParse(oldRaw, null);
       if (parsed) {
         const migrated = migrateWorldState(parsed);
         // Save migrated data to new key
         saveWorld(migrated);
-        // Optionally remove old save
-        // localStorage.removeItem(oldKey);
         return migrated;
       }
     }
@@ -361,6 +422,11 @@ export function saveWorld(state) {
   const copy = cloneDeep(state);
   copy.lastSavedAt = new Date().toISOString();
   
+  if (!storageAvailable) {
+    console.warn('localStorage not available, save skipped');
+    return copy;
+  }
+  
   try {
     localStorage.setItem(saveKeyForUsernameNorm(state.usernameNorm), JSON.stringify(copy));
   } catch (e) {
@@ -373,7 +439,7 @@ export function saveWorld(state) {
         localStorage.setItem(saveKeyForUsernameNorm(state.usernameNorm), JSON.stringify(copy));
       } catch {
         // Still failed, notify user
-        throw new Error('Storage full');
+        console.error('Storage full');
       }
     }
   }
@@ -386,8 +452,8 @@ export function saveWorld(state) {
  * @param {string} usernameNorm 
  */
 export function deleteSave(usernameNorm) {
-  localStorage.removeItem(saveKeyForUsernameNorm(usernameNorm));
-  localStorage.removeItem(progressionKey(usernameNorm));
+  safeRemoveItem(saveKeyForUsernameNorm(usernameNorm));
+  safeRemoveItem(progressionKey(usernameNorm));
 }
 
 /**
@@ -396,7 +462,7 @@ export function deleteSave(usernameNorm) {
  * @returns {boolean}
  */
 export function hasSave(usernameNorm) {
-  return localStorage.getItem(saveKeyForUsernameNorm(usernameNorm)) !== null;
+  return safeGetItem(saveKeyForUsernameNorm(usernameNorm)) !== null;
 }
 
 // ========== Settings Operations ==========
@@ -406,7 +472,7 @@ export function hasSave(usernameNorm) {
  * @returns {object}
  */
 export function loadSettings() {
-  const raw = localStorage.getItem(settingsKey());
+  const raw = safeGetItem(settingsKey());
   const saved = safeJsonParse(raw ?? "", null);
   const defaults = defaultSettings();
   
@@ -421,7 +487,7 @@ export function loadSettings() {
  * @param {object} settings 
  */
 export function saveSettings(settings) {
-  localStorage.setItem(settingsKey(), JSON.stringify(settings));
+  safeSetItem(settingsKey(), JSON.stringify(settings));
 }
 
 /**
@@ -442,15 +508,21 @@ export function updateSetting(key, value) {
  * @returns {string[]}
  */
 export function getAllSavedUsernames() {
+  if (!storageAvailable) return [];
+  
   const prefix = `ezg:${APP_ID}:save:v${SAVE_SCHEMA}:`;
   const usernames = [];
   
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith(prefix)) {
-      const username = key.slice(prefix.length);
-      usernames.push(username);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) {
+        const username = key.slice(prefix.length);
+        usernames.push(username);
+      }
     }
+  } catch (e) {
+    console.warn('Failed to enumerate saves:', e);
   }
   
   return usernames;
@@ -460,26 +532,32 @@ export function getAllSavedUsernames() {
  * Cleanup old saves (from older schema versions)
  */
 export function cleanupOldSaves() {
+  if (!storageAvailable) return;
+  
   const oldPrefixes = [
     `ezg:${APP_ID}:save:v1:`,
   ];
   
   const keysToRemove = [];
   
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key) {
-      for (const prefix of oldPrefixes) {
-        if (key.startsWith(prefix)) {
-          keysToRemove.push(key);
-          break;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        for (const prefix of oldPrefixes) {
+          if (key.startsWith(prefix)) {
+            keysToRemove.push(key);
+            break;
+          }
         }
       }
     }
-  }
-  
-  for (const key of keysToRemove) {
-    localStorage.removeItem(key);
+    
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+  } catch (e) {
+    console.warn('Failed to cleanup old saves:', e);
   }
   
   return keysToRemove.length;
@@ -518,7 +596,7 @@ export function importSave(jsonString) {
  * @returns {number}
  */
 export function getSaveSize(usernameNorm) {
-  const raw = localStorage.getItem(saveKeyForUsernameNorm(usernameNorm));
+  const raw = safeGetItem(saveKeyForUsernameNorm(usernameNorm));
   if (!raw) return 0;
   return new Blob([raw]).size;
 }
@@ -528,12 +606,20 @@ export function getSaveSize(usernameNorm) {
  * @returns {{used: number, total: number, percent: number}}
  */
 export function getStorageUsage() {
+  if (!storageAvailable) {
+    return { used: 0, total: 0, percent: 0 };
+  }
+  
   let used = 0;
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key) {
-      used += key.length + (localStorage.getItem(key)?.length || 0);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        used += key.length + (localStorage.getItem(key)?.length || 0);
+      }
     }
+  } catch (e) {
+    console.warn('Failed to calculate storage usage:', e);
   }
   
   // localStorage typically has 5MB limit

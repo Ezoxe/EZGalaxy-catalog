@@ -8,10 +8,27 @@ let currentLocale = 'fr';
 let translations = {};
 let loadedLocales = new Set();
 
+// Safe localStorage helpers
+function safeGetItem(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage not available in sandbox
+  }
+}
+
 // Locale detection
 function detectLocale() {
   // Check localStorage first
-  const stored = localStorage.getItem('sopor:locale');
+  const stored = safeGetItem('sopor:locale');
   if (stored && (stored === 'fr' || stored === 'en')) {
     return stored;
   }
@@ -82,7 +99,7 @@ export async function setLocale(locale) {
   }
   
   currentLocale = locale;
-  localStorage.setItem('sopor:locale', locale);
+  safeSetItem('sopor:locale', locale);
   
   await loadLocale(locale);
   
