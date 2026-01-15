@@ -85,6 +85,20 @@ export const STRATA_COLORS = Object.freeze({
   [STRATA.DUNGEON]: { primary: 0x8080a0, secondary: 0x606080, accent: 0x505070 },
 });
 
+// Tile types
+export const TILE_TYPES = Object.freeze({
+  FLOOR: 0,
+  WALL: 1,
+  VOID: 2,
+  WATER: 3,
+  HAZARD: 4,
+  DOOR: 5,
+  CHEST: 6,
+  PORTAL: 7,
+  SPAWN: 8,
+  EXIT: 9,
+});
+
 // Weapon rarities
 export const RARITY = Object.freeze({
   COMMON: "common",
