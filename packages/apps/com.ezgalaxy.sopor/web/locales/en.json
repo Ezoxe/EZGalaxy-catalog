@@ -1,0 +1,316 @@
+{
+  "game": {
+    "title": "Sopor",
+    "subtitle": "The Architect's Slumber",
+    "tagline": "Offline • Pixel • Quests"
+  },
+  "strata": {
+    "jardin": "Garden",
+    "forge": "Forge",
+    "abime": "Abyss",
+    "nexus": "Nexus",
+    "dungeon": "Dungeon"
+  },
+  "ui": {
+    "panel": "Panel",
+    "sound": "Sound",
+    "soundOn": "Sound: 🔊",
+    "soundOff": "Sound: 🔇",
+    "reset": "Reset (local)",
+    "start": "Start",
+    "load": "Load",
+    "deleteSave": "Delete Save",
+    "pause": "Pause",
+    "resume": "Resume",
+    "settings": "Settings",
+    "language": "Language",
+    "controls": "Controls",
+    "journal": "Journal",
+    "inventory": "Inventory",
+    "skills": "Skills",
+    "map": "Map",
+    "close": "Close",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "boot": {
+    "title": "Username",
+    "label": "Enter your username (required at each launch)",
+    "placeholder": "e.g.: Awakener_7",
+    "noUser": "No username",
+    "note": "Note",
+    "story": "Story"
+  },
+  "controls": {
+    "title": "Controls",
+    "movement": "Move: ZQSD / WASD / Arrows",
+    "attack": "Attack: Left click or Space",
+    "dodge": "Dodge: SHIFT",
+    "skills": "Skills: E (Dash) • R (Shockwave)",
+    "parry": "Parry: Right click",
+    "interact": "Interact (NPC / Pillar): F",
+    "weapon": "Change weapon: 1–9",
+    "panel": "Panel: TAB",
+    "pause": "Pause: Escape",
+    "touchMove": "Left joystick: Move",
+    "touchAttack": "Right zone: Attack",
+    "touchDodge": "Button: Dodge",
+    "touchDash": "Button: Dash"
+  },
+  "hud": {
+    "hp": "HP",
+    "essence": "Essence",
+    "weapon": "Weapon",
+    "type": "Type",
+    "stratum": "Stratum",
+    "threat": "Threat",
+    "stability": "Stability",
+    "danger": "Danger",
+    "combo": "Combo",
+    "level": "Level",
+    "xp": "XP"
+  },
+  "skills": {
+    "dodge": "Dodge",
+    "dash": "Dash",
+    "shockwave": "Shockwave",
+    "parry": "Parry",
+    "ready": "Ready",
+    "cooldown": "Cooldown"
+  },
+  "skillTree": {
+    "title": "Skill Tree",
+    "eveil": "Awakening",
+    "combat": "Combat",
+    "essence": "Essence",
+    "pointsAvailable": "Points available: {{count}}",
+    "unlock": "Unlock",
+    "maxed": "Maxed",
+    "locked": "Locked",
+    "skills": {
+      "vitality": {
+        "name": "Vitality",
+        "desc": "Increases max HP by {{value}}%"
+      },
+      "regeneration": {
+        "name": "Regeneration",
+        "desc": "Recover {{value}} HP per second out of combat"
+      },
+      "swiftness": {
+        "name": "Swiftness",
+        "desc": "Movement speed +{{value}}%"
+      },
+      "perception": {
+        "name": "Perception",
+        "desc": "Detect hidden enemies and treasures"
+      },
+      "criticalStrike": {
+        "name": "Critical Strike",
+        "desc": "Critical chance +{{value}}%"
+      },
+      "brutalForce": {
+        "name": "Brutal Force",
+        "desc": "Melee damage +{{value}}%"
+      },
+      "precision": {
+        "name": "Precision",
+        "desc": "Ranged damage +{{value}}%"
+      },
+      "comboMaster": {
+        "name": "Combo Master",
+        "desc": "Combo bonus +{{value}}% per stage"
+      },
+      "essencePool": {
+        "name": "Essence Pool",
+        "desc": "Max essence +{{value}}"
+      },
+      "efficiency": {
+        "name": "Efficiency",
+        "desc": "Essence cost reduced by {{value}}%"
+      },
+      "absorption": {
+        "name": "Absorption",
+        "desc": "Recover {{value}}% essence on kill"
+      },
+      "overcharge": {
+        "name": "Overcharge",
+        "desc": "Damage +{{value}}% when essence > 80%"
+      }
+    }
+  },
+  "combat": {
+    "critical": "CRITICAL!",
+    "miss": "Miss",
+    "parried": "Parried!",
+    "blocked": "Blocked",
+    "stunned": "Stunned",
+    "immune": "Immune",
+    "combo": "Combo x{{stage}}",
+    "finisher": "FINISHER!",
+    "status": {
+      "burn": "Burn",
+      "freeze": "Freeze",
+      "bleed": "Bleed",
+      "stun": "Stun",
+      "poison": "Poison",
+      "slow": "Slow"
+    }
+  },
+  "quest": {
+    "title": "Collaborative Weave: Repair the Grand Lighthouse",
+    "collect": "Gather Luminous Fibers",
+    "protect": "Protect the Workers",
+    "repair": "Repair the Lighthouse (inject Essence)",
+    "community": "Community",
+    "contribution": "Your contribution",
+    "progress": "{{current}} / {{required}}",
+    "completed": "Quest completed!",
+    "newQuest": "New quest available!",
+    "reward": "Reward: {{reward}}"
+  },
+  "items": {
+    "essence": "Chromatic Essence",
+    "fiber": "Luminous Fiber",
+    "key": "Oniric Key",
+    "relic": "Relic Fragment",
+    "dust": "Abyssal Dust",
+    "herb": "Dream Herb",
+    "ore": "Forged Ore",
+    "shard": "Nexus Shard"
+  },
+  "npc": {
+    "merchant": "Merchant",
+    "questGiver": "Quest Giver",
+    "wanderer": "Wanderer",
+    "guard": "Guard",
+    "worker": "Worker",
+    "sage": "Sage"
+  },
+  "messages": {
+    "ready": "Ready. Enter your username then Start.",
+    "worldStart": "Starting world for {{username}}...",
+    "saveLoaded": "Save loaded.",
+    "saveCreated": "New game created.",
+    "noEssence": "You don't have enough Chromatic Essence.",
+    "needEssence": "You need Essence to interact.",
+    "pillarFed": "Pillar fed! Stability +{{amount}}",
+    "chestOpen": "Chest opened: +{{essence}} Essence",
+    "chestLocked": "Chest locked. Oniric Key required.",
+    "dungeonChest": "Dungeon Chest: +{{essence}} Essence",
+    "merchantEmpty": "Merchant: nothing left to sell for now.",
+    "merchantBuy": "Purchase successful: {{weapon}}",
+    "workerDown": "A worker collapses. The Weave trembles.",
+    "questComplete": "Quest step completed!",
+    "deathMessage": "You sink into oblivion...",
+    "respawn": "You awaken at the anchor point.",
+    "bossDefeat": "The guardian is defeated!",
+    "bossEncounter": "A guardian blocks the way...",
+    "newWeapon": "New weapon unlocked: {{weapon}}",
+    "levelUp": "Level up! Skill point available.",
+    "secretFound": "Secret passage discovered!",
+    "trapTriggered": "Trap triggered!",
+    "dungeonEnter": "You enter the dungeon...",
+    "dungeonExit": "You exit the dungeon.",
+    "nexusUnlocked": "The Nexus opens before you..."
+  },
+  "errors": {
+    "usernameRequired": "Username required.",
+    "saveFailed": "Save failed.",
+    "loadFailed": "Load failed.",
+    "audioUnavailable": "WebAudio unavailable.",
+    "connectionError": "Connection error."
+  },
+  "weaponTypes": {
+    "melee": "Melee",
+    "projectile": "Ranged",
+    "hybrid": "Hybrid"
+  },
+  "weapons": {
+    "sword_neon": "Neon Sword",
+    "dagger_glitch": "Glitch Dagger",
+    "axe_root": "Root Axe",
+    "mace_pulse": "Pulse Mace",
+    "spear_lumen": "Lumen Spear",
+    "scythe_reaper": "Memory Scythe",
+    "pitchfork_garden": "Garden Fork",
+    "bow_arc": "Arcadia Bow",
+    "crossbow_forge": "Forge Crossbow",
+    "slingshot_pocket": "Pocket Slingshot",
+    "wand_mnemosyne": "Mnemosyne Wand",
+    "grimoire_flicker": "Flickering Grimoire",
+    "chakram_loop": "Loop Chakram",
+    "whip_vine": "Vein Whip",
+    "essence_cannon": "Essence Cannon",
+    "needle_gun": "Needle Pistol",
+    "scythe_temporal": "Temporal Scythe",
+    "gauntlets_dream": "Dream Gauntlets",
+    "spear_shadow": "Shadow Spear",
+    "whip_plasma": "Plasma Whip",
+    "bow_spectral": "Spectral Bow",
+    "scepter_corruption": "Corruption Scepter",
+    "blade_twin": "Twin Blade",
+    "hammer_nexus": "Nexus Hammer",
+    "pistol_dream": "Dream Pistol",
+    "chains_awakening": "Awakening Chains",
+    "orb_ancestral": "Ancestral Orb",
+    "sword_architect": "Architect's Sword"
+  },
+  "rarity": {
+    "common": "Common",
+    "uncommon": "Uncommon",
+    "rare": "Rare",
+    "epic": "Epic",
+    "legendary": "Legendary"
+  },
+  "danger": {
+    "low": "Low",
+    "mid": "Moderate",
+    "high": "High",
+    "extreme": "Extreme"
+  },
+  "bosses": {
+    "guardian_roots": {
+      "name": "Guardian of Roots",
+      "intro": "The roots stir... The Garden's guardian awakens!"
+    },
+    "forger_nightmare": {
+      "name": "Nightmare Forger",
+      "intro": "The flames roar... The master of the Forge approaches!"
+    },
+    "lord_crystal": {
+      "name": "Crystal Lord",
+      "intro": "The crystals resonate... The lord of the Abyss manifests!"
+    },
+    "architect_fallen": {
+      "name": "The Fallen Architect",
+      "intro": "The Weave trembles... The Architect confronts you!"
+    }
+  },
+  "story": {
+    "intro": "You awaken in the Weave, a world of dreams in decline...",
+    "jardinComplete": "The Garden regains its light. The Forge awaits.",
+    "forgeComplete": "The Forge's flames are tamed. The Abyss opens.",
+    "abimeComplete": "The Abyss crystals resonate. The Nexus is revealed.",
+    "finale": "The Architect awaits you at the heart of the Nexus...",
+    "endingRedemption": "You have restored balance to the Weave. The dream endures.",
+    "endingCorruption": "Corruption has consumed you. The Weave collapses into oblivion.",
+    "endingTranscendence": "You transcend the Weave. A new dream begins, and you are its Architect.",
+    "lore": {
+      "weave": "The Weave is the fabric of dreams, created by the Architect to shelter sleeping souls.",
+      "awakener": "Awakeners are those who can manipulate Essence, the life force of the Weave.",
+      "corruption": "Corruption gnaws at the Weave since the Architect fell into endless slumber.",
+      "lighthouse": "The Grand Lighthouse once guided lost dreamers. Its light must be restored."
+    }
+  },
+  "tutorial": {
+    "welcome": "Welcome, Awakener. Learn to master your powers.",
+    "movement": "Use {{keys}} to move.",
+    "attack": "Click or press Space to attack.",
+    "essence": "Essence is your life force. Manage it wisely.",
+    "dodge": "Dodge with SHIFT to avoid attacks.",
+    "combo": "Chain attacks to create combos!",
+    "complete": "You are ready. May the Weave guide you!"
+  }
+}

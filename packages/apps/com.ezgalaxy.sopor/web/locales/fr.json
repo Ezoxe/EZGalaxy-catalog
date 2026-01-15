@@ -1,0 +1,316 @@
+{
+  "game": {
+    "title": "Sopor",
+    "subtitle": "Le Sommeil de l'Architecte",
+    "tagline": "Offline • Pixel • Quêtes"
+  },
+  "strata": {
+    "jardin": "Jardin",
+    "forge": "Forge",
+    "abime": "Abîme",
+    "nexus": "Nexus",
+    "dungeon": "Donjon"
+  },
+  "ui": {
+    "panel": "Panneau",
+    "sound": "Son",
+    "soundOn": "Son: 🔊",
+    "soundOff": "Son: 🔇",
+    "reset": "Reset (local)",
+    "start": "Démarrer",
+    "load": "Charger",
+    "deleteSave": "Supprimer save",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "settings": "Options",
+    "language": "Langue",
+    "controls": "Contrôles",
+    "journal": "Journal",
+    "inventory": "Inventaire",
+    "skills": "Compétences",
+    "map": "Carte",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "cancel": "Annuler",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "boot": {
+    "title": "Pseudo",
+    "label": "Entre ton pseudo (requis à chaque lancement)",
+    "placeholder": "ex: Eveilleur_7",
+    "noUser": "Aucun pseudo",
+    "note": "Note",
+    "story": "Histoire"
+  },
+  "controls": {
+    "title": "Contrôles",
+    "movement": "Déplacement: ZQSD / WASD / flèches",
+    "attack": "Attaque: clic gauche ou Espace",
+    "dodge": "Esquive: SHIFT",
+    "skills": "Compétences: E (Dash) • R (Onde)",
+    "parry": "Parade: Clic droit",
+    "interact": "Interaction (PNJ / Pilier): F",
+    "weapon": "Changer d'arme: 1–9",
+    "panel": "Panneau: TAB",
+    "pause": "Pause: Échap",
+    "touchMove": "Joystick gauche: Déplacement",
+    "touchAttack": "Zone droite: Attaque",
+    "touchDodge": "Bouton: Esquive",
+    "touchDash": "Bouton: Dash"
+  },
+  "hud": {
+    "hp": "PV",
+    "essence": "Essence",
+    "weapon": "Arme",
+    "type": "Type",
+    "stratum": "Strate",
+    "threat": "Menace",
+    "stability": "Stabilité",
+    "danger": "Danger",
+    "combo": "Combo",
+    "level": "Niveau",
+    "xp": "XP"
+  },
+  "skills": {
+    "dodge": "Esquive",
+    "dash": "Dash",
+    "shockwave": "Onde",
+    "parry": "Parade",
+    "ready": "Prêt",
+    "cooldown": "Recharge"
+  },
+  "skillTree": {
+    "title": "Arbre de Compétences",
+    "eveil": "Éveil",
+    "combat": "Combat",
+    "essence": "Essence",
+    "pointsAvailable": "Points disponibles: {{count}}",
+    "unlock": "Débloquer",
+    "maxed": "Maximum",
+    "locked": "Verrouillé",
+    "skills": {
+      "vitality": {
+        "name": "Vitalité",
+        "desc": "Augmente les PV maximum de {{value}}%"
+      },
+      "regeneration": {
+        "name": "Régénération",
+        "desc": "Récupère {{value}} PV par seconde hors combat"
+      },
+      "swiftness": {
+        "name": "Célérité",
+        "desc": "Vitesse de déplacement +{{value}}%"
+      },
+      "perception": {
+        "name": "Perception",
+        "desc": "Détecte les ennemis et trésors cachés"
+      },
+      "criticalStrike": {
+        "name": "Coup Critique",
+        "desc": "Chance de critique +{{value}}%"
+      },
+      "brutalForce": {
+        "name": "Force Brutale",
+        "desc": "Dégâts de mêlée +{{value}}%"
+      },
+      "precision": {
+        "name": "Précision",
+        "desc": "Dégâts à distance +{{value}}%"
+      },
+      "comboMaster": {
+        "name": "Maître du Combo",
+        "desc": "Bonus de combo +{{value}}% par étape"
+      },
+      "essencePool": {
+        "name": "Réserve d'Essence",
+        "desc": "Essence maximum +{{value}}"
+      },
+      "efficiency": {
+        "name": "Efficacité",
+        "desc": "Coût en essence réduit de {{value}}%"
+      },
+      "absorption": {
+        "name": "Absorption",
+        "desc": "Récupère {{value}}% d'essence sur kill"
+      },
+      "overcharge": {
+        "name": "Surcharge",
+        "desc": "Dégâts +{{value}}% quand essence > 80%"
+      }
+    }
+  },
+  "combat": {
+    "critical": "CRITIQUE!",
+    "miss": "Raté",
+    "parried": "Paré!",
+    "blocked": "Bloqué",
+    "stunned": "Étourdi",
+    "immune": "Immunisé",
+    "combo": "Combo x{{stage}}",
+    "finisher": "FINISHER!",
+    "status": {
+      "burn": "Brûlure",
+      "freeze": "Gel",
+      "bleed": "Saignement",
+      "stun": "Étourdissement",
+      "poison": "Poison",
+      "slow": "Ralentissement"
+    }
+  },
+  "quest": {
+    "title": "Trame Collaborative: Réparer le Grand Phare",
+    "collect": "Récolter des Fibres Lumineuses",
+    "protect": "Protéger les Ouvriers",
+    "repair": "Réparer le Phare (injecter l'Essence)",
+    "community": "Communauté",
+    "contribution": "Ta contribution",
+    "progress": "{{current}} / {{required}}",
+    "completed": "Quête complétée!",
+    "newQuest": "Nouvelle quête disponible!",
+    "reward": "Récompense: {{reward}}"
+  },
+  "items": {
+    "essence": "Essence Chromatique",
+    "fiber": "Fibre Lumineuse",
+    "key": "Clé Onirique",
+    "relic": "Fragment de Relique",
+    "dust": "Poussière Abyssale",
+    "herb": "Herbe de Songe",
+    "ore": "Minerai Forgé",
+    "shard": "Éclat de Nexus"
+  },
+  "npc": {
+    "merchant": "Marchand",
+    "questGiver": "Donneur de Quête",
+    "wanderer": "Vagabond",
+    "guard": "Garde",
+    "worker": "Ouvrier",
+    "sage": "Sage"
+  },
+  "messages": {
+    "ready": "Prêt. Saisis ton pseudo puis Démarrer.",
+    "worldStart": "Démarrage du monde pour {{username}}...",
+    "saveLoaded": "Sauvegarde chargée.",
+    "saveCreated": "Nouvelle partie créée.",
+    "noEssence": "Tu n'as plus assez d'Essence Chromatique.",
+    "needEssence": "Il te faut de l'Essence pour interagir.",
+    "pillarFed": "Pilier alimenté! Stabilité +{{amount}}",
+    "chestOpen": "Coffre ouvert: +{{essence}} Essence",
+    "chestLocked": "Coffre verrouillé. Clé Onirique requise.",
+    "dungeonChest": "Coffre du Donjon: +{{essence}} Essence",
+    "merchantEmpty": "Marchand: plus rien à vendre pour l'instant.",
+    "merchantBuy": "Achat réussi: {{weapon}}",
+    "workerDown": "Un ouvrier s'effondre. La Trame tremble.",
+    "questComplete": "Étape de quête complétée!",
+    "deathMessage": "Tu sombres dans l'oubli...",
+    "respawn": "Tu te réveilles au point d'ancrage.",
+    "bossDefeat": "Le gardien est vaincu!",
+    "bossEncounter": "Un gardien bloque le passage...",
+    "newWeapon": "Nouvelle arme débloquée: {{weapon}}",
+    "levelUp": "Niveau supérieur! Compétence disponible.",
+    "secretFound": "Passage secret découvert!",
+    "trapTriggered": "Piège déclenché!",
+    "dungeonEnter": "Tu pénètres dans le donjon...",
+    "dungeonExit": "Tu quittes le donjon.",
+    "nexusUnlocked": "Le Nexus s'ouvre devant toi..."
+  },
+  "errors": {
+    "usernameRequired": "Pseudo requis.",
+    "saveFailed": "Échec de la sauvegarde.",
+    "loadFailed": "Échec du chargement.",
+    "audioUnavailable": "WebAudio indisponible.",
+    "connectionError": "Erreur de connexion."
+  },
+  "weaponTypes": {
+    "melee": "Mêlée",
+    "projectile": "Distance",
+    "hybrid": "Hybride"
+  },
+  "weapons": {
+    "sword_neon": "Épée Néon",
+    "dagger_glitch": "Dague Glitch",
+    "axe_root": "Hache des Racines",
+    "mace_pulse": "Masse à Impulsion",
+    "spear_lumen": "Lance Lumen",
+    "scythe_reaper": "Faux du Souvenir",
+    "pitchfork_garden": "Fourche du Jardin",
+    "bow_arc": "Arc d'Arcadie",
+    "crossbow_forge": "Arbalète de Forge",
+    "slingshot_pocket": "Lance-pierre de Poche",
+    "wand_mnemosyne": "Baguette Mnémosyne",
+    "grimoire_flicker": "Grimoire Scintillant",
+    "chakram_loop": "Chakram Boucleur",
+    "whip_vine": "Fouet de Veines",
+    "essence_cannon": "Canon à Essence",
+    "needle_gun": "Pistolet à Aiguilles",
+    "scythe_temporal": "Faux Temporelle",
+    "gauntlets_dream": "Gantelets de Rêve",
+    "spear_shadow": "Lance d'Ombre",
+    "whip_plasma": "Fouet de Plasma",
+    "bow_spectral": "Arc Spectral",
+    "scepter_corruption": "Sceptre de Corruption",
+    "blade_twin": "Lame Jumelle",
+    "hammer_nexus": "Marteau du Nexus",
+    "pistol_dream": "Pistolet à Rêves",
+    "chains_awakening": "Chaînes d'Éveil",
+    "orb_ancestral": "Orbe Ancestral",
+    "sword_architect": "Épée de l'Architecte"
+  },
+  "rarity": {
+    "common": "Commun",
+    "uncommon": "Peu commun",
+    "rare": "Rare",
+    "epic": "Épique",
+    "legendary": "Légendaire"
+  },
+  "danger": {
+    "low": "Faible",
+    "mid": "Modéré",
+    "high": "Élevé",
+    "extreme": "Extrême"
+  },
+  "bosses": {
+    "guardian_roots": {
+      "name": "Gardien des Racines",
+      "intro": "Les racines s'animent... Le gardien du Jardin s'éveille!"
+    },
+    "forger_nightmare": {
+      "name": "Forgeur de Cauchemars",
+      "intro": "Les flammes rugissent... Le maître de la Forge approche!"
+    },
+    "lord_crystal": {
+      "name": "Seigneur Cristallin",
+      "intro": "Les cristaux résonnent... Le seigneur de l'Abîme se manifeste!"
+    },
+    "architect_fallen": {
+      "name": "L'Architecte Déchu",
+      "intro": "La Trame tremble... L'Architecte te fait face!"
+    }
+  },
+  "story": {
+    "intro": "Tu t'éveilles dans la Trame, un monde de rêves en déclin...",
+    "jardinComplete": "Le Jardin retrouve sa lumière. La Forge t'attend.",
+    "forgeComplete": "Les flammes de la Forge sont domptées. L'Abîme s'ouvre.",
+    "abimeComplete": "Les cristaux de l'Abîme résonnent. Le Nexus se révèle.",
+    "finale": "L'Architecte t'attend au cœur du Nexus...",
+    "endingRedemption": "Tu as restauré l'équilibre de la Trame. Le rêve perdure.",
+    "endingCorruption": "La corruption t'a consumé. La Trame s'effondre dans l'oubli.",
+    "endingTranscendence": "Tu transcendes la Trame. Un nouveau rêve commence, et tu en es l'Architecte.",
+    "lore": {
+      "weave": "La Trame est le tissu des rêves, créée par l'Architecte pour abriter les âmes endormies.",
+      "awakener": "Les Éveilleurs sont ceux qui peuvent manipuler l'Essence, la force vitale de la Trame.",
+      "corruption": "La corruption ronge la Trame depuis que l'Architecte a sombré dans un sommeil sans fin.",
+      "lighthouse": "Le Grand Phare guidait autrefois les rêveurs perdus. Sa lumière doit être restaurée."
+    }
+  },
+  "tutorial": {
+    "welcome": "Bienvenue, Éveilleur. Apprends à maîtriser tes pouvoirs.",
+    "movement": "Utilise {{keys}} pour te déplacer.",
+    "attack": "Clique ou appuie sur Espace pour attaquer.",
+    "essence": "L'Essence est ta force vitale. Gère-la avec soin.",
+    "dodge": "Esquive avec SHIFT pour éviter les attaques.",
+    "combo": "Enchaîne les attaques pour créer des combos!",
+    "complete": "Tu es prêt. Que la Trame te guide!"
+  }
+}

@@ -83,10 +83,11 @@
   const url = new URL(location.href);
   const params = url.searchParams;
   const rawEngine = (params.get("engine") || "").toLowerCase();
-  const engine = rawEngine === "2d" ? "2d" : "3d";
+  // v2 = new modular architecture, 2d = legacy Phaser, 3d = Three.js
+  const engine = rawEngine === "2d" ? "2d" : rawEngine === "3d" ? "3d" : "v2";
 
-  // Canonicalize: treat `?engine=3d` as the base URL and strip it.
-  if (rawEngine === "3d") {
+  // Canonicalize: treat `?engine=v2` as the base URL and strip it.
+  if (rawEngine === "v2" || rawEngine === "") {
     try {
       params.delete("engine");
       url.search = params.toString();
@@ -116,6 +117,7 @@
     document.head.appendChild(s);
   };
 
+  // Legacy 2D engine (Phaser)
   if (engine === "2d") {
     loadScript("vendor/phaser.min.js")
       .then(() => loadScript("weapons.js"))
@@ -127,6 +129,12 @@
     return;
   }
 
-  // Default: new 3D engine (Three.js)
-  loadModule("app3d.js");
+  // 3D engine (Three.js)
+  if (engine === "3d") {
+    loadModule("app3d.js");
+    return;
+  }
+
+  // Default: new modular v2 architecture (ES6 modules, Canvas 2D)
+  loadModule("app-v2.js");
 })();
