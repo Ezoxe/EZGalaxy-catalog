@@ -17,7 +17,7 @@ import {
 } from './core/utils.js';
 
 import { 
-  t, setLocale, toggleLocale, getCurrentLocale 
+  initI18n, t, setLocale, toggleLocale, getCurrentLocale 
 } from './core/i18n.js';
 
 import { 
@@ -215,27 +215,31 @@ let mouse = { x: 0, y: 0, down: false };
  * Initialize game
  */
 export async function init() {
-  console.log('SOPOR v2.0.0 - Initializing...');
-  
-  // Get canvas
-  canvas = document.getElementById('game-canvas');
-  if (!canvas) {
-    canvas = document.createElement('canvas');
-    canvas.id = 'game-canvas';
-    document.body.appendChild(canvas);
-  }
-  
-  ctx = canvas.getContext('2d');
-  
-  // Set canvas size
-  resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
-  
-  // Initialize audio
-  initAudio();
-  
-  // Initialize systems
-  initSystems();
+  try {
+    console.log('SOPOR v2.0.0 - Initializing...');
+    
+    // Initialize i18n first
+    await initI18n();
+    
+    // Get canvas
+    canvas = document.getElementById('game-canvas');
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.id = 'game-canvas';
+      document.body.appendChild(canvas);
+    }
+    
+    ctx = canvas.getContext('2d');
+    
+    // Set canvas size
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    // Initialize audio
+    initAudio();
+    
+    // Initialize systems
+    initSystems();
   
   // Load save
   worldState = loadSave();
@@ -257,6 +261,12 @@ export async function init() {
   requestAnimationFrame(gameLoop);
   
   console.log('SOPOR initialized successfully');
+  } catch (err) {
+    console.error('SOPOR initialization failed:', err);
+    // Display error on screen
+    const app = document.getElementById('app') || document.body;
+    app.innerHTML = `<div style="color:#ff4466;padding:20px;font-family:monospace;white-space:pre-wrap;">[SOPOR] Init error:\n${err?.stack || err}</div>`;
+  }
 }
 
 /**
@@ -1178,7 +1188,7 @@ export {
 
 // Auto-initialize when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => init().catch(console.error));
 } else {
-  init();
+  init().catch(console.error);
 }
