@@ -4,6 +4,16 @@
     "subtitle": "Le Sommeil de l'Architecte",
     "tagline": "Offline • Pixel • Quêtes"
   },
+  "menu": {
+    "title": "SOPOR",
+    "subtitle": "Le Sommeil de l'Architecte",
+    "start": "Appuie sur une touche ou clique pour commencer",
+    "continue": "Continuer",
+    "new_game": "Nouvelle partie",
+    "settings": "Options",
+    "credits": "Crédits",
+    "quit": "Quitter"
+  },
   "strata": {
     "jardin": "Jardin",
     "forge": "Forge",

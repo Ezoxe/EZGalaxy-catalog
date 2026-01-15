@@ -4,6 +4,16 @@
     "subtitle": "The Architect's Slumber",
     "tagline": "Offline • Pixel • Quests"
   },
+  "menu": {
+    "title": "SOPOR",
+    "subtitle": "The Architect's Slumber",
+    "start": "Press any key or click to start",
+    "continue": "Continue",
+    "new_game": "New Game",
+    "settings": "Settings",
+    "credits": "Credits",
+    "quit": "Quit"
+  },
   "strata": {
     "jardin": "Garden",
     "forge": "Forge",

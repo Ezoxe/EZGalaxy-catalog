@@ -1077,7 +1077,7 @@ function renderPlaying() {
   ctx.globalAlpha = 1;
   
   // Draw particles
-  drawParticles(ctx, particles);
+  drawParticles(particles, ctx, camX, camY);
   
   // Draw damage numbers
   drawDamageNumbers(ctx, camX, camY);
