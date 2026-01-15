@@ -221,12 +221,24 @@ export async function init() {
     // Initialize i18n first
     await initI18n();
     
-    // Get canvas
-    canvas = document.getElementById('game-canvas');
+    // Get or create canvas
+    const app = document.getElementById('app');
+    canvas = document.getElementById('gameCanvas');
     if (!canvas) {
+      // Create wrapper and canvas structure
+      const wrapper = document.createElement('div');
+      wrapper.className = 'sopor-canvasWrap';
+      
       canvas = document.createElement('canvas');
-      canvas.id = 'game-canvas';
-      document.body.appendChild(canvas);
+      canvas.id = 'gameCanvas';
+      
+      wrapper.appendChild(canvas);
+      if (app) {
+        app.innerHTML = ''; // Clear app
+        app.appendChild(wrapper);
+      } else {
+        document.body.appendChild(wrapper);
+      }
     }
     
     ctx = canvas.getContext('2d');
