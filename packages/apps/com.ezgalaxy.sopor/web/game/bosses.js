@@ -918,10 +918,37 @@ export function getBossRewards(bossId, rng = null) {
  * @property {number} facing
  */
 
+// ========== Compatibility Aliases ==========
+
+// Alias for BOSS_CONFIGS
+export const BOSSES = BOSS_CONFIGS;
+
+// Alias for createBossState
+export const createBoss = createBossState;
+
+// Alias for tickBoss
+export const updateBoss = tickBoss;
+
+/**
+ * Get the boss ID for a specific stratum
+ * @param {string} stratum 
+ * @returns {string|null}
+ */
+export function getBossForStratum(stratum) {
+  for (const [bossId, config] of Object.entries(BOSS_CONFIGS)) {
+    if (config.stratum === stratum) {
+      return bossId;
+    }
+  }
+  return null;
+}
+
 export default {
   BOSS_IDS,
   BOSS_CONFIGS,
+  BOSSES,
   createBossState,
+  createBoss,
   checkPhaseTransition,
   applyPhaseTransition,
   pickBossAttack,
@@ -929,6 +956,8 @@ export default {
   executeBossAttack,
   updateBossMovement,
   tickBoss,
+  updateBoss,
   damageBoss,
   getBossRewards,
+  getBossForStratum,
 };
