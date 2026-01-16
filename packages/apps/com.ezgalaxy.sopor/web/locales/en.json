@@ -14,6 +14,19 @@
     "credits": "Credits",
     "quit": "Quit"
   },
+  "pause": {
+    "title": "PAUSED",
+    "continue": "Press Escape to continue",
+    "resume": "Resume",
+    "settings": "Settings",
+    "quit": "Main Menu"
+  },
+  "game_over": {
+    "title": "DEAD",
+    "continue": "Press any key to retry",
+    "score": "Score",
+    "time": "Time"
+  },
   "strata": {
     "jardin": "Garden",
     "forge": "Forge",

@@ -933,22 +933,26 @@ function startGame() {
 function loadLevel(biome, floor) {
   currentBiome = biome;
   
-  // Generate world
-  const worldData = generateWorld(biome, CONFIG.roomWidth, CONFIG.roomHeight);
+  // Generate world with seed based on world state or time
+  const seed = worldState?.seed || Date.now();
+  const worldData = generateWorld(seed, biome);
   currentLevel = worldData;
   
   // Initialize fog of war
-  fogOfWar = createFogOfWar(worldData.width * TILE_SIZE, worldData.height * TILE_SIZE);
+  fogOfWar = createFogOfWar(
+    worldData.tileMap.width * TILE_SIZE, 
+    worldData.tileMap.height * TILE_SIZE
+  );
   
   // Initialize minimap
   initMinimap(minimap, {
-    tiles: worldData.tiles,
-    width: worldData.width,
-    height: worldData.height,
+    tiles: worldData.tileMap.tiles,
+    width: worldData.tileMap.width,
+    height: worldData.tileMap.height,
   });
   
   // Apply biome lighting
-  applyBiomeLighting(lighting, biome);
+  applyBiomeLighting(lighting, worldData.stratum);
   
   // Add player light
   createPlayerLight(lighting, player.x, player.y);
@@ -958,24 +962,24 @@ function loadLevel(biome, floor) {
   for (let i = 0; i < 5; i++) {
     const archetype = getArchetypeForStratum(biome);
     const enemy = createEnemy(archetype, 
-      randomBetween(100, worldData.width * TILE_SIZE - 100),
-      randomBetween(100, worldData.height * TILE_SIZE - 100)
+      randomBetween(100, worldData.tileMap.width * TILE_SIZE - 100),
+      randomBetween(100, worldData.tileMap.height * TILE_SIZE - 100)
     );
     enemies.push(enemy);
   }
   
-  // Position player at spawn
-  player.x = worldData.spawn.x * TILE_SIZE;
-  player.y = worldData.spawn.y * TILE_SIZE;
+  // Position player at spawn (spawnPoint is already in pixels)
+  player.x = worldData.spawnPoint.x;
+  player.y = worldData.spawnPoint.y;
   
   // Reset camera
   camera.x = player.x - window.innerWidth / 2;
   camera.y = player.y - window.innerHeight / 2;
   
   // Add ambient effects
-  createBiomeAmbientEffect(particles, biome, 
-    worldData.width * TILE_SIZE, 
-    worldData.height * TILE_SIZE
+  createBiomeAmbientEffect(particles, worldData.stratum, 
+    worldData.tileMap.width * TILE_SIZE, 
+    worldData.tileMap.height * TILE_SIZE
   );
 }
 
@@ -1049,8 +1053,8 @@ function renderPlaying() {
   ctx.translate(-camX, -camY);
   
   // Draw world
-  if (currentLevel) {
-    renderWorld(ctx, currentLevel, camX, camY);
+  if (currentLevel && currentLevel.tileMap) {
+    renderWorld(ctx, currentLevel.tileMap, camX, camY);
   }
   
   // Draw items
@@ -1120,6 +1124,15 @@ function renderPlaying() {
 }
 
 /**
+ * Convert hex number to CSS color string
+ */
+function hexToCSS(hex) {
+  if (typeof hex === 'string') return hex;
+  if (Array.isArray(hex)) hex = hex[0]; // Use first color if array
+  return '#' + hex.toString(16).padStart(6, '0');
+}
+
+/**
  * Render world tiles
  */
 function renderWorld(ctx, level, camX, camY) {
@@ -1128,13 +1141,15 @@ function renderWorld(ctx, level, camX, camY) {
   const endTileX = Math.min(level.width, Math.ceil((camX + window.innerWidth) / TILE_SIZE) + 1);
   const endTileY = Math.min(level.height, Math.ceil((camY + window.innerHeight) / TILE_SIZE) + 1);
   
-  const palette = BIOME_PALETTES[currentBiome];
+  const palette = BIOME_PALETTES[currentBiome] || BIOME_PALETTES[STRATA.JARDIN];
+  const wallColor = hexToCSS(palette.wall);
+  const floorColor = hexToCSS(palette.floor);
   
   for (let y = startTileY; y < endTileY; y++) {
     for (let x = startTileX; x < endTileX; x++) {
       const tile = level.tiles[y * level.width + x];
       
-      ctx.fillStyle = tile === 1 ? palette.wall : palette.floor;
+      ctx.fillStyle = tile === 1 ? wallColor : floorColor;
       ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     }
   }
