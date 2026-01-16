@@ -4,8 +4,9 @@
  */
 
 import { t } from '../core/i18n.js';
-import { RARITY, SKILLS, EQUIPMENT_SLOTS } from '../core/constants.js';
+import { RARITY, EQUIPMENT_SLOTS } from '../core/constants.js';
 import { playUIClick, playMenuOpen, playMenuClose } from '../audio/sfx.js';
+import { SKILL_TREE, SKILL_BRANCHES, canUpgradeSkill, upgradeSkill } from '../game/progression.js';
 
 // ========== Panel Configuration ==========
 
@@ -353,7 +354,7 @@ export function drawSkillsPanel(ctx, manager, playerSkills, skillPoints, screenW
   const selectedBranch = branches[manager.skills.selectedBranch];
   
   // Get skills for branch
-  const branchSkills = Object.entries(SKILLS)
+  const branchSkills = Object.entries(SKILL_TREE)
     .filter(([key, skill]) => skill.branch === selectedBranch);
   
   // Draw skill nodes
@@ -402,12 +403,12 @@ export function drawSkillsPanel(ctx, manager, playerSkills, skillPoints, screenW
     // Name below
     ctx.fillStyle = isUnlocked ? config.textColor : config.textSecondary;
     ctx.font = `${config.textSize - 2}px ${config.fontFamily}`;
-    ctx.fillText(t(`skill.${skillId}.name`), nodeX + nodeSize / 2, nodeY + nodeSize + 12);
+    ctx.fillText(t(`skill.${skillId}`) || skillId, nodeX + nodeSize / 2, nodeY + nodeSize + 12);
   });
   
   // Selected skill info
   if (manager.skills.selectedSkill) {
-    const skill = SKILLS[manager.skills.selectedSkill];
+    const skill = SKILL_TREE[manager.skills.selectedSkill];
     if (skill) {
       drawSkillInfo(ctx, manager.skills.selectedSkill, skill, 
         x + panelWidth - 200, treeY, 180, treeHeight);
@@ -436,14 +437,14 @@ function drawSkillInfo(ctx, skillId, skill, x, y, width, maxHeight) {
   ctx.fillStyle = getBranchColor(skill.branch);
   ctx.font = `bold ${config.textSize}px ${config.fontFamily}`;
   ctx.textAlign = 'left';
-  ctx.fillText(t(`skill.${skillId}.name`), x + 10, textY);
+  ctx.fillText(t(`skill.${skillId}`) || skillId, x + 10, textY);
   textY += 25;
   
   // Description
   ctx.fillStyle = config.textColor;
   ctx.font = `${config.textSize - 2}px ${config.fontFamily}`;
   
-  const desc = t(`skill.${skillId}.desc`);
+  const desc = t(`skill.${skillId}_desc`) || '';
   const words = desc.split(' ');
   let line = '';
   
@@ -951,6 +952,220 @@ function getItemIcon(type) {
   }
 }
 
+// ========== Level Up Popup ==========
+
+/**
+ * Create level up popup state
+ */
+export function createLevelUpPopup() {
+  return {
+    active: false,
+    newLevel: 1,
+    skillPoints: 0,
+    selectedSkillIndex: 0,
+    availableSkills: [],
+    animPhase: 0,
+  };
+}
+
+/**
+ * Open level up popup
+ */
+export function openLevelUpPopup(popup, newLevel, skillPoints, currentSkills) {
+  popup.active = true;
+  popup.newLevel = newLevel;
+  popup.skillPoints = skillPoints;
+  popup.selectedSkillIndex = 0;
+  popup.animPhase = 0;
+  
+  // Get all skills that can be upgraded
+  popup.availableSkills = Object.entries(SKILL_TREE)
+    .filter(([skillId, skill]) => {
+      const check = canUpgradeSkill(skillId, currentSkills, skillPoints);
+      return check.can;
+    })
+    .map(([skillId, skill]) => ({
+      id: skillId,
+      skill,
+      branch: skill.branch,
+    }));
+  
+  playMenuOpen();
+}
+
+/**
+ * Close level up popup
+ */
+export function closeLevelUpPopup(popup) {
+  popup.active = false;
+  playMenuClose();
+}
+
+/**
+ * Draw level up popup
+ */
+export function drawLevelUpPopup(ctx, popup, currentSkills, screenWidth, screenHeight) {
+  if (!popup.active) return;
+  
+  const config = PANEL_CONFIG;
+  popup.animPhase += 0.05;
+  
+  // Overlay
+  ctx.fillStyle = 'rgba(0, 0, 30, 0.85)';
+  ctx.fillRect(0, 0, screenWidth, screenHeight);
+  
+  // Panel dimensions
+  const panelWidth = Math.min(550, screenWidth - 60);
+  const panelHeight = Math.min(480, screenHeight - 100);
+  const x = (screenWidth - panelWidth) / 2;
+  const y = (screenHeight - panelHeight) / 2;
+  
+  // Glow effect
+  const glowRadius = 20 + Math.sin(popup.animPhase) * 5;
+  ctx.shadowColor = '#ffcc44';
+  ctx.shadowBlur = glowRadius;
+  
+  // Panel background
+  ctx.fillStyle = '#1a1a2e';
+  roundRect(ctx, x, y, panelWidth, panelHeight, 16);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  
+  // Border
+  ctx.strokeStyle = '#ffcc44';
+  ctx.lineWidth = 3;
+  roundRect(ctx, x, y, panelWidth, panelHeight, 16);
+  ctx.stroke();
+  
+  // Header
+  ctx.fillStyle = '#252540';
+  roundRect(ctx, x, y, panelWidth, 70, 16);
+  ctx.fill();
+  
+  // Level up title
+  ctx.fillStyle = '#ffcc44';
+  ctx.font = `bold 28px ${config.fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`✦ ${t('notification.level_up', { level: popup.newLevel })} ✦`, x + panelWidth / 2, y + 35);
+  
+  // Skill points
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `16px ${config.fontFamily}`;
+  ctx.fillText(`${t('skills.points')}: ${popup.skillPoints}`, x + panelWidth / 2, y + 90);
+  
+  // Skills list
+  const listY = y + 120;
+  const listHeight = panelHeight - 180;
+  const itemHeight = 70;
+  
+  if (popup.availableSkills.length === 0) {
+    ctx.fillStyle = config.textSecondary;
+    ctx.font = `italic 14px ${config.fontFamily}`;
+    ctx.fillText(t('skills.locked'), x + panelWidth / 2, listY + 50);
+  } else {
+    popup.availableSkills.forEach((skillData, i) => {
+      const itemY = listY + i * (itemHeight + 8);
+      if (itemY > listY + listHeight - itemHeight) return;
+      
+      const isSelected = popup.selectedSkillIndex === i;
+      const branchColor = getBranchColor(skillData.branch);
+      
+      // Item background
+      ctx.fillStyle = isSelected ? '#333355' : '#222238';
+      roundRect(ctx, x + 20, itemY, panelWidth - 40, itemHeight, 8);
+      ctx.fill();
+      
+      // Selection border
+      if (isSelected) {
+        ctx.strokeStyle = branchColor;
+        ctx.lineWidth = 2;
+        roundRect(ctx, x + 20, itemY, panelWidth - 40, itemHeight, 8);
+        ctx.stroke();
+      }
+      
+      // Icon
+      ctx.fillStyle = branchColor;
+      ctx.font = `28px ${config.fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(skillData.skill.icon || '★', x + 35, itemY + 35);
+      
+      // Skill name
+      ctx.fillStyle = config.textColor;
+      ctx.font = `bold 16px ${config.fontFamily}`;
+      ctx.fillText(t(`skill.${skillData.id}`) || skillData.id, x + 75, itemY + 25);
+      
+      // Description
+      ctx.fillStyle = config.textSecondary;
+      ctx.font = `12px ${config.fontFamily}`;
+      const desc = t(`skill.${skillData.id}_desc`) || '';
+      ctx.fillText(desc.substring(0, 45) + (desc.length > 45 ? '...' : ''), x + 75, itemY + 48);
+      
+      // Branch badge
+      ctx.fillStyle = branchColor;
+      ctx.font = `bold 11px ${config.fontFamily}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(t(`skills.branch.${skillData.branch}`) || skillData.branch, x + panelWidth - 35, itemY + 25);
+      
+      // Cost
+      const cost = skillData.skill.cost[currentSkills[skillData.id] || 0] || 1;
+      ctx.fillStyle = '#ffcc44';
+      ctx.font = `14px ${config.fontFamily}`;
+      ctx.fillText(`${t('skills.cost')}: ${cost}`, x + panelWidth - 35, itemY + 48);
+    });
+  }
+  
+  // Controls hint
+  ctx.fillStyle = config.textSecondary;
+  ctx.font = `12px ${config.fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('↑↓ Sélectionner  •  Entrée: Débloquer  •  Échap: Fermer', x + panelWidth / 2, y + panelHeight - 25);
+}
+
+/**
+ * Handle level up popup input
+ * Returns: { action: 'select'|'close'|null, skillId?: string }
+ */
+export function handleLevelUpInput(popup, code, currentSkills, skillPoints) {
+  if (!popup.active) return { action: null };
+  
+  if (code === 'ArrowUp' || code === 'KeyW' || code === 'KeyZ') {
+    popup.selectedSkillIndex = Math.max(0, popup.selectedSkillIndex - 1);
+    playUIClick();
+    return { action: null };
+  }
+  
+  if (code === 'ArrowDown' || code === 'KeyS') {
+    popup.selectedSkillIndex = Math.min(popup.availableSkills.length - 1, popup.selectedSkillIndex + 1);
+    playUIClick();
+    return { action: null };
+  }
+  
+  if (code === 'Enter' || code === 'Space') {
+    const selected = popup.availableSkills[popup.selectedSkillIndex];
+    if (selected) {
+      const result = upgradeSkill(selected.id, currentSkills, skillPoints);
+      if (result.success) {
+        playUIClick();
+        return { 
+          action: 'select', 
+          skillId: selected.id,
+          newSkills: result.newSkills,
+          remainingPoints: result.remainingPoints,
+        };
+      }
+    }
+    return { action: null };
+  }
+  
+  if (code === 'Escape') {
+    closeLevelUpPopup(popup);
+    return { action: 'close' };
+  }
+  
+  return { action: null };
+}
+
 export default {
   PANEL_CONFIG,
   RARITY_COLORS,
@@ -967,4 +1182,11 @@ export default {
   drawSkillsPanel,
   drawEquipmentPanel,
   drawSettingsPanel,
+  
+  // Level Up
+  createLevelUpPopup,
+  openLevelUpPopup,
+  closeLevelUpPopup,
+  drawLevelUpPopup,
+  handleLevelUpInput,
 };

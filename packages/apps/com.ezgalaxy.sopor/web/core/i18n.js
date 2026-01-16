@@ -354,6 +354,114 @@ function getFrenchFallback() {
       ore: "Minerai Forgé",
     },
     
+    // Inventory UI
+    inventory: {
+      title: "Inventaire",
+      empty: "Inventaire vide",
+      filter: {
+        all: "Tout",
+        weapon: "Armes",
+        armor: "Armures",
+        consumable: "Consommables",
+      },
+    },
+    
+    // Item types
+    item: {
+      type: {
+        weapon: "Arme",
+        armor: "Armure",
+        consumable: "Consommable",
+        material: "Matériau",
+        quest: "Objet de quête",
+      },
+    },
+    
+    // Stats
+    stat: {
+      damage: "Dégâts",
+      defense: "Défense",
+      hp: "Points de vie",
+      speed: "Vitesse",
+      crit: "Critique",
+      attackSpeed: "Vit. attaque",
+      reach: "Portée",
+    },
+    
+    // Skills UI
+    skills: {
+      title: "Compétences",
+      points: "Points disponibles",
+      branch: {
+        eveil: "Éveil",
+        combat: "Combat",
+        essence: "Essence",
+      },
+      locked: "Verrouillé",
+      maxLevel: "Niveau max",
+      unlock: "Débloquer",
+      upgrade: "Améliorer",
+      requires: "Nécessite",
+      cost: "Coût",
+    },
+    
+    // Individual skills
+    skill: {
+      vie_plus: "Vie+",
+      vie_plus_desc: "+15 PV max par niveau",
+      regen: "Régénération",
+      regen_desc: "+0.5 PV/sec par niveau",
+      bouclier: "Bouclier",
+      bouclier_desc: "+5 bouclier sur parade",
+      sprint: "Sprint",
+      sprint_desc: "+10% vitesse de sprint",
+      esquive: "Esquive",
+      esquive_desc: "+5% chance d'esquive",
+      second_souffle: "Second Souffle",
+      second_souffle_desc: "Reviens avec 30% PV une fois",
+      degats: "Dégâts+",
+      degats_desc: "+8% dégâts par niveau",
+      critique: "Critique",
+      critique_desc: "+5% chance critique",
+      combo_maitre: "Maître Combo",
+      combo_maitre_desc: "-15% déclin du combo",
+      finisher: "Finisseur",
+      finisher_desc: "+25% dégâts de finition",
+      vitesse_attaque: "Vélocité",
+      vitesse_attaque_desc: "+10% vitesse d'attaque",
+      parade_parfaite: "Parade Parfaite",
+      parade_parfaite_desc: "Fenêtre + large, renvoie 15% dégâts",
+      berserk: "Berserk",
+      berserk_desc: "+50% dégâts sous 25% PV",
+      mana_plus: "Mana+",
+      mana_plus_desc: "+10 mana max par niveau",
+      drain_vie: "Drain de Vie",
+      drain_vie_desc: "3% des dégâts = PV",
+      aura_protection: "Aura",
+      aura_protection_desc: "-5% dégâts reçus",
+      status_maitre: "Maître Status",
+      status_maitre_desc: "+20% durée, +15% dégâts status",
+      explosion_mana: "Explosion Mana",
+      explosion_mana_desc: "Explosion de dégâts AoE",
+      transcendance: "Transcendance",
+      transcendance_desc: "3s d'invincibilité (CD 60s)",
+    },
+    
+    // Equipment UI
+    equipment: {
+      title: "Équipement",
+      slot: {
+        weapon: "Arme",
+        head: "Tête",
+        chest: "Torse",
+        legs: "Jambes",
+        accessory: "Accessoire",
+      },
+      empty: "Emplacement vide",
+      equip: "Équiper",
+      unequip: "Déséquiper",
+    },
+    
     // NPCs
     npc: {
       merchant: "Marchand",
@@ -574,6 +682,114 @@ function getEnglishFallback() {
       dust: "Abyssal Dust",
       herb: "Dream Herb",
       ore: "Forged Ore",
+    },
+    
+    // Inventory UI
+    inventory: {
+      title: "Inventory",
+      empty: "Inventory empty",
+      filter: {
+        all: "All",
+        weapon: "Weapons",
+        armor: "Armor",
+        consumable: "Consumables",
+      },
+    },
+    
+    // Item types
+    item: {
+      type: {
+        weapon: "Weapon",
+        armor: "Armor",
+        consumable: "Consumable",
+        material: "Material",
+        quest: "Quest Item",
+      },
+    },
+    
+    // Stats
+    stat: {
+      damage: "Damage",
+      defense: "Defense",
+      hp: "Health",
+      speed: "Speed",
+      crit: "Critical",
+      attackSpeed: "Attack Speed",
+      reach: "Reach",
+    },
+    
+    // Skills UI
+    skills: {
+      title: "Skills",
+      points: "Available Points",
+      branch: {
+        eveil: "Awakening",
+        combat: "Combat",
+        essence: "Essence",
+      },
+      locked: "Locked",
+      maxLevel: "Max Level",
+      unlock: "Unlock",
+      upgrade: "Upgrade",
+      requires: "Requires",
+      cost: "Cost",
+    },
+    
+    // Individual skills
+    skill: {
+      vie_plus: "Health+",
+      vie_plus_desc: "+15 max HP per level",
+      regen: "Regeneration",
+      regen_desc: "+0.5 HP/sec per level",
+      bouclier: "Shield",
+      bouclier_desc: "+5 shield on parry",
+      sprint: "Sprint",
+      sprint_desc: "+10% sprint speed",
+      esquive: "Evasion",
+      esquive_desc: "+5% dodge chance",
+      second_souffle: "Second Wind",
+      second_souffle_desc: "Revive once with 30% HP",
+      degats: "Damage+",
+      degats_desc: "+8% damage per level",
+      critique: "Critical",
+      critique_desc: "+5% critical chance",
+      combo_maitre: "Combo Master",
+      combo_maitre_desc: "-15% combo decay",
+      finisher: "Finisher",
+      finisher_desc: "+25% finishing damage",
+      vitesse_attaque: "Velocity",
+      vitesse_attaque_desc: "+10% attack speed",
+      parade_parfaite: "Perfect Parry",
+      parade_parfaite_desc: "Larger window, reflect 15% damage",
+      berserk: "Berserk",
+      berserk_desc: "+50% damage below 25% HP",
+      mana_plus: "Mana+",
+      mana_plus_desc: "+10 max mana per level",
+      drain_vie: "Life Drain",
+      drain_vie_desc: "3% of damage = HP",
+      aura_protection: "Aura",
+      aura_protection_desc: "-5% damage taken",
+      status_maitre: "Status Master",
+      status_maitre_desc: "+20% duration, +15% status damage",
+      explosion_mana: "Mana Explosion",
+      explosion_mana_desc: "AoE damage explosion",
+      transcendance: "Transcendence",
+      transcendance_desc: "3s invincibility (CD 60s)",
+    },
+    
+    // Equipment UI
+    equipment: {
+      title: "Equipment",
+      slot: {
+        weapon: "Weapon",
+        head: "Head",
+        chest: "Chest",
+        legs: "Legs",
+        accessory: "Accessory",
+      },
+      empty: "Empty slot",
+      equip: "Equip",
+      unequip: "Unequip",
     },
     
     // NPCs

@@ -132,7 +132,9 @@ import {
 import { 
   createPanelManager, openPanel, closePanel, 
   togglePanel, updatePanels, drawInventoryPanel, 
-  drawSkillsPanel, drawEquipmentPanel, drawSettingsPanel 
+  drawSkillsPanel, drawEquipmentPanel, drawSettingsPanel,
+  createLevelUpPopup, openLevelUpPopup, closeLevelUpPopup,
+  drawLevelUpPopup, handleLevelUpInput
 } from './ui/panels.js';
 
 import { 
@@ -214,6 +216,7 @@ let hud = null;
 let minimap = null;
 let panels = null;
 let touchControls = null;
+let levelUpPopup = null;
 
 // Animations
 let animator = null;
@@ -401,6 +404,9 @@ function initSystems() {
   // Panels
   panels = createPanelManager();
   
+  // Level up popup
+  levelUpPopup = createLevelUpPopup();
+  
   // Touch controls
   touchControls = createTouchControls();
   if (touchControls.enabled) {
@@ -430,7 +436,18 @@ function initPlayer() {
   // Initialize progression first
   playerProgression = createPlayerProgression();
   playerProgression.xpToNext = 100; // First level XP requirement
+  playerProgression.skillPoints = 0; // Start with 0 skill points
   playerProgression.stats = calculateStats(1, {}, {});
+  
+  // Initialize player inventory with starter weapon
+  if (!worldState) worldState = {};
+  if (!worldState.player) worldState.player = {};
+  if (!worldState.player.inventory) {
+    worldState.player.inventory = { 
+      items: [], 
+      weapons: [starterWeapon] // Add starter weapon to inventory
+    };
+  }
   
   // Use calculated stats for player
   const stats = playerProgression.stats || { hp: 100, mana: 50 };
@@ -518,6 +535,39 @@ function bindInput() {
  * Handle key down
  */
 function handleKeyDown(code) {
+  // Handle level up popup first (priority)
+  if (levelUpPopup && levelUpPopup.active) {
+    const result = handleLevelUpInput(levelUpPopup, code, playerProgression.skills, playerProgression.skillPoints);
+    if (result.action === 'select' && result.newSkills) {
+      // Apply the skill upgrade
+      playerProgression.skills = result.newSkills;
+      playerProgression.skillPoints = result.remainingPoints;
+      
+      // Recalculate stats with new skills
+      playerProgression.stats = calculateStats(playerProgression.level, playerProgression.skills, playerProgression.equipment || {});
+      
+      // Update player health with new stats
+      const newMaxHealth = playerProgression.stats?.hp || 100;
+      if (newMaxHealth > player.maxHealth) {
+        player.health += (newMaxHealth - player.maxHealth);
+      }
+      player.maxHealth = newMaxHealth;
+      
+      addNotification(hud, t('skills.upgrade') + ': ' + t(`skill.${result.skillId}`), {
+        color: '#44ff88',
+        size: 16,
+      });
+      
+      // Refresh available skills
+      if (playerProgression.skillPoints > 0) {
+        openLevelUpPopup(levelUpPopup, playerProgression.level, playerProgression.skillPoints, playerProgression.skills);
+      } else {
+        closeLevelUpPopup(levelUpPopup);
+      }
+    }
+    return;
+  }
+  
   // Handle dialogue option selection
   if (dialogueState && dialogueState.options && dialogueState.options.length > 0) {
     if (code === 'Digit1' && dialogueState.options[0]) {
@@ -531,6 +581,17 @@ function handleKeyDown(code) {
     if (code === 'Digit3' && dialogueState.options[2]) {
       dialogueState.options[2].action();
       return;
+    }
+  }
+  
+  // Weapon switching with keys 1-9 (not in dialogue)
+  if (gameState === GAME_STATE.PLAYING && !panels.activePanel && !dialogueState) {
+    if (code.startsWith('Digit') || code.startsWith('Numpad')) {
+      const num = parseInt(code.replace('Digit', '').replace('Numpad', ''), 10);
+      if (num >= 1 && num <= 9) {
+        switchToWeaponSlot(num - 1);
+        return;
+      }
     }
   }
   
@@ -574,6 +635,36 @@ function handleKeyDown(code) {
   } else if (code === 'KeyH') {
     // Quick heal with berry
     useHealItem();
+  }
+}
+
+/**
+ * Switch to weapon in slot (0-based index)
+ */
+function switchToWeaponSlot(slotIndex) {
+  if (!worldState?.player?.inventory?.weapons) return;
+  
+  const weapons = worldState.player.inventory.weapons;
+  if (slotIndex >= weapons.length) return;
+  
+  const weaponData = weapons[slotIndex];
+  if (!weaponData) return;
+  
+  // Get full weapon data (it might be stored as ID string or full object)
+  let fullWeapon;
+  if (typeof weaponData === 'string') {
+    fullWeapon = getWeaponById(weaponData);
+  } else {
+    fullWeapon = weaponData;
+  }
+  
+  if (fullWeapon) {
+    player.weapon = fullWeapon;
+    addNotification(hud, `Équipé: ${fullWeapon.name || fullWeapon.id}`, {
+      color: '#44ddff',
+      size: 16,
+    });
+    playItemPickup(fullWeapon.rarity);
   }
 }
 
@@ -2040,12 +2131,20 @@ function killEnemy(enemy) {
         size: 20,
       });
       
+      // Add skill points
+      playerProgression.skillPoints = (playerProgression.skillPoints || 0) + (xpResult.newSkillPoints || 1);
+      
       // Recalculate stats on level up
       playerProgression.stats = calculateStats(playerProgression.level, playerProgression.skills || {}, playerProgression.equipment || {});
       
       // Heal on level up
       player.maxHealth = playerProgression.stats?.hp || 100;
       player.health = player.maxHealth;
+      
+      // Open level up popup for skill selection
+      if (playerProgression.skillPoints > 0) {
+        openLevelUpPopup(levelUpPopup, playerProgression.level, playerProgression.skillPoints, playerProgression.skills);
+      }
     }
   } else {
     showDamageNumber(enemy.x, enemy.y - 10, `+${xpValue} XP`, { color: '#ffcc44' });
@@ -2171,13 +2270,38 @@ function pickupItem(item) {
   if (!worldState.player) worldState.player = {};
   if (!worldState.player.inventory) worldState.player.inventory = { items: [], weapons: [] };
   
+  // Get display name for notification
+  const displayName = item.name || item.id || 'Objet';
+  
   // Add to appropriate inventory
   if (item.type === 'weapon' || item.behaviorId) {
     worldState.player.inventory.weapons = worldState.player.inventory.weapons || [];
-    worldState.player.inventory.weapons.push(item.id);
+    // Store complete weapon data, not just ID
+    worldState.player.inventory.weapons.push({
+      id: item.id,
+      name: item.name,
+      type: item.type || 'weapon',
+      behaviorId: item.behaviorId,
+      rarity: item.rarity,
+      damage: item.damage,
+      reach: item.reach,
+      cooldownMs: item.cooldownMs,
+      essenceCost: item.essenceCost,
+      arcDeg: item.arcDeg,
+      knockback: item.knockback,
+      projectile: item.projectile,
+    });
   } else {
     worldState.player.inventory.items = worldState.player.inventory.items || [];
-    worldState.player.inventory.items.push(item);
+    worldState.player.inventory.items.push({
+      id: item.id,
+      name: item.name,
+      type: item.type || 'consumable',
+      rarity: item.rarity,
+      count: item.count || 1,
+      description: item.description,
+      stats: item.stats,
+    });
   }
   
   // Remove from world
@@ -2185,7 +2309,7 @@ function pickupItem(item) {
   if (idx !== -1) items.splice(idx, 1);
   
   playItemPickup(item.rarity);
-  addNotification(hud, t('notification.item_pickup', { name: item.nameKey || item.id || 'Objet' }), {
+  addNotification(hud, t('notification.item_pickup', { name: displayName }), {
     color: '#ffaa00',
   });
 }
@@ -2336,7 +2460,15 @@ function render() {
     
     switch (panels.activePanel) {
       case 'inventory':
-        drawInventoryPanel(ctx, panels, worldState?.player?.inventory?.items || [], 
+        // Combine items and weapons for inventory display
+        const allInventoryItems = [
+          ...(worldState?.player?.inventory?.items || []),
+          ...(worldState?.player?.inventory?.weapons || []).map(w => ({
+            ...w,
+            type: 'weapon',
+          })),
+        ];
+        drawInventoryPanel(ctx, panels, allInventoryItems, 
           window.innerWidth, window.innerHeight);
         break;
       case 'skills':
@@ -2352,6 +2484,12 @@ function render() {
           window.innerWidth, window.innerHeight);
         break;
     }
+  }
+  
+  // Draw level up popup on top of everything
+  if (levelUpPopup && levelUpPopup.active) {
+    drawLevelUpPopup(ctx, levelUpPopup, playerProgression.skills, 
+      window.innerWidth, window.innerHeight);
   }
   
   // FPS counter
