@@ -67,6 +67,13 @@ import {
   generateDungeonFloor, getDungeonThemeForStratum 
 } from './world/dungeons.js';
 
+import {
+  OPEN_WORLD_CONFIG, WORLD_TILES, ENTITY_TYPES,
+  NPC_DEFINITIONS, QUEST_DEFINITIONS,
+  generateOpenWorld, getZoneAt, isInSafeZone,
+  getEnemyArchetypesForDifficulty
+} from './world/open-world.js';
+
 // ========== Graphics Imports ==========
 import { 
   BIOME_PALETTES, generateFloorTile, generateWallTile, 
@@ -201,6 +208,20 @@ let enemies = [];
 let projectiles = [];
 let items = [];
 let npcs = [];
+let decorations = [];
+let interactables = [];
+let openWorld = null;
+
+// Interaction state
+let interactionTarget = null;
+let dialogueState = null;
+
+// Quest state
+let activeQuests = [];
+let completedQuests = [];
+
+// Respawn
+let respawnPoint = null;
 
 // Camera
 let camera = { x: 0, y: 0, shakeX: 0, shakeY: 0 };
@@ -437,6 +458,22 @@ function bindInput() {
  * Handle key down
  */
 function handleKeyDown(code) {
+  // Handle dialogue option selection
+  if (dialogueState && dialogueState.options.length > 0) {
+    if (code === 'Digit1' && dialogueState.options[0]) {
+      dialogueState.options[0].action();
+      return;
+    }
+    if (code === 'Digit2' && dialogueState.options[1]) {
+      dialogueState.options[1].action();
+      return;
+    }
+    if (code === 'Digit3' && dialogueState.options[2]) {
+      dialogueState.options[2].action();
+      return;
+    }
+  }
+  
   switch (code) {
     case 'Space':
     case 'KeyZ':
@@ -447,6 +484,7 @@ function handleKeyDown(code) {
       handleDodge();
       break;
     case 'KeyE':
+    case 'KeyF':
       handleInteract();
       break;
     case 'KeyI':
@@ -465,7 +503,9 @@ function handleKeyDown(code) {
       toggleExpanded(minimap);
       break;
     case 'Escape':
-      if (panels.activePanel) {
+      if (dialogueState) {
+        closeDialogue();
+      } else if (panels.activePanel) {
         closePanel(panels);
       } else if (gameState === GAME_STATE.PLAYING) {
         gameState = GAME_STATE.PAUSED;
@@ -475,6 +515,13 @@ function handleKeyDown(code) {
       break;
     case 'Enter':
       if (gameState === GAME_STATE.MENU) {
+        startGame();
+      } else if (gameState === GAME_STATE.GAME_OVER) {
+        // Restart game
+        enemies = [];
+        items = [];
+        projectiles = [];
+        player.health = player.maxHealth;
         startGame();
       }
       break;
@@ -566,7 +613,13 @@ function handleDodge() {
 function handleInteract() {
   if (gameState !== GAME_STATE.PLAYING) return;
   
-  // Check for nearby interactables
+  // If in dialogue, advance dialogue
+  if (dialogueState) {
+    advanceDialogue();
+    return;
+  }
+  
+  // Check for nearby items first
   for (const item of items) {
     const dist = distance(player.x, player.y, item.x, item.y);
     if (dist <= 40) {
@@ -575,15 +628,224 @@ function handleInteract() {
     }
   }
   
-  // Check NPCs
-  for (const npc of npcs) {
-    const dist = distance(player.x, player.y, npc.x, npc.y);
+  // Check interactables (chests, ore)
+  for (const inter of interactables) {
+    const dist = distance(player.x, player.y, inter.x, inter.y);
     if (dist <= 50) {
-      // Show dialogue
-      // TODO: Implement NPC dialogue
+      handleInteractable(inter);
       return;
     }
   }
+  
+  // Check NPCs
+  for (const npc of npcs) {
+    const dist = distance(player.x, player.y, npc.x, npc.y);
+    if (dist <= 60) {
+      startDialogue(npc);
+      return;
+    }
+  }
+}
+
+/**
+ * Handle interactable objects
+ */
+function handleInteractable(inter) {
+  if (inter.type === 'chest' || inter.type === ENTITY_TYPES.CHEST) {
+    if (!inter.opened) {
+      inter.opened = true;
+      playChestOpen();
+      
+      // Award loot
+      if (inter.loot) {
+        if (inter.loot.gold) {
+          worldState.player = worldState.player || {};
+          worldState.player.gold = (worldState.player.gold || 0) + inter.loot.gold;
+          addNotification(hud, `+${inter.loot.gold} Or`, { color: '#ffcc00' });
+        }
+        if (inter.loot.xp) {
+          const result = addXP(playerProgression, inter.loot.xp);
+          if (typeof result === 'object') {
+            playerProgression.xp = result.newXp;
+            playerProgression.level = result.newLevel;
+            playerProgression.xpToNext = result.xpToNext;
+          }
+          addNotification(hud, `+${inter.loot.xp} XP`, { color: '#44ff88' });
+        }
+      }
+      
+      createHitEffect(particles, inter.x, inter.y);
+    }
+  } else if (inter.type === 'ore_iron') {
+    if (!inter.collected) {
+      inter.collected = true;
+      
+      // Add to inventory
+      worldState.player = worldState.player || {};
+      worldState.player.inventory = worldState.player.inventory || { items: [] };
+      worldState.player.inventory.items.push({ type: 'ore_iron', name: 'Minerai de Fer' });
+      
+      addNotification(hud, '+1 Minerai de Fer', { color: '#888899' });
+      playItemPickup('common');
+      
+      // Check quest progress
+      checkQuestObjectives('collect', 'ore_iron');
+    }
+  }
+}
+
+/**
+ * Start dialogue with NPC
+ */
+function startDialogue(npc) {
+  if (!npc.definition) return;
+  
+  const def = npc.definition;
+  
+  dialogueState = {
+    npc: npc,
+    dialogues: def.dialogues || [],
+    currentIndex: npc.interacted ? Math.min(npc.dialogueIndex, def.dialogues.length - 1) : 0,
+    options: [],
+  };
+  
+  npc.interacted = true;
+  
+  // Check if NPC can give quest
+  if (def.canGiveQuest && def.questId) {
+    const quest = QUEST_DEFINITIONS[def.questId];
+    if (quest && !completedQuests.includes(quest.id) && !activeQuests.find(q => q.id === quest.id)) {
+      dialogueState.options.push({
+        text: `Accepter: ${quest.title}`,
+        action: () => acceptQuest(quest),
+      });
+    }
+  }
+  
+  // Check if NPC can heal
+  if (def.canHeal) {
+    dialogueState.options.push({
+      text: 'Se reposer (Restaurer santé)',
+      action: () => {
+        player.health = player.maxHealth;
+        addNotification(hud, 'Santé restaurée!', { color: '#44ff88' });
+        playHealSound();
+        closeDialogue();
+      },
+    });
+  }
+  
+  // Check if NPC can trade
+  if (def.canTrade) {
+    dialogueState.options.push({
+      text: 'Voir les marchandises',
+      action: () => {
+        addNotification(hud, 'Boutique non implémentée', { color: '#888888' });
+      },
+    });
+  }
+  
+  dialogueState.options.push({
+    text: 'Au revoir',
+    action: closeDialogue,
+  });
+  
+  playUIClick();
+}
+
+/**
+ * Advance dialogue
+ */
+function advanceDialogue() {
+  if (!dialogueState) return;
+  
+  dialogueState.currentIndex++;
+  
+  if (dialogueState.currentIndex >= dialogueState.dialogues.length) {
+    // Show options if available, otherwise close
+    if (dialogueState.options.length === 1) {
+      // Only "Au revoir" - auto close
+      closeDialogue();
+    }
+    // Otherwise stay on last message with options showing
+    dialogueState.currentIndex = dialogueState.dialogues.length - 1;
+  }
+  
+  playUIClick();
+}
+
+/**
+ * Close dialogue
+ */
+function closeDialogue() {
+  if (dialogueState && dialogueState.npc) {
+    dialogueState.npc.dialogueIndex = dialogueState.currentIndex;
+  }
+  dialogueState = null;
+}
+
+/**
+ * Accept quest
+ */
+function acceptQuest(quest) {
+  activeQuests.push({
+    ...quest,
+    progress: 0,
+  });
+  
+  addNotification(hud, `Quête acceptée: ${quest.title}`, { color: '#ffcc00', size: 18 });
+  playUIClick();
+  closeDialogue();
+}
+
+/**
+ * Check quest objectives
+ */
+function checkQuestObjectives(type, target) {
+  for (const quest of activeQuests) {
+    if (quest.type === type && quest.target === target) {
+      quest.progress = (quest.progress || 0) + 1;
+      
+      if (quest.progress >= quest.required) {
+        completeQuest(quest);
+      } else {
+        addNotification(hud, `${quest.title}: ${quest.progress}/${quest.required}`, { color: '#aaaaaa' });
+      }
+    }
+  }
+}
+
+/**
+ * Complete quest
+ */
+function completeQuest(quest) {
+  // Remove from active
+  activeQuests = activeQuests.filter(q => q.id !== quest.id);
+  completedQuests.push(quest.id);
+  
+  // Award rewards
+  if (quest.rewards) {
+    if (quest.rewards.xp) {
+      const result = addXP(playerProgression, quest.rewards.xp);
+      if (typeof result === 'object') {
+        playerProgression.xp = result.newXp;
+        playerProgression.level = result.newLevel;
+        playerProgression.xpToNext = result.xpToNext;
+      }
+      addNotification(hud, `+${quest.rewards.xp} XP`, { color: '#44ff88' });
+    }
+    if (quest.rewards.gold) {
+      worldState.player = worldState.player || {};
+      worldState.player.gold = (worldState.player.gold || 0) + quest.rewards.gold;
+      addNotification(hud, `+${quest.rewards.gold} Or`, { color: '#ffcc00' });
+    }
+  }
+  
+  addNotification(hud, `Quête terminée: ${quest.title}!`, { color: '#ffaa00', size: 20 });
+  playLevelUpSound();
+  
+  // Save progress
+  worldState.completedQuests = completedQuests;
 }
 
 // ========== Game Loop ==========
@@ -652,6 +914,9 @@ function updatePlaying(dt) {
   // Update player
   updatePlayer(dt);
   
+  // Spawn enemies based on player distance from village
+  updateEnemySpawning(dt);
+  
   // Update enemies using AI system
   for (const enemy of enemies) {
     const decision = updateEnemy(enemy, player, enemies, dt);
@@ -686,6 +951,9 @@ function updatePlaying(dt) {
   // Remove dead enemies
   enemies = enemies.filter(e => e.stats && e.stats.hp > 0);
   
+  // Update NPCs (wandering behavior)
+  updateNPCs(dt);
+  
   // Update projectiles
   updateProjectiles(dt);
   
@@ -714,6 +982,148 @@ function updatePlaying(dt) {
   
   // Check collisions
   checkCollisions();
+  
+  // Update interaction highlights
+  updateInteractionHighlights();
+}
+
+/**
+ * Update enemy spawning based on distance from village
+ */
+let lastSpawnCheck = 0;
+const SPAWN_CHECK_INTERVAL = 2000; // Check every 2 seconds
+
+function updateEnemySpawning(dt) {
+  lastSpawnCheck += dt;
+  
+  if (lastSpawnCheck < SPAWN_CHECK_INTERVAL) return;
+  lastSpawnCheck = 0;
+  
+  if (!openWorld) return;
+  
+  // Get current zone
+  const zone = getZoneAt(openWorld, player.x, player.y);
+  if (!zone || zone.difficulty === 'safe') return;
+  
+  // Check if we need more enemies in this zone
+  const nearbyEnemies = enemies.filter(e => {
+    const dist = distance(e.x, e.y, player.x, player.y);
+    return dist < 500;
+  });
+  
+  const maxNearby = zone.maxEnemies || 3;
+  if (nearbyEnemies.length >= maxNearby) return;
+  
+  // Spawn chance based on difficulty
+  const spawnChance = {
+    easy: 0.2,
+    medium: 0.35,
+    hard: 0.5,
+    danger: 0.7,
+  };
+  
+  if (Math.random() > (spawnChance[zone.difficulty] || 0.1)) return;
+  
+  // Get valid archetypes for this difficulty
+  const archetypes = getEnemyArchetypesForDifficulty(zone.difficulty);
+  if (archetypes.length === 0) return;
+  
+  // Find spawn position away from player but within zone
+  const spawnAngle = Math.random() * Math.PI * 2;
+  const spawnDist = 300 + Math.random() * 200;
+  
+  const spawnX = player.x + Math.cos(spawnAngle) * spawnDist;
+  const spawnY = player.y + Math.sin(spawnAngle) * spawnDist;
+  
+  // Make sure it's in a valid position
+  if (spawnX < 0 || spawnX > openWorld.width * openWorld.tileSize ||
+      spawnY < 0 || spawnY > openWorld.height * openWorld.tileSize) {
+    return;
+  }
+  
+  // Check if spawn position is in safe zone
+  if (isInSafeZone(openWorld, spawnX, spawnY)) return;
+  
+  // Spawn the enemy
+  const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
+  const enemy = createEnemy(archetype, spawnX, spawnY);
+  enemies.push(enemy);
+}
+
+/**
+ * Update NPCs
+ */
+function updateNPCs(dt) {
+  for (const npc of npcs) {
+    if (npc.wandering && npc.wanderRadius) {
+      // Simple wandering behavior
+      if (!npc.wanderTarget || distance(npc.x, npc.y, npc.wanderTarget.x, npc.wanderTarget.y) < 10) {
+        // Pick new target
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * npc.wanderRadius * openWorld.tileSize;
+        const homeX = npc.homeStructure?.x ? npc.homeStructure.x * openWorld.tileSize : npc.x;
+        const homeY = npc.homeStructure?.y ? npc.homeStructure.y * openWorld.tileSize : npc.y;
+        
+        npc.wanderTarget = {
+          x: homeX + Math.cos(angle) * dist,
+          y: homeY + Math.sin(angle) * dist,
+        };
+        npc.wanderTimer = 2000 + Math.random() * 3000;
+      }
+      
+      // Move towards target
+      if (npc.wanderTimer > 0) {
+        npc.wanderTimer -= dt;
+      } else {
+        const dx = npc.wanderTarget.x - npc.x;
+        const dy = npc.wanderTarget.y - npc.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 5) {
+          const speed = 30;
+          npc.x += (dx / dist) * speed * dt / 1000;
+          npc.y += (dy / dist) * speed * dt / 1000;
+          npc.facing = dx > 0 ? 1 : -1;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Update interaction highlights
+ */
+function updateInteractionHighlights() {
+  interactionTarget = null;
+  
+  // Check NPCs
+  for (const npc of npcs) {
+    const dist = distance(player.x, player.y, npc.x, npc.y);
+    if (dist <= 60) {
+      interactionTarget = { type: 'npc', target: npc };
+      return;
+    }
+  }
+  
+  // Check interactables
+  for (const inter of interactables) {
+    if (inter.opened || inter.collected) continue;
+    
+    const dist = distance(player.x, player.y, inter.x, inter.y);
+    if (dist <= 50) {
+      interactionTarget = { type: 'interactable', target: inter };
+      return;
+    }
+  }
+  
+  // Check items
+  for (const item of items) {
+    const dist = distance(player.x, player.y, item.x, item.y);
+    if (dist <= 40) {
+      interactionTarget = { type: 'item', target: item };
+      return;
+    }
+  }
 }
 
 /**
@@ -895,6 +1305,9 @@ function killEnemy(enemy) {
   }
   worldState.stats.enemiesKilled = (worldState.stats.enemiesKilled || 0) + 1;
   
+  // Check kill quest progress
+  checkQuestObjectives('kill', 'enemy');
+  
   // Award XP based on enemy type
   const baseXP = {
     skirmisher: 8,
@@ -1002,9 +1415,40 @@ function damagePlayer(damage) {
  */
 function playerDeath() {
   playDeathSound();
-  gameState = GAME_STATE.GAME_OVER;
   
-  // Save progress
+  // Clear nearby enemies
+  enemies = enemies.filter(e => {
+    const dist = distance(e.x, e.y, player.x, player.y);
+    return dist > 500;
+  });
+  
+  // If we have a respawn point, respawn there instead of game over
+  if (respawnPoint) {
+    // Respawn at village
+    player.x = respawnPoint.x;
+    player.y = respawnPoint.y;
+    player.health = Math.floor(player.maxHealth * 0.5); // Respawn with 50% health
+    player.invincible = true;
+    player.invincibleTimer = 3000; // 3 seconds invincibility
+    
+    // Reset camera
+    camera.x = player.x - window.innerWidth / 2;
+    camera.y = player.y - window.innerHeight / 2;
+    
+    addNotification(hud, t('notification.respawn') || 'Vous vous réveillez au village...', { 
+      color: '#88aaff', 
+      size: 18,
+      duration: 4000,
+    });
+    
+    // Save progress
+    saveWorld(worldState);
+    
+    return;
+  }
+  
+  // No respawn - game over
+  gameState = GAME_STATE.GAME_OVER;
   saveWorld(worldState);
 }
 
@@ -1072,54 +1516,97 @@ function startGame() {
 function loadLevel(biome, floor) {
   currentBiome = biome;
   
-  // Generate world with seed based on world state or time
+  // Generate open world with village
   const seed = worldState?.seed || Date.now();
-  const worldData = generateWorld(seed, biome);
-  currentLevel = worldData;
+  openWorld = generateOpenWorld(seed);
   
-  // Initialize fog of war
+  // Create level data compatible with existing renderer
+  const tileSize = openWorld.tileSize;
+  currentLevel = {
+    tileMap: {
+      tiles: openWorld.tiles,
+      width: openWorld.width,
+      height: openWorld.height,
+    },
+    stratum: biome,
+    spawnPoint: openWorld.spawnPoint,
+  };
+  
+  // Initialize fog of war (but make it bright)
   fogOfWar = createFogOfWar(
-    worldData.tileMap.width * TILE_SIZE, 
-    worldData.tileMap.height * TILE_SIZE
+    openWorld.width * tileSize, 
+    openWorld.height * tileSize
   );
   
   // Initialize minimap
   initMinimap(minimap, {
-    tiles: worldData.tileMap.tiles,
-    width: worldData.tileMap.width,
-    height: worldData.tileMap.height,
+    tiles: openWorld.tiles,
+    width: openWorld.width,
+    height: openWorld.height,
   });
   
-  // Apply biome lighting
-  applyBiomeLighting(lighting, worldData.stratum);
+  // Apply bright daytime lighting
+  lighting.ambientColor = 0xa0a0b0;
+  lighting.globalBrightness = 1.5;
+  lighting.lightingEnabled = true;
   
-  // Add player light
+  // Add player light (soft glow)
   createPlayerLight(lighting, player.x, player.y);
   
-  // Spawn enemies
-  enemies = [];
-  for (let i = 0; i < 5; i++) {
-    const archetype = getArchetypeForStratum(biome);
-    const enemy = createEnemy(archetype, 
-      randomBetween(100, worldData.tileMap.width * TILE_SIZE - 100),
-      randomBetween(100, worldData.tileMap.height * TILE_SIZE - 100)
-    );
-    enemies.push(enemy);
+  // Load decorations
+  decorations = openWorld.decorations || [];
+  
+  // Load NPCs
+  npcs = openWorld.npcs || [];
+  
+  // Load interactables
+  interactables = openWorld.interactables || [];
+  
+  // Add lamp lights
+  for (const deco of decorations) {
+    if (deco.light) {
+      addLight(lighting, deco.light.radius, deco.x, deco.y, deco.light.color, {
+        intensity: deco.light.intensity,
+        flicker: true,
+        flickerSpeed: 3,
+        flickerIntensity: 0.15,
+      });
+    }
   }
   
-  // Position player at spawn (spawnPoint is already in pixels)
-  player.x = worldData.spawnPoint.x;
-  player.y = worldData.spawnPoint.y;
+  // Set respawn point (village center)
+  respawnPoint = { ...openWorld.spawnPoint };
+  
+  // Don't spawn enemies initially - they spawn based on distance
+  enemies = [];
+  
+  // Position player at village spawn
+  player.x = openWorld.spawnPoint.x;
+  player.y = openWorld.spawnPoint.y;
+  player.health = player.maxHealth;
   
   // Reset camera
   camera.x = player.x - window.innerWidth / 2;
   camera.y = player.y - window.innerHeight / 2;
   
+  // Add village POIs to minimap
+  for (const structure of openWorld.structures || []) {
+    addPOI(minimap, 
+      (structure.x + structure.width / 2) * tileSize,
+      (structure.y + structure.height / 2) * tileSize,
+      structure.type
+    );
+  }
+  
   // Add ambient effects
-  createBiomeAmbientEffect(particles, worldData.stratum, 
-    worldData.tileMap.width * TILE_SIZE, 
-    worldData.tileMap.height * TILE_SIZE
+  createBiomeAmbientEffect(particles, biome, 
+    openWorld.width * tileSize, 
+    openWorld.height * tileSize
   );
+  
+  // Initialize quests from world data
+  activeQuests = [];
+  completedQuests = worldState?.completedQuests || [];
 }
 
 // ========== Rendering ==========
@@ -1195,6 +1682,12 @@ function renderPlaying() {
   if (currentLevel && currentLevel.tileMap) {
     renderWorld(ctx, currentLevel.tileMap, camX, camY);
   }
+  
+  // Draw decorations (sorted by Y for depth)
+  renderDecorations(ctx, camX, camY);
+  
+  // Draw interactables
+  renderInteractables(ctx, camX, camY);
   
   // Draw items with glow effect
   for (const item of items) {
@@ -1394,6 +1887,9 @@ function renderPlaying() {
   
   ctx.globalAlpha = 1;
   
+  // Draw NPCs
+  renderNPCs(ctx, camX, camY);
+  
   // Draw particles
   drawParticles(particles, ctx, camX, camY);
   
@@ -1413,6 +1909,17 @@ function renderPlaying() {
   drawComboCounter(ctx, hud, window.innerWidth / 2, 100);
   drawStatusEffects(ctx, hud, 20, 100);
   drawNotifications(ctx, hud, window.innerWidth, window.innerHeight);
+  
+  // Draw active quests
+  renderQuestTracker(ctx);
+  
+  // Draw interaction prompt
+  renderInteractionPrompt(ctx);
+  
+  // Draw dialogue
+  if (dialogueState) {
+    renderDialogue(ctx);
+  }
   
   // Draw minimap
   drawMinimap(ctx, minimap, player.x, player.y, currentBiome, window.innerWidth);
@@ -1450,162 +1957,822 @@ function hexToCSS(hex) {
  * Render world tiles with pixel art style
  */
 function renderWorld(ctx, level, camX, camY) {
-  const startTileX = Math.max(0, Math.floor(camX / TILE_SIZE));
-  const startTileY = Math.max(0, Math.floor(camY / TILE_SIZE));
-  const endTileX = Math.min(level.width, Math.ceil((camX + window.innerWidth) / TILE_SIZE) + 1);
-  const endTileY = Math.min(level.height, Math.ceil((camY + window.innerHeight) / TILE_SIZE) + 1);
+  const tileSize = openWorld?.tileSize || TILE_SIZE;
   
-  const palette = BIOME_PALETTES[currentBiome] || BIOME_PALETTES[STRATA.JARDIN];
-  const wallColors = Array.isArray(palette.wall) ? palette.wall : [palette.wall];
-  const floorColors = Array.isArray(palette.floor) ? palette.floor : [palette.floor];
+  const startTileX = Math.max(0, Math.floor(camX / tileSize));
+  const startTileY = Math.max(0, Math.floor(camY / tileSize));
+  const endTileX = Math.min(level.width, Math.ceil((camX + window.innerWidth) / tileSize) + 1);
+  const endTileY = Math.min(level.height, Math.ceil((camY + window.innerHeight) / tileSize) + 1);
+  
+  // Define tile colors for open world
+  const tileColors = {
+    [WORLD_TILES.GRASS]: ['#4a8f4a', '#4a9a4a', '#5a9f5a'],
+    [WORLD_TILES.DIRT]: ['#8a6b4a', '#7a5b3a', '#9a7b5a'],
+    [WORLD_TILES.STONE]: ['#666666', '#777777', '#555555'],
+    [WORLD_TILES.WATER]: ['#3366aa', '#2255aa', '#4477bb'],
+    [WORLD_TILES.SAND]: ['#ddc088', '#ccb078', '#eed098'],
+    [WORLD_TILES.WALL]: ['#554433', '#443322', '#665544'],
+    [WORLD_TILES.FLOOR_WOOD]: ['#8a6644', '#7a5534', '#9a7654'],
+    [WORLD_TILES.FLOOR_STONE]: ['#888888', '#777777', '#999999'],
+    [WORLD_TILES.PATH]: ['#aa9966', '#9a8856', '#bba976'],
+    [WORLD_TILES.BRIDGE]: ['#775533', '#664422', '#886644'],
+    [WORLD_TILES.FLOWERS]: ['#4a8f4a', '#4a9a4a', '#5a9f5a'],
+    [WORLD_TILES.TALL_GRASS]: ['#3a7f3a', '#3a8a3a', '#4a8f4a'],
+  };
   
   for (let y = startTileY; y < endTileY; y++) {
     for (let x = startTileX; x < endTileX; x++) {
       const tile = level.tiles[y * level.width + x];
-      const tileX = x * TILE_SIZE;
-      const tileY = y * TILE_SIZE;
+      const tileX = x * tileSize;
+      const tileY = y * tileSize;
       
       // Use position-based variation for consistent tile appearance
       const variation = ((x * 7 + y * 13) % 3);
       
-      if (tile === 1) {
+      // Get colors for this tile type
+      const colors = tileColors[tile] || tileColors[WORLD_TILES.GRASS];
+      const baseColor = colors[variation % colors.length];
+      
+      // Draw tile based on type
+      if (tile === WORLD_TILES.WALL) {
         // Wall tile with brick pattern
-        const baseColor = hexToCSS(wallColors[variation % wallColors.length]);
-        const darkColor = hexToCSS(darkenColor(wallColors[variation % wallColors.length], 0.3));
-        const lightColor = hexToCSS(lightenColor(wallColors[variation % wallColors.length], 0.15));
-        
-        // Base
         ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
         
         // Brick pattern
-        const brickH = TILE_SIZE / 2;
-        const offset = (y % 2) * (TILE_SIZE / 2);
+        const brickH = tileSize / 2;
+        const offset = (y % 2) * (tileSize / 2);
         
-        ctx.fillStyle = darkColor;
-        // Horizontal mortar lines
-        ctx.fillRect(tileX, tileY + brickH - 1, TILE_SIZE, 2);
-        // Vertical mortar lines
-        ctx.fillRect(tileX + (TILE_SIZE / 2 + offset) % TILE_SIZE, tileY, 2, brickH);
+        ctx.fillStyle = darkenHex(baseColor, 0.3);
+        ctx.fillRect(tileX, tileY + brickH - 1, tileSize, 2);
+        ctx.fillRect(tileX + (tileSize / 2 + offset) % tileSize, tileY, 2, brickH);
         ctx.fillRect(tileX + offset, tileY + brickH, 2, brickH);
         
-        // Top highlight for 3D effect
-        ctx.fillStyle = lightColor;
-        ctx.fillRect(tileX, tileY, TILE_SIZE, 1);
+        // Top highlight
+        ctx.fillStyle = lightenHex(baseColor, 0.2);
+        ctx.fillRect(tileX, tileY, tileSize, 2);
+        
+      } else if (tile === WORLD_TILES.WATER) {
+        // Animated water
+        const wave = Math.sin(performance.now() * 0.002 + x * 0.5 + y * 0.3) * 0.15;
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
+        
+        // Wave highlight
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.1 + wave})`;
+        ctx.fillRect(tileX + (variation * 4), tileY + (variation * 3), tileSize / 2, 2);
+        
+      } else if (tile === WORLD_TILES.FLOOR_WOOD) {
+        // Wood floor with planks
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
+        
+        // Wood grain lines
+        ctx.fillStyle = darkenHex(baseColor, 0.2);
+        for (let i = 0; i < 3; i++) {
+          ctx.fillRect(tileX, tileY + i * (tileSize / 3), tileSize, 1);
+        }
+        
+        // Knots
+        if ((x + y) % 7 === 0) {
+          ctx.fillStyle = darkenHex(baseColor, 0.3);
+          ctx.beginPath();
+          ctx.arc(tileX + tileSize / 2, tileY + tileSize / 2, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+      } else if (tile === WORLD_TILES.PATH) {
+        // Dirt path with stones
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
+        
+        // Small stones
+        const seed = x * 1000 + y;
+        if (seed % 5 === 0) {
+          ctx.fillStyle = '#999988';
+          ctx.beginPath();
+          ctx.arc(tileX + (seed % 20) + 6, tileY + ((seed * 3) % 20) + 6, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        // Edge darkening
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.fillRect(tileX, tileY, 2, tileSize);
+        ctx.fillRect(tileX + tileSize - 2, tileY, 2, tileSize);
+        
+      } else if (tile === WORLD_TILES.FLOWERS) {
+        // Grass base
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
+        
+        // Flowers
+        const flowerColors = ['#ff6688', '#ffcc44', '#88aaff', '#ff88cc', '#ffffff'];
+        const seed = (x * 13 + y * 17);
+        
+        for (let i = 0; i < 3; i++) {
+          const fx = tileX + ((seed + i * 7) % (tileSize - 4)) + 2;
+          const fy = tileY + ((seed + i * 11) % (tileSize - 4)) + 2;
+          const fc = flowerColors[(seed + i) % flowerColors.length];
+          
+          ctx.fillStyle = fc;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 2, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Stem
+          ctx.fillStyle = '#3a6a3a';
+          ctx.fillRect(fx - 0.5, fy, 1, 4);
+        }
+        
+      } else if (tile === WORLD_TILES.TALL_GRASS) {
+        // Base grass
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
+        
+        // Tall grass blades
+        const seed = x * 13 + y * 7;
+        ctx.fillStyle = '#5aaf5a';
+        
+        for (let i = 0; i < 5; i++) {
+          const gx = tileX + ((seed + i * 5) % (tileSize - 2));
+          const sway = Math.sin(performance.now() * 0.002 + seed + i) * 2;
+          
+          ctx.beginPath();
+          ctx.moveTo(gx, tileY + tileSize);
+          ctx.lineTo(gx + sway, tileY + tileSize - 12);
+          ctx.lineTo(gx + 2, tileY + tileSize);
+          ctx.fill();
+        }
         
       } else {
-        // Floor tile with texture
-        const baseColor = hexToCSS(floorColors[variation % floorColors.length]);
-        
+        // Default tile (grass, dirt, sand, stone, etc.)
         ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+        ctx.fillRect(tileX, tileY, tileSize, tileSize);
         
-        // Add subtle texture dots
+        // Add subtle texture
         const seed = x * 1000 + y;
         if ((seed % 5) === 0) {
-          ctx.fillStyle = 'rgba(0,0,0,0.1)';
+          ctx.fillStyle = 'rgba(0,0,0,0.08)';
           ctx.fillRect(tileX + (seed % 12), tileY + ((seed * 3) % 12), 2, 2);
         }
         if ((seed % 7) === 0) {
-          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
           ctx.fillRect(tileX + ((seed * 2) % 10), tileY + ((seed * 5) % 10), 2, 2);
         }
         
         // Subtle grid lines
-        ctx.fillStyle = 'rgba(0,0,0,0.05)';
-        ctx.fillRect(tileX, tileY, 1, TILE_SIZE);
-        ctx.fillRect(tileX, tileY, TILE_SIZE, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.03)';
+        ctx.fillRect(tileX, tileY, 1, tileSize);
+        ctx.fillRect(tileX, tileY, tileSize, 1);
       }
     }
   }
   
-  // Add decorations based on biome
-  drawBiomeDecorations(ctx, startTileX, startTileY, endTileX, endTileY, level);
+  // Draw village structures on top
+  renderStructures(ctx, camX, camY, startTileX, startTileY, endTileX, endTileY, tileSize);
 }
 
 /**
- * Helper to darken a color (hex number)
+ * Render village structures
  */
-function darkenColor(color, amount) {
-  if (typeof color !== 'number') return color;
-  const r = Math.floor(((color >> 16) & 0xff) * (1 - amount));
-  const g = Math.floor(((color >> 8) & 0xff) * (1 - amount));
-  const b = Math.floor((color & 0xff) * (1 - amount));
-  return (r << 16) | (g << 8) | b;
-}
-
-/**
- * Helper to lighten a color (hex number)
- */
-function lightenColor(color, amount) {
-  if (typeof color !== 'number') return color;
-  const r = Math.min(255, Math.floor(((color >> 16) & 0xff) + (255 - ((color >> 16) & 0xff)) * amount));
-  const g = Math.min(255, Math.floor(((color >> 8) & 0xff) + (255 - ((color >> 8) & 0xff)) * amount));
-  const b = Math.min(255, Math.floor((color & 0xff) + (255 - (color & 0xff)) * amount));
-  return (r << 16) | (g << 8) | b;
-}
-
-/**
- * Draw biome-specific decorations
- */
-function drawBiomeDecorations(ctx, startX, startY, endX, endY, level) {
-  // Decoration seeds based on position
-  for (let y = startY; y < endY; y++) {
-    for (let x = startX; x < endX; x++) {
-      const tile = level.tiles[y * level.width + x];
-      if (tile === 1) continue; // Skip walls
+function renderStructures(ctx, camX, camY, startX, startY, endX, endY, tileSize) {
+  if (!openWorld?.structures) return;
+  
+  for (const structure of openWorld.structures) {
+    // Skip if not visible
+    if (structure.x + structure.width < startX || structure.x > endX ||
+        structure.y + structure.height < startY || structure.y > endY) {
+      continue;
+    }
+    
+    const sx = structure.x * tileSize;
+    const sy = structure.y * tileSize;
+    const sw = structure.width * tileSize;
+    const sh = structure.height * tileSize;
+    
+    // Draw roof
+    if (structure.type !== 'fountain' && structure.type !== 'well') {
+      // Roof (triangle)
+      ctx.fillStyle = '#884422';
+      ctx.beginPath();
+      ctx.moveTo(sx - 10, sy);
+      ctx.lineTo(sx + sw / 2, sy - 30);
+      ctx.lineTo(sx + sw + 10, sy);
+      ctx.closePath();
+      ctx.fill();
       
-      const seed = x * 12345 + y * 67890;
-      const decorType = seed % 50;
+      // Roof edge
+      ctx.fillStyle = '#773311';
+      ctx.beginPath();
+      ctx.moveTo(sx - 10, sy);
+      ctx.lineTo(sx + sw / 2, sy - 30);
+      ctx.lineTo(sx + sw / 2 + 8, sy - 24);
+      ctx.lineTo(sx + sw + 10, sy + 6);
+      ctx.lineTo(sx - 10, sy + 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+    
+    // Special decorations for structure types
+    if (structure.type === 'fountain') {
+      // Water basin
+      ctx.fillStyle = '#666677';
+      ctx.beginPath();
+      ctx.arc(sx + sw / 2, sy + sh / 2, sw / 2 - 5, 0, Math.PI * 2);
+      ctx.fill();
       
-      if (decorType < 2) {
-        // Grass tuft (JARDIN)
-        if (currentBiome === STRATA.JARDIN) {
-          const px = x * TILE_SIZE + (seed % 12);
-          const py = y * TILE_SIZE + ((seed * 3) % 12);
-          
-          ctx.fillStyle = '#4a8f4a';
-          ctx.beginPath();
-          ctx.moveTo(px, py + 6);
-          ctx.lineTo(px + 1, py);
-          ctx.lineTo(px + 2, py + 6);
-          ctx.fill();
-          
-          ctx.fillStyle = '#5aaf5a';
-          ctx.beginPath();
-          ctx.moveTo(px + 3, py + 6);
-          ctx.lineTo(px + 4, py + 2);
-          ctx.lineTo(px + 5, py + 6);
-          ctx.fill();
-        }
-        // Ember (FORGE)
-        else if (currentBiome === STRATA.FORGE) {
-          const px = x * TILE_SIZE + (seed % 14);
-          const py = y * TILE_SIZE + ((seed * 2) % 14);
-          const flicker = Math.sin(performance.now() * 0.01 + seed) * 0.3 + 0.7;
-          
-          ctx.globalAlpha = flicker;
-          ctx.fillStyle = '#ff6622';
-          ctx.beginPath();
-          ctx.arc(px, py, 2, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-        // Crystal (ABIME)
-        else if (currentBiome === STRATA.ABIME) {
-          const px = x * TILE_SIZE + (seed % 12);
-          const py = y * TILE_SIZE + ((seed * 3) % 12);
-          
-          ctx.fillStyle = '#88ccff';
-          ctx.beginPath();
-          ctx.moveTo(px, py + 5);
-          ctx.lineTo(px + 3, py);
-          ctx.lineTo(px + 6, py + 5);
-          ctx.closePath();
-          ctx.fill();
-        }
+      // Water
+      const wave = Math.sin(performance.now() * 0.003) * 0.1;
+      ctx.fillStyle = `rgba(50, 100, 170, ${0.8 + wave})`;
+      ctx.beginPath();
+      ctx.arc(sx + sw / 2, sy + sh / 2, sw / 2 - 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Center pillar
+      ctx.fillStyle = '#888899';
+      ctx.fillRect(sx + sw / 2 - 8, sy + sh / 2 - 20, 16, 25);
+      
+      // Water spray particles
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2 + performance.now() * 0.002;
+        const px = sx + sw / 2 + Math.cos(angle) * 10;
+        const py = sy + sh / 2 - 20 + Math.sin(performance.now() * 0.01 + i) * 5 - 10;
+        
+        ctx.fillStyle = 'rgba(150, 200, 255, 0.6)';
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
+    
+    // Sign for shops
+    if (structure.type === 'shop' || structure.type === 'inn' || structure.type === 'blacksmith') {
+      const signX = sx + sw / 2;
+      const signY = sy + 15;
+      
+      // Sign board
+      ctx.fillStyle = '#443322';
+      ctx.fillRect(signX - 20, signY, 40, 20);
+      
+      // Sign text/icon
+      ctx.fillStyle = '#ddccaa';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      
+      if (structure.type === 'shop') ctx.fillText('◆', signX, signY + 14);
+      else if (structure.type === 'inn') ctx.fillText('☆', signX, signY + 14);
+      else if (structure.type === 'blacksmith') ctx.fillText('⚒', signX, signY + 14);
+    }
+  }
+}
+
+/**
+ * Darken a hex color string
+ */
+function darkenHex(color, amount) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const r = Math.floor(((num >> 16) & 0xff) * (1 - amount));
+  const g = Math.floor(((num >> 8) & 0xff) * (1 - amount));
+  const b = Math.floor((num & 0xff) * (1 - amount));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * Lighten a hex color string
+ */
+function lightenHex(color, amount) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const r = Math.min(255, Math.floor(((num >> 16) & 0xff) + (255 - ((num >> 16) & 0xff)) * amount));
+  const g = Math.min(255, Math.floor(((num >> 8) & 0xff) + (255 - ((num >> 8) & 0xff)) * amount));
+  const b = Math.min(255, Math.floor((num & 0xff) + (255 - (num & 0xff)) * amount));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * Render decorations (trees, rocks, bushes)
+ */
+function renderDecorations(ctx, camX, camY) {
+  const tileSize = openWorld?.tileSize || TILE_SIZE;
+  
+  // Sort by Y for depth
+  const sorted = [...decorations].sort((a, b) => a.y - b.y);
+  
+  for (const deco of sorted) {
+    // Culling
+    if (deco.x < camX - 100 || deco.x > camX + window.innerWidth + 100 ||
+        deco.y < camY - 100 || deco.y > camY + window.innerHeight + 100) {
+      continue;
+    }
+    
+    switch (deco.type) {
+      case ENTITY_TYPES.TREE_OAK:
+        drawTree(ctx, deco.x, deco.y, '#4a7c4a', '#3d6b3d', 'rounded');
+        break;
+      case ENTITY_TYPES.TREE_PINE:
+        drawTree(ctx, deco.x, deco.y, '#2d5a2d', '#1f4a1f', 'pointed');
+        break;
+      case ENTITY_TYPES.TREE_WILLOW:
+        drawTree(ctx, deco.x, deco.y, '#5a8f5a', '#4a7a4a', 'weeping');
+        break;
+      case ENTITY_TYPES.ROCK:
+        drawRock(ctx, deco.x, deco.y, deco.variant || 0);
+        break;
+      case ENTITY_TYPES.BUSH:
+        drawBush(ctx, deco.x, deco.y);
+        break;
+      case ENTITY_TYPES.LAMP_POST:
+        drawLampPost(ctx, deco.x, deco.y);
+        break;
+    }
+  }
+}
+
+/**
+ * Draw a tree
+ */
+function drawTree(ctx, x, y, leafColor, darkLeafColor, style) {
+  // Trunk shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5, 15, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Trunk
+  ctx.fillStyle = '#5a3d2a';
+  ctx.fillRect(x - 6, y - 30, 12, 35);
+  
+  // Trunk highlight
+  ctx.fillStyle = '#6b4d3a';
+  ctx.fillRect(x - 6, y - 30, 4, 35);
+  
+  // Leaves based on style
+  if (style === 'pointed') {
+    // Pine tree - triangle
+    ctx.fillStyle = leafColor;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 70);
+    ctx.lineTo(x + 25, y - 25);
+    ctx.lineTo(x - 25, y - 25);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.fillStyle = darkLeafColor;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 55);
+    ctx.lineTo(x + 20, y - 20);
+    ctx.lineTo(x - 5, y - 20);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'weeping') {
+    // Willow - drooping branches
+    ctx.fillStyle = leafColor;
+    ctx.beginPath();
+    ctx.arc(x, y - 40, 25, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Drooping branches
+    ctx.strokeStyle = leafColor;
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(angle) * 20, y - 40 + Math.sin(angle) * 20);
+      ctx.quadraticCurveTo(
+        x + Math.cos(angle) * 35, y - 20,
+        x + Math.cos(angle) * 25, y + 5
+      );
+      ctx.stroke();
+    }
+  } else {
+    // Oak - rounded
+    ctx.fillStyle = leafColor;
+    ctx.beginPath();
+    ctx.arc(x, y - 45, 28, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = darkLeafColor;
+    ctx.beginPath();
+    ctx.arc(x + 8, y - 50, 15, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#6aac6a';
+    ctx.beginPath();
+    ctx.arc(x - 10, y - 40, 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Draw a rock
+ */
+function drawRock(ctx, x, y, variant) {
+  const sizes = [[20, 15], [15, 12], [25, 18]];
+  const [w, h] = sizes[variant % 3];
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5, w * 0.8, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Rock body
+  ctx.fillStyle = '#666666';
+  ctx.beginPath();
+  ctx.ellipse(x, y - h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Highlight
+  ctx.fillStyle = '#888888';
+  ctx.beginPath();
+  ctx.ellipse(x - 3, y - h / 2 - 3, w / 4, h / 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Draw a bush
+ */
+function drawBush(ctx, x, y) {
+  ctx.fillStyle = '#4a8a4a';
+  ctx.beginPath();
+  ctx.arc(x, y, 12, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#5aaa5a';
+  ctx.beginPath();
+  ctx.arc(x - 5, y - 3, 8, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#6aba6a';
+  ctx.beginPath();
+  ctx.arc(x + 4, y - 2, 6, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Draw lamp post
+ */
+function drawLampPost(ctx, x, y) {
+  // Post
+  ctx.fillStyle = '#333333';
+  ctx.fillRect(x - 3, y - 50, 6, 55);
+  
+  // Lamp housing
+  ctx.fillStyle = '#444444';
+  ctx.fillRect(x - 8, y - 60, 16, 12);
+  
+  // Glow
+  const flicker = 0.7 + Math.sin(performance.now() * 0.005) * 0.2;
+  ctx.fillStyle = `rgba(255, 220, 128, ${flicker * 0.8})`;
+  ctx.beginPath();
+  ctx.arc(x, y - 54, 6, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Light cone
+  ctx.fillStyle = `rgba(255, 220, 128, ${flicker * 0.1})`;
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 48);
+  ctx.lineTo(x + 5, y - 48);
+  ctx.lineTo(x + 30, y + 20);
+  ctx.lineTo(x - 30, y + 20);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * Render interactables (chests, ore)
+ */
+function renderInteractables(ctx, camX, camY) {
+  for (const inter of interactables) {
+    // Culling
+    if (inter.x < camX - 50 || inter.x > camX + window.innerWidth + 50 ||
+        inter.y < camY - 50 || inter.y > camY + window.innerHeight + 50) {
+      continue;
+    }
+    
+    if (inter.type === 'chest' || inter.type === ENTITY_TYPES.CHEST) {
+      drawChest(ctx, inter.x, inter.y, inter.opened);
+    } else if (inter.type === 'ore_iron') {
+      if (!inter.collected) {
+        drawOre(ctx, inter.x, inter.y);
+      }
+    }
+  }
+}
+
+/**
+ * Draw a chest
+ */
+function drawChest(ctx, x, y, opened) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 10, 18, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Chest body
+  ctx.fillStyle = opened ? '#5a4a2a' : '#8a6a3a';
+  ctx.fillRect(x - 15, y - 8, 30, 20);
+  
+  // Lid
+  ctx.fillStyle = opened ? '#4a3a1a' : '#7a5a2a';
+  if (opened) {
+    // Open lid rotated back
+    ctx.save();
+    ctx.translate(x - 15, y - 8);
+    ctx.rotate(-0.8);
+    ctx.fillRect(0, -12, 30, 12);
+    ctx.restore();
+  } else {
+    ctx.fillRect(x - 15, y - 18, 30, 10);
+  }
+  
+  // Lock/clasp
+  if (!opened) {
+    ctx.fillStyle = '#ffcc00';
+    ctx.fillRect(x - 4, y - 12, 8, 6);
+  }
+  
+  // Sparkle for unopened
+  if (!opened) {
+    const sparkle = Math.sin(performance.now() * 0.005) * 0.5 + 0.5;
+    ctx.fillStyle = `rgba(255, 255, 200, ${sparkle * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(x + 10, y - 15, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Draw ore deposit
+ */
+function drawOre(ctx, x, y) {
+  // Rock base
+  ctx.fillStyle = '#555555';
+  ctx.beginPath();
+  ctx.moveTo(x - 15, y + 5);
+  ctx.lineTo(x - 10, y - 15);
+  ctx.lineTo(x + 5, y - 18);
+  ctx.lineTo(x + 15, y - 5);
+  ctx.lineTo(x + 12, y + 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Iron ore veins
+  ctx.fillStyle = '#aa7755';
+  ctx.beginPath();
+  ctx.arc(x - 5, y - 8, 4, 0, Math.PI * 2);
+  ctx.arc(x + 5, y - 3, 3, 0, Math.PI * 2);
+  ctx.arc(x, y - 12, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Metallic shine
+  const shine = Math.sin(performance.now() * 0.003) * 0.3 + 0.7;
+  ctx.fillStyle = `rgba(200, 180, 150, ${shine * 0.5})`;
+  ctx.beginPath();
+  ctx.arc(x - 3, y - 10, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Render NPCs
+ */
+function renderNPCs(ctx, camX, camY) {
+  for (const npc of npcs) {
+    // Culling
+    if (npc.x < camX - 50 || npc.x > camX + window.innerWidth + 50 ||
+        npc.y < camY - 50 || npc.y > camY + window.innerHeight + 50) {
+      continue;
+    }
+    
+    drawNPC(ctx, npc);
+  }
+}
+
+/**
+ * Draw an NPC
+ */
+function drawNPC(ctx, npc) {
+  const x = npc.x;
+  const y = npc.y;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 16, 12, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Color based on NPC type
+  const typeColors = {
+    [ENTITY_TYPES.NPC_VILLAGER]: { body: '#6688aa', hair: '#553322' },
+    [ENTITY_TYPES.NPC_MERCHANT]: { body: '#aa8844', hair: '#332211' },
+    [ENTITY_TYPES.NPC_BLACKSMITH]: { body: '#884422', hair: '#221111' },
+    [ENTITY_TYPES.NPC_INNKEEPER]: { body: '#aa6688', hair: '#443322' },
+    [ENTITY_TYPES.NPC_GUARD]: { body: '#666688', hair: '#222222' },
+    [ENTITY_TYPES.NPC_ELDER]: { body: '#8866aa', hair: '#aaaaaa' },
+    [ENTITY_TYPES.NPC_CHILD]: { body: '#88aa66', hair: '#664422' },
+  };
+  
+  const colors = typeColors[npc.type] || { body: '#888888', hair: '#444444' };
+  const facing = npc.facing || 1;
+  
+  // Legs
+  ctx.fillStyle = '#333355';
+  ctx.fillRect(x - 5, y + 4, 4, 12);
+  ctx.fillRect(x + 1, y + 4, 4, 12);
+  
+  // Body
+  ctx.fillStyle = colors.body;
+  ctx.fillRect(x - 7, y - 8, 14, 16);
+  
+  // Head
+  ctx.fillStyle = '#ffcc99';
+  ctx.fillRect(x - 5, y - 18, 10, 12);
+  
+  // Hair
+  ctx.fillStyle = colors.hair;
+  ctx.fillRect(x - 5, y - 20, 10, 5);
+  if (npc.type === ENTITY_TYPES.NPC_ELDER) {
+    // Beard for elder
+    ctx.fillRect(x - 3, y - 6, 6, 8);
+  }
+  
+  // Eyes
+  const eyeOffset = facing > 0 ? 1 : -1;
+  ctx.fillStyle = '#333333';
+  ctx.fillRect(x - 2 + eyeOffset, y - 14, 2, 2);
+  ctx.fillRect(x + 2 + eyeOffset, y - 14, 2, 2);
+  
+  // Name above if close to player
+  const distToPlayer = distance(player.x, player.y, x, y);
+  if (distToPlayer < 100 && npc.definition) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(npc.definition.name, x, y - 28);
+  }
+  
+  // Quest marker if has quest
+  if (npc.definition?.canGiveQuest && npc.definition.questId) {
+    const quest = QUEST_DEFINITIONS[npc.definition.questId];
+    if (quest && !completedQuests.includes(quest.id) && !activeQuests.find(q => q.id === quest.id)) {
+      // Yellow exclamation mark
+      const bob = Math.sin(performance.now() * 0.005) * 3;
+      ctx.fillStyle = '#ffcc00';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('!', x, y - 35 + bob);
+    }
+  }
+}
+
+/**
+ * Render quest tracker
+ */
+function renderQuestTracker(ctx) {
+  if (activeQuests.length === 0) return;
+  
+  const startX = 20;
+  const startY = 150;
+  
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillRect(startX - 5, startY - 20, 220, 25 + activeQuests.length * 35);
+  
+  ctx.fillStyle = '#ffcc00';
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('Quêtes:', startX, startY);
+  
+  for (let i = 0; i < activeQuests.length; i++) {
+    const quest = activeQuests[i];
+    const qy = startY + 20 + i * 35;
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '12px monospace';
+    ctx.fillText(quest.title, startX, qy);
+    
+    // Progress bar for countable quests
+    if (quest.required) {
+      ctx.fillStyle = '#333333';
+      ctx.fillRect(startX, qy + 5, 150, 8);
+      ctx.fillStyle = '#44ff88';
+      ctx.fillRect(startX, qy + 5, 150 * (quest.progress / quest.required), 8);
+      
+      ctx.fillStyle = '#aaaaaa';
+      ctx.font = '10px monospace';
+      ctx.fillText(`${quest.progress}/${quest.required}`, startX + 160, qy + 12);
+    }
+  }
+}
+
+/**
+ * Render interaction prompt
+ */
+function renderInteractionPrompt(ctx) {
+  if (!interactionTarget) return;
+  
+  const promptY = window.innerHeight - 80;
+  
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(window.innerWidth / 2 - 100, promptY - 15, 200, 40);
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'center';
+  
+  let promptText = '[E] Interagir';
+  if (interactionTarget.type === 'npc') {
+    promptText = `[E] Parler à ${interactionTarget.target.definition?.name || 'NPC'}`;
+  } else if (interactionTarget.type === 'interactable') {
+    if (interactionTarget.target.type === 'chest' || interactionTarget.target.type === ENTITY_TYPES.CHEST) {
+      promptText = '[E] Ouvrir le coffre';
+    } else if (interactionTarget.target.type === 'ore_iron') {
+      promptText = '[E] Collecter le minerai';
+    }
+  } else if (interactionTarget.type === 'item') {
+    promptText = '[E] Ramasser';
+  }
+  
+  ctx.fillText(promptText, window.innerWidth / 2, promptY + 5);
+}
+
+/**
+ * Render dialogue box
+ */
+function renderDialogue(ctx) {
+  if (!dialogueState) return;
+  
+  const boxWidth = Math.min(600, window.innerWidth - 40);
+  const boxHeight = 180;
+  const boxX = (window.innerWidth - boxWidth) / 2;
+  const boxY = window.innerHeight - boxHeight - 30;
+  
+  // Background
+  ctx.fillStyle = 'rgba(20, 20, 40, 0.95)';
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+  
+  // Border
+  ctx.strokeStyle = '#4488ff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+  
+  // NPC name
+  const npcName = dialogueState.npc.definition?.name || 'NPC';
+  ctx.fillStyle = '#ffcc00';
+  ctx.font = 'bold 16px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(npcName, boxX + 20, boxY + 25);
+  
+  // Dialogue text
+  const currentDialogue = dialogueState.dialogues[dialogueState.currentIndex] || '';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '14px monospace';
+  
+  // Word wrap
+  const maxWidth = boxWidth - 40;
+  const words = currentDialogue.split(' ');
+  let line = '';
+  let lineY = boxY + 55;
+  
+  for (const word of words) {
+    const testLine = line + word + ' ';
+    const metrics = ctx.measureText(testLine);
+    
+    if (metrics.width > maxWidth) {
+      ctx.fillText(line, boxX + 20, lineY);
+      line = word + ' ';
+      lineY += 20;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, boxX + 20, lineY);
+  
+  // Options (if on last dialogue)
+  if (dialogueState.currentIndex >= dialogueState.dialogues.length - 1 && dialogueState.options.length > 0) {
+    const optionY = boxY + boxHeight - 50;
+    
+    for (let i = 0; i < dialogueState.options.length; i++) {
+      const optX = boxX + 20 + i * 180;
+      
+      ctx.fillStyle = 'rgba(68, 136, 255, 0.3)';
+      ctx.fillRect(optX - 5, optionY - 12, 170, 22);
+      
+      ctx.fillStyle = '#88aaff';
+      ctx.font = '12px monospace';
+      ctx.fillText(`[${i + 1}] ${dialogueState.options[i].text}`, optX, optionY);
+    }
+  }
+  
+  // Continue prompt
+  if (dialogueState.currentIndex < dialogueState.dialogues.length - 1) {
+    const pulse = 0.5 + Math.sin(performance.now() * 0.005) * 0.3;
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = '#888888';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('[E] Continuer...', boxX + boxWidth / 2, boxY + boxHeight - 15);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
   }
 }
 

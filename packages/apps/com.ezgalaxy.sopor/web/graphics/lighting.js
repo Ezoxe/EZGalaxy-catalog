@@ -39,12 +39,13 @@ export const LIGHT_TYPE = {
 export function createLightingSystem() {
   return {
     lights: [],
-    ambientColor: 0x202020,
-    ambientIntensity: 0.3,
-    fogEnabled: true,
+    ambientColor: 0x808090,  // Much brighter ambient for visibility
+    ambientIntensity: 0.8,   // High ambient
+    fogEnabled: false,       // Disable fog for better visibility
     fogColor: 0x000000,
-    fogDensity: 0.5,
-    globalBrightness: 1.0,
+    fogDensity: 0.2,
+    globalBrightness: 1.3,   // Extra brightness
+    lightingEnabled: true,   // Can toggle lighting
     _flickerTime: 0,
     _lightCanvas: null,
     _lightCtx: null,
@@ -174,10 +175,15 @@ export function renderLighting(system, ctx, cameraX, cameraY, width, height) {
   // Reset composite operation
   lightCtx.globalCompositeOperation = 'source-over';
   
-  // Apply lighting to main canvas using multiply
+  // Apply lighting to main canvas using soft overlay
+  // Use 'screen' instead of 'multiply' for brighter result
   ctx.save();
-  ctx.globalCompositeOperation = 'multiply';
-  ctx.drawImage(system._lightCanvas, 0, 0);
+  if (system.lightingEnabled) {
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = 0.4;
+    ctx.drawImage(system._lightCanvas, 0, 0);
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
 }
 

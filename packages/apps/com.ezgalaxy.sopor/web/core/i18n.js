@@ -238,6 +238,9 @@ function getFrenchFallback() {
     notification: {
       level_up: "Niveau {{level}} atteint!",
       item_pickup: "Objet récupéré: {{name}}",
+      respawn: "Vous vous réveillez au village...",
+      quest_accepted: "Quête acceptée: {{title}}",
+      quest_complete: "Quête terminée: {{title}}",
     },
     
     // Strata names
