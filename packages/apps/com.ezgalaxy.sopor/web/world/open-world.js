@@ -197,6 +197,66 @@ export const QUEST_DEFINITIONS = {
     required: 3,
     rewards: { xp: 30, item: 'sword_forged' },
   },
+  // New quests
+  hunter_quest: {
+    id: 'hunter_quest',
+    title: 'Chasseur de Monstres',
+    description: 'Éliminez 10 créatures pour prouver votre valeur.',
+    giver: ENTITY_TYPES.NPC_GUARD,
+    type: 'kill',
+    target: 'enemy',
+    required: 10,
+    rewards: { xp: 80, gold: 40 },
+  },
+  gather_berries: {
+    id: 'gather_berries',
+    title: 'Cueillette de Baies',
+    description: 'Un villageois a besoin de 5 baies pour ses potions.',
+    giver: ENTITY_TYPES.NPC_VILLAGER,
+    type: 'collect',
+    target: 'berry',
+    required: 5,
+    rewards: { xp: 25, gold: 15 },
+  },
+  explore_forest: {
+    id: 'explore_forest',
+    title: 'Explorer la Forêt',
+    description: 'Aventurez-vous dans la forêt et revenez sain et sauf.',
+    giver: ENTITY_TYPES.NPC_ELDER,
+    type: 'explore',
+    required: 1,
+    rewards: { xp: 40, gold: 25 },
+  },
+  protect_village: {
+    id: 'protect_village',
+    title: 'Protéger le Village',
+    description: 'Les gardes ont besoin d\'aide. Tuez 15 ennemis près du village.',
+    giver: ENTITY_TYPES.NPC_GUARD,
+    type: 'kill',
+    target: 'enemy',
+    required: 15,
+    rewards: { xp: 120, gold: 60, item: 'shield_basic' },
+  },
+  merchant_delivery: {
+    id: 'merchant_delivery',
+    title: 'Livraison Urgente',
+    description: 'Le marchand a besoin que vous trouviez 2 coffres cachés.',
+    giver: ENTITY_TYPES.NPC_MERCHANT,
+    type: 'collect',
+    target: 'chest',
+    required: 2,
+    rewards: { xp: 35, gold: 30 },
+  },
+  innkeeper_help: {
+    id: 'innkeeper_help',
+    title: 'Aide à l\'Auberge',
+    description: 'L\'aubergiste a besoin de 3 minerais pour réparer le toit.',
+    giver: ENTITY_TYPES.NPC_INNKEEPER,
+    type: 'collect',
+    target: 'ore_iron',
+    required: 3,
+    rewards: { xp: 45, gold: 35 },
+  },
 };
 
 // ========== World Generation ==========
@@ -405,21 +465,22 @@ function createVillageArea(tiles, width, center, radius, rng) {
 }
 
 /**
- * Generate village structures
+ * Generate village structures (more dispersed and random)
  */
 function generateStructures(center, villageConfig, rng) {
   const structures = [];
   
   // Structure templates
   const templates = [
-    { type: STRUCTURE_TYPES.HOUSE, width: 5, height: 4, count: 4 },
+    { type: STRUCTURE_TYPES.HOUSE, width: 5, height: 4, count: 6 },
     { type: STRUCTURE_TYPES.SHOP, width: 6, height: 5, count: 1 },
     { type: STRUCTURE_TYPES.INN, width: 7, height: 6, count: 1 },
     { type: STRUCTURE_TYPES.BLACKSMITH, width: 5, height: 5, count: 1 },
-    { type: STRUCTURE_TYPES.WELL, width: 2, height: 2, count: 1 },
+    { type: STRUCTURE_TYPES.WELL, width: 2, height: 2, count: 2 },
+    { type: STRUCTURE_TYPES.GUARD_POST, width: 3, height: 3, count: 2 },
   ];
   
-  // Place central well/fountain
+  // Place central fountain
   structures.push({
     type: STRUCTURE_TYPES.FOUNTAIN,
     x: center.x - 1,
@@ -428,41 +489,82 @@ function generateStructures(center, villageConfig, rng) {
     height: 3,
   });
   
-  // Place structures in a rough circle around center
-  let angle = rng.next() * Math.PI * 2;
+  // Place structures in a more organic, scattered pattern
+  // Use multiple "clusters" to create a realistic village layout
+  const clusters = [
+    { cx: center.x - 12, cy: center.y - 8, radius: 8 },
+    { cx: center.x + 10, cy: center.y - 10, radius: 7 },
+    { cx: center.x - 8, cy: center.y + 12, radius: 9 },
+    { cx: center.x + 14, cy: center.y + 8, radius: 6 },
+    { cx: center.x, cy: center.y - 18, radius: 5 },
+  ];
+  
+  let clusterIdx = 0;
   
   for (const template of templates) {
     for (let i = 0; i < template.count; i++) {
-      const dist = 8 + rng.next() * 12;
-      const posX = Math.floor(center.x + Math.cos(angle) * dist - template.width / 2);
-      const posY = Math.floor(center.y + Math.sin(angle) * dist - template.height / 2);
+      let placed = false;
+      let attempts = 0;
       
-      // Check for overlap
-      let overlaps = false;
-      for (const existing of structures) {
-        if (structuresOverlap(
-          { x: posX, y: posY, width: template.width, height: template.height },
-          existing,
-          2
-        )) {
-          overlaps = true;
-          break;
+      while (!placed && attempts < 20) {
+        attempts++;
+        
+        // Pick a cluster or random position
+        let posX, posY;
+        
+        if (rng.next() < 0.7 && clusters.length > 0) {
+          // Place near a cluster
+          const cluster = clusters[clusterIdx % clusters.length];
+          clusterIdx++;
+          
+          const angle = rng.next() * Math.PI * 2;
+          const dist = rng.next() * cluster.radius;
+          
+          posX = Math.floor(cluster.cx + Math.cos(angle) * dist - template.width / 2);
+          posY = Math.floor(cluster.cy + Math.sin(angle) * dist - template.height / 2);
+        } else {
+          // Random position in village area
+          const angle = rng.next() * Math.PI * 2;
+          const dist = 6 + rng.next() * 18;
+          
+          posX = Math.floor(center.x + Math.cos(angle) * dist - template.width / 2);
+          posY = Math.floor(center.y + Math.sin(angle) * dist - template.height / 2);
+        }
+        
+        // Check for overlap with more padding for organic feel
+        let overlaps = false;
+        const padding = 2 + Math.floor(rng.next() * 3); // Variable padding
+        
+        for (const existing of structures) {
+          if (structuresOverlap(
+            { x: posX, y: posY, width: template.width, height: template.height },
+            existing,
+            padding
+          )) {
+            overlaps = true;
+            break;
+          }
+        }
+        
+        // Make sure not too close to center
+        const distFromCenter = Math.sqrt(
+          Math.pow(posX + template.width/2 - center.x, 2) + 
+          Math.pow(posY + template.height/2 - center.y, 2)
+        );
+        
+        if (!overlaps && distFromCenter > 5) {
+          structures.push({
+            type: template.type,
+            x: posX,
+            y: posY,
+            width: template.width,
+            height: template.height,
+            doorX: posX + Math.floor(template.width / 2),
+            doorY: posY + template.height,
+          });
+          placed = true;
         }
       }
-      
-      if (!overlaps) {
-        structures.push({
-          type: template.type,
-          x: posX,
-          y: posY,
-          width: template.width,
-          height: template.height,
-          doorX: posX + Math.floor(template.width / 2),
-          doorY: posY + template.height,
-        });
-      }
-      
-      angle += (Math.PI * 2 / 8) + rng.next() * 0.5;
     }
   }
   
@@ -738,16 +840,16 @@ function generateNPCs(structures, villageCenter, rng) {
 }
 
 /**
- * Generate interactable objects
+ * Generate interactable objects (chests, berries, healing items)
  */
 function generateInteractables(width, height, villageCenter, rng) {
   const interactables = [];
   const config = OPEN_WORLD_CONFIG;
   
   // Chests scattered in the world (further from village)
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 20; i++) {
     const angle = rng.next() * Math.PI * 2;
-    const dist = 40 + rng.next() * 50;
+    const dist = 40 + rng.next() * 60;
     
     const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
     const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
@@ -760,17 +862,17 @@ function generateInteractables(width, height, villageCenter, rng) {
         y: y * config.TILE_SIZE,
         opened: false,
         loot: {
-          gold: 10 + Math.floor(rng.next() * 30),
-          xp: 5 + Math.floor(rng.next() * 15),
+          gold: 10 + Math.floor(rng.next() * 40),
+          xp: 5 + Math.floor(rng.next() * 20),
         },
       });
     }
   }
   
   // Ore deposits
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 12; i++) {
     const angle = rng.next() * Math.PI * 2;
-    const dist = 50 + rng.next() * 40;
+    const dist = 45 + rng.next() * 50;
     
     const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
     const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
@@ -779,6 +881,44 @@ function generateInteractables(width, height, villageCenter, rng) {
       interactables.push({
         id: `ore_${i}`,
         type: 'ore_iron',
+        x: x * config.TILE_SIZE,
+        y: y * config.TILE_SIZE,
+        collected: false,
+      });
+    }
+  }
+  
+  // Berry bushes (for healing)
+  for (let i = 0; i < 25; i++) {
+    const angle = rng.next() * Math.PI * 2;
+    const dist = 20 + rng.next() * 70;
+    
+    const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
+    const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
+    
+    if (x >= 5 && x < width - 5 && y >= 5 && y < height - 5) {
+      interactables.push({
+        id: `berry_${i}`,
+        type: 'berry_bush',
+        x: x * config.TILE_SIZE,
+        y: y * config.TILE_SIZE,
+        collected: false,
+      });
+    }
+  }
+  
+  // Rare health flowers (permanent max HP boost)
+  for (let i = 0; i < 5; i++) {
+    const angle = rng.next() * Math.PI * 2;
+    const dist = 60 + rng.next() * 40;
+    
+    const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
+    const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
+    
+    if (x >= 5 && x < width - 5 && y >= 5 && y < height - 5) {
+      interactables.push({
+        id: `health_flower_${i}`,
+        type: 'health_flower',
         x: x * config.TILE_SIZE,
         y: y * config.TILE_SIZE,
         collected: false,

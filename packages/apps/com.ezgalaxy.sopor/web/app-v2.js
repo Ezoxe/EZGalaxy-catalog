@@ -152,6 +152,8 @@ const CONFIG = {
   playerDashSpeed: 500,
   playerDashDuration: 200,
   playerDashCooldown: 500,
+  playerHealthRegen: 1,        // HP regenerated
+  playerHealthRegenInterval: 5000, // Every 5 seconds
   
   // Camera
   cameraLerp: 0.1,
@@ -161,6 +163,10 @@ const CONFIG = {
   invincibilityTime: 500,
   hitStunTime: 200,
   
+  // Enemy
+  enemyChaseDistance: 400,     // Max distance enemies will chase
+  enemyLeashDistance: 500,     // Distance where enemies return to spawn
+  
   // World
   roomWidth: 20,
   roomHeight: 15,
@@ -168,6 +174,24 @@ const CONFIG = {
   // Debug
   showFPS: false,
   showHitboxes: false,
+};
+
+// ========== Key Bindings (customizable) ==========
+
+let KEY_BINDINGS = {
+  moveUp: ['KeyW', 'ArrowUp'],
+  moveDown: ['KeyS', 'ArrowDown'],
+  moveLeft: ['KeyA', 'ArrowLeft'],
+  moveRight: ['KeyD', 'ArrowRight'],
+  attack: ['Space', 'KeyZ'],
+  dodge: ['ShiftLeft', 'ShiftRight'],
+  interact: ['KeyE', 'KeyF'],
+  inventory: ['KeyI'],
+  skills: ['KeyK'],
+  settings: ['KeyP'],
+  minimap: ['KeyM'],
+  expandMap: ['Tab'],
+  pause: ['Escape'],
 };
 
 // ========== Game State ==========
@@ -229,6 +253,35 @@ let camera = { x: 0, y: 0, shakeX: 0, shakeY: 0 };
 // Input
 let keys = {};
 let mouse = { x: 0, y: 0, down: false };
+
+// Health regeneration timer
+let healthRegenTimer = 0;
+
+// Attack animation state
+let attackSwingAngle = 0;
+let attackSwingActive = false;
+
+// House interior state
+let insideHouse = null;
+let houseTransitionAlpha = 0;
+
+// Settings state
+let gameSettings = {
+  masterVolume: 0.7,
+  musicVolume: 0.5,
+  sfxVolume: 0.7,
+  musicEnabled: true,
+  sfxEnabled: true,
+  screenShake: true,
+  showFPS: false,
+};
+
+// Inventory items (consumables, berries, etc.)
+let playerInventory = {
+  berries: 0,
+  healthPotions: 0,
+  maxHealthBoosts: 0,
+};
 
 // ========== Initialization ==========
 
@@ -459,7 +512,7 @@ function bindInput() {
  */
 function handleKeyDown(code) {
   // Handle dialogue option selection
-  if (dialogueState && dialogueState.options.length > 0) {
+  if (dialogueState && dialogueState.options && dialogueState.options.length > 0) {
     if (code === 'Digit1' && dialogueState.options[0]) {
       dialogueState.options[0].action();
       return;
@@ -474,57 +527,46 @@ function handleKeyDown(code) {
     }
   }
   
-  switch (code) {
-    case 'Space':
-    case 'KeyZ':
-      handleAttack();
-      break;
-    case 'ShiftLeft':
-    case 'ShiftRight':
-      handleDodge();
-      break;
-    case 'KeyE':
-    case 'KeyF':
-      handleInteract();
-      break;
-    case 'KeyI':
-      togglePanel(panels, 'inventory');
-      break;
-    case 'KeyK':
-      togglePanel(panels, 'skills');
-      break;
-    case 'KeyP':
-      togglePanel(panels, 'settings');
-      break;
-    case 'KeyM':
-      toggleMinimap(minimap);
-      break;
-    case 'Tab':
-      toggleExpanded(minimap);
-      break;
-    case 'Escape':
-      if (dialogueState) {
-        closeDialogue();
-      } else if (panels.activePanel) {
-        closePanel(panels);
-      } else if (gameState === GAME_STATE.PLAYING) {
-        gameState = GAME_STATE.PAUSED;
-      } else if (gameState === GAME_STATE.PAUSED) {
-        gameState = GAME_STATE.PLAYING;
-      }
-      break;
-    case 'Enter':
-      if (gameState === GAME_STATE.MENU) {
-        startGame();
-      } else if (gameState === GAME_STATE.GAME_OVER) {
-        // Restart game
-        enemies = [];
-        items = [];
-        projectiles = [];
-        player.health = player.maxHealth;
-        startGame();
-      }
-      break;
+  // Use key bindings
+  if (KEY_BINDINGS.attack.includes(code)) {
+    handleAttack();
+  } else if (KEY_BINDINGS.dodge.includes(code)) {
+    handleDodge();
+  } else if (KEY_BINDINGS.interact.includes(code)) {
+    handleInteract();
+  } else if (KEY_BINDINGS.inventory.includes(code)) {
+    togglePanel(panels, 'inventory');
+  } else if (KEY_BINDINGS.skills.includes(code)) {
+    togglePanel(panels, 'skills');
+  } else if (KEY_BINDINGS.settings.includes(code)) {
+    togglePanel(panels, 'settings');
+  } else if (KEY_BINDINGS.minimap.includes(code)) {
+    toggleMinimap(minimap);
+  } else if (KEY_BINDINGS.expandMap.includes(code)) {
+    toggleExpanded(minimap);
+  } else if (KEY_BINDINGS.pause.includes(code)) {
+    if (dialogueState) {
+      closeDialogue();
+    } else if (panels.activePanel) {
+      closePanel(panels);
+    } else if (gameState === GAME_STATE.PLAYING) {
+      gameState = GAME_STATE.PAUSED;
+    } else if (gameState === GAME_STATE.PAUSED) {
+      gameState = GAME_STATE.PLAYING;
+    }
+  } else if (code === 'Enter') {
+    if (gameState === GAME_STATE.MENU) {
+      startGame();
+    } else if (gameState === GAME_STATE.GAME_OVER) {
+      enemies = [];
+      items = [];
+      projectiles = [];
+      player.health = player.maxHealth;
+      startGame();
+    }
+  } else if (code === 'KeyH') {
+    // Quick heal with berry
+    useHealItem();
   }
 }
 
@@ -558,6 +600,8 @@ function handleAttack() {
   if (!playerCombat.attacking) {
     playerCombat.attacking = true;
     playerCombat.attackTimer = player.weapon.cooldownMs || 300;
+    attackSwingActive = true;
+    attackSwingAngle = 0;
     playSlashSound();
     
     // Create attack visual effect
@@ -619,6 +663,31 @@ function handleInteract() {
     return;
   }
   
+  // Check for house doors first
+  if (openWorld?.structures) {
+    for (const structure of openWorld.structures) {
+      if (structure.doorX && structure.doorY && structure.type !== 'fountain' && structure.type !== 'well') {
+        const doorWorldX = structure.doorX * openWorld.tileSize;
+        const doorWorldY = structure.doorY * openWorld.tileSize;
+        const dist = distance(player.x, player.y, doorWorldX, doorWorldY);
+        
+        if (dist <= 50) {
+          if (insideHouse === structure) {
+            // Exit house
+            insideHouse = null;
+            addNotification(hud, 'Sortie de la maison', { color: '#aaaaaa' });
+          } else {
+            // Enter house
+            insideHouse = structure;
+            addNotification(hud, 'Entré dans la maison', { color: '#aaaaaa' });
+          }
+          playUIClick();
+          return;
+        }
+      }
+    }
+  }
+  
   // Check for nearby items first
   for (const item of items) {
     const dist = distance(player.x, player.y, item.x, item.y);
@@ -628,7 +697,7 @@ function handleInteract() {
     }
   }
   
-  // Check interactables (chests, ore)
+  // Check interactables (chests, ore, berries)
   for (const inter of interactables) {
     const dist = distance(player.x, player.y, inter.x, inter.y);
     if (dist <= 50) {
@@ -644,6 +713,30 @@ function handleInteract() {
       startDialogue(npc);
       return;
     }
+  }
+}
+
+/**
+ * Use heal item (berry or potion)
+ */
+function useHealItem() {
+  if (player.health >= player.maxHealth) {
+    addNotification(hud, 'Santé déjà au maximum!', { color: '#888888' });
+    return;
+  }
+  
+  if (playerInventory.healthPotions > 0) {
+    playerInventory.healthPotions--;
+    player.health = Math.min(player.maxHealth, player.health + 50);
+    playHealSound();
+    addNotification(hud, 'Potion utilisée! +50 PV', { color: '#ff44aa' });
+  } else if (playerInventory.berries > 0) {
+    playerInventory.berries--;
+    player.health = Math.min(player.maxHealth, player.health + 15);
+    playHealSound();
+    addNotification(hud, 'Baie consommée! +15 PV', { color: '#ff6688' });
+  } else {
+    addNotification(hud, 'Pas d\'objets de soin!', { color: '#ff4444' });
   }
 }
 
@@ -672,6 +765,15 @@ function handleInteractable(inter) {
           }
           addNotification(hud, `+${inter.loot.xp} XP`, { color: '#44ff88' });
         }
+        // Random chance for items
+        if (Math.random() < 0.3) {
+          playerInventory.berries += 2;
+          addNotification(hud, '+2 Baies', { color: '#ff6688' });
+        }
+        if (Math.random() < 0.15) {
+          playerInventory.healthPotions += 1;
+          addNotification(hud, '+1 Potion de Soin', { color: '#ff44aa' });
+        }
       }
       
       createHitEffect(particles, inter.x, inter.y);
@@ -691,6 +793,29 @@ function handleInteractable(inter) {
       // Check quest progress
       checkQuestObjectives('collect', 'ore_iron');
     }
+  } else if (inter.type === 'berry_bush') {
+    if (!inter.collected) {
+      inter.collected = true;
+      inter.respawnTimer = 60000; // Respawn after 60 seconds
+      
+      const berryCount = 1 + Math.floor(Math.random() * 3);
+      playerInventory.berries += berryCount;
+      
+      addNotification(hud, `+${berryCount} Baies`, { color: '#ff6688' });
+      playItemPickup('common');
+    }
+  } else if (inter.type === 'health_flower') {
+    if (!inter.collected) {
+      inter.collected = true;
+      
+      // Permanent max health boost
+      player.maxHealth += 5;
+      player.health = Math.min(player.health + 5, player.maxHealth);
+      playerInventory.maxHealthBoosts++;
+      
+      addNotification(hud, '+5 PV Maximum!', { color: '#44ffaa', size: 18 });
+      playLevelUpSound();
+    }
   }
 }
 
@@ -698,14 +823,26 @@ function handleInteractable(inter) {
  * Start dialogue with NPC
  */
 function startDialogue(npc) {
-  if (!npc.definition) return;
+  if (!npc || !npc.definition) return;
   
   const def = npc.definition;
+  const dialoguesList = def.dialogues || [];
+  
+  // Ensure we have valid dialogues array
+  if (!Array.isArray(dialoguesList) || dialoguesList.length === 0) {
+    dialogueState = {
+      npc: npc,
+      dialogues: ['...'],
+      currentIndex: 0,
+      options: [{ text: 'Au revoir', action: closeDialogue }],
+    };
+    return;
+  }
   
   dialogueState = {
     npc: npc,
-    dialogues: def.dialogues || [],
-    currentIndex: npc.interacted ? Math.min(npc.dialogueIndex, def.dialogues.length - 1) : 0,
+    dialogues: dialoguesList,
+    currentIndex: npc.interacted ? Math.min(npc.dialogueIndex || 0, dialoguesList.length - 1) : 0,
     options: [],
   };
   
@@ -759,16 +896,23 @@ function startDialogue(npc) {
 function advanceDialogue() {
   if (!dialogueState) return;
   
+  // Safety check for dialogues array
+  if (!dialogueState.dialogues || !Array.isArray(dialogueState.dialogues)) {
+    closeDialogue();
+    return;
+  }
+  
   dialogueState.currentIndex++;
   
   if (dialogueState.currentIndex >= dialogueState.dialogues.length) {
     // Show options if available, otherwise close
-    if (dialogueState.options.length === 1) {
-      // Only "Au revoir" - auto close
+    if (!dialogueState.options || dialogueState.options.length <= 1) {
+      // Only "Au revoir" or no options - auto close
       closeDialogue();
+      return;
     }
     // Otherwise stay on last message with options showing
-    dialogueState.currentIndex = dialogueState.dialogues.length - 1;
+    dialogueState.currentIndex = Math.max(0, dialogueState.dialogues.length - 1);
   }
   
   playUIClick();
@@ -914,11 +1058,63 @@ function updatePlaying(dt) {
   // Update player
   updatePlayer(dt);
   
+  // Health regeneration
+  healthRegenTimer += dt;
+  if (healthRegenTimer >= CONFIG.playerHealthRegenInterval) {
+    healthRegenTimer = 0;
+    if (player.health < player.maxHealth) {
+      player.health = Math.min(player.maxHealth, player.health + CONFIG.playerHealthRegen);
+    }
+  }
+  
+  // Update attack swing animation
+  if (attackSwingActive) {
+    attackSwingAngle += dt * 0.02;
+    if (attackSwingAngle > Math.PI) {
+      attackSwingActive = false;
+      attackSwingAngle = 0;
+    }
+  }
+  
+  // Update house transition
+  if (insideHouse) {
+    houseTransitionAlpha = Math.min(1, houseTransitionAlpha + dt * 0.005);
+  } else {
+    houseTransitionAlpha = Math.max(0, houseTransitionAlpha - dt * 0.005);
+  }
+  
   // Spawn enemies based on player distance from village
   updateEnemySpawning(dt);
   
   // Update enemies using AI system
   for (const enemy of enemies) {
+    // Check if enemy should stop chasing (leash distance)
+    if (enemy.spawnPoint) {
+      const distFromSpawn = distance(enemy.x, enemy.y, enemy.spawnPoint.x, enemy.spawnPoint.y);
+      const distToPlayer = distance(enemy.x, enemy.y, player.x, player.y);
+      
+      // If too far from spawn or player too far, return to spawn
+      if (distFromSpawn > CONFIG.enemyLeashDistance || distToPlayer > CONFIG.enemyChaseDistance) {
+        enemy.returning = true;
+      }
+      
+      // Return to spawn point
+      if (enemy.returning) {
+        const dx = enemy.spawnPoint.x - enemy.x;
+        const dy = enemy.spawnPoint.y - enemy.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 10) {
+          const speed = (enemy.stats?.speed || 60) * 1.5;
+          enemy.x += (dx / dist) * speed * dt / 1000;
+          enemy.y += (dy / dist) * speed * dt / 1000;
+        } else {
+          enemy.returning = false;
+        }
+        continue; // Skip normal AI while returning
+      }
+    }
+    
     const decision = updateEnemy(enemy, player, enemies, dt);
     if (decision) {
       // Apply AI decision
@@ -957,6 +1153,9 @@ function updatePlaying(dt) {
   // Update projectiles
   updateProjectiles(dt);
   
+  // Update interactables (respawn berries, etc.)
+  updateInteractables(dt);
+  
   // Update particles
   updateParticles(particles, dt);
   
@@ -985,6 +1184,21 @@ function updatePlaying(dt) {
   
   // Update interaction highlights
   updateInteractionHighlights();
+}
+
+/**
+ * Update interactables (respawn timers, etc.)
+ */
+function updateInteractables(dt) {
+  for (const inter of interactables) {
+    if (inter.collected && inter.respawnTimer !== undefined) {
+      inter.respawnTimer -= dt;
+      if (inter.respawnTimer <= 0) {
+        inter.collected = false;
+        inter.respawnTimer = undefined;
+      }
+    }
+  }
 }
 
 /**
@@ -1044,9 +1258,11 @@ function updateEnemySpawning(dt) {
   // Check if spawn position is in safe zone
   if (isInSafeZone(openWorld, spawnX, spawnY)) return;
   
-  // Spawn the enemy
+  // Spawn the enemy with spawn point for leashing
   const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
   const enemy = createEnemy(archetype, spawnX, spawnY);
+  enemy.spawnPoint = { x: spawnX, y: spawnY };
+  enemy.returning = false;
   enemies.push(enemy);
 }
 
@@ -1135,10 +1351,11 @@ function updatePlayer(dt) {
   let inputY = 0;
   
   if (!touchControls.enabled) {
-    if (keys['KeyA'] || keys['ArrowLeft']) inputX -= 1;
-    if (keys['KeyD'] || keys['ArrowRight']) inputX += 1;
-    if (keys['KeyW'] || keys['ArrowUp']) inputY -= 1;
-    if (keys['KeyS'] || keys['ArrowDown']) inputY += 1;
+    // Use key bindings
+    if (KEY_BINDINGS.moveLeft.some(k => keys[k])) inputX -= 1;
+    if (KEY_BINDINGS.moveRight.some(k => keys[k])) inputX += 1;
+    if (KEY_BINDINGS.moveUp.some(k => keys[k])) inputY -= 1;
+    if (KEY_BINDINGS.moveDown.some(k => keys[k])) inputY += 1;
   } else {
     const touchInput = getMovementInput(touchControls);
     inputX = touchInput.x;
@@ -1743,69 +1960,16 @@ function renderPlaying() {
     ctx.fill();
   }
   
-  // Draw enemies with pixel art style
+  // Draw enemies with different shapes based on archetype
   for (const enemy of enemies) {
-    const enemySize = 28;
-    const halfSize = enemySize / 2;
+    // Skip if returning to spawn (faded out)
+    if (enemy.returning) {
+      ctx.globalAlpha = 0.5;
+    }
     
-    // Draw shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    ctx.beginPath();
-    ctx.ellipse(enemy.x, enemy.y + halfSize - 2, halfSize * 0.8, halfSize * 0.3, 0, 0, Math.PI * 2);
-    ctx.fill();
+    drawEnemy(ctx, enemy);
     
-    // Enemy body color based on archetype
-    const archetypeColors = {
-      skirmisher: '#ff4444',
-      charger: '#ff8844',
-      spitter: '#44ff66',
-      gunner: '#888899',
-      lurker: '#884488',
-      summoner: '#aa44cc',
-      berserker: '#ff2222',
-      sniper: '#4466aa',
-      healer: '#44ffaa',
-      tank: '#666677',
-      assassin: '#333344',
-      necromancer: '#550055',
-    };
-    const bodyColor = archetypeColors[enemy.archetype] || '#ff4444';
-    
-    // Draw body
-    ctx.fillStyle = bodyColor;
-    ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, halfSize, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Highlight
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.beginPath();
-    ctx.arc(enemy.x - 4, enemy.y - 4, halfSize * 0.4, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Eyes
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(enemy.x - 5, enemy.y - 3, 4, 0, Math.PI * 2);
-    ctx.arc(enemy.x + 5, enemy.y - 3, 4, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.fillStyle = '#ff0000';
-    ctx.beginPath();
-    ctx.arc(enemy.x - 4, enemy.y - 3, 2, 0, Math.PI * 2);
-    ctx.arc(enemy.x + 6, enemy.y - 3, 2, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Health bar above enemy
-    const healthPercent = enemy.stats.hp / enemy.stats.hpMax;
-    const barWidth = enemySize;
-    const barHeight = 4;
-    const barY = enemy.y - halfSize - 8;
-    
-    ctx.fillStyle = '#333333';
-    ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth, barHeight);
-    ctx.fillStyle = healthPercent > 0.3 ? '#44ff44' : '#ff4444';
-    ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth * healthPercent, barHeight);
+    ctx.globalAlpha = 1;
   }
   
   // Draw player with pixel art style
@@ -1859,12 +2023,12 @@ function renderPlaying() {
   // Weapon (simple sword)
   if (player.weapon) {
     const weaponOffsetX = player.facing > 0 ? 10 : -18;
-    const weaponAngle = playerCombat.attacking ? 
+    const baseAngle = playerCombat.attacking ? 
       (Math.sin(performance.now() * 0.03) * 0.5 - 0.8) : 0;
     
     ctx.save();
     ctx.translate(player.x + weaponOffsetX + 4, player.y - 2);
-    ctx.rotate(weaponAngle * player.facing);
+    ctx.rotate(baseAngle * player.facing);
     
     // Blade
     ctx.fillStyle = '#cccccc';
@@ -1883,6 +2047,38 @@ function renderPlaying() {
     ctx.fillRect(-1, 1, 3, 8);
     
     ctx.restore();
+    
+    // Draw attack range indicator when attacking
+    if (attackSwingActive) {
+      const attackRange = player.weapon.reach || player.weapon.radius || 40;
+      const arcDeg = player.weapon.arcDeg || 90;
+      const startAngle = player.facing > 0 ? -Math.PI/4 : Math.PI - Math.PI/4;
+      const endAngle = startAngle + (arcDeg * Math.PI / 180);
+      const swingProgress = attackSwingAngle / Math.PI;
+      const currentAngle = startAngle + (endAngle - startAngle) * swingProgress;
+      
+      // Draw attack arc
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = '#ff6644';
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y);
+      ctx.arc(player.x, player.y, attackRange, startAngle, endAngle);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw swing line
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = '#ffaa44';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y);
+      ctx.lineTo(
+        player.x + Math.cos(currentAngle) * attackRange,
+        player.y + Math.sin(currentAngle) * attackRange
+      );
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
   
   ctx.globalAlpha = 1;
@@ -1900,6 +2096,9 @@ function renderPlaying() {
   
   // Draw lighting (screen space)
   renderLighting(lighting, ctx, camX, camY, window.innerWidth, window.innerHeight);
+  
+  // Apply atmospheric distance fog (danger zones get darker)
+  renderAtmosphericFog(ctx, camX, camY);
   
   // Draw HUD
   drawHealthBar(ctx, hud, player.health, player.maxHealth, 0, 0);
@@ -1923,6 +2122,12 @@ function renderPlaying() {
   
   // Draw minimap
   drawMinimap(ctx, minimap, player.x, player.y, currentBiome, window.innerWidth);
+  
+  // Draw controls guide (bottom left)
+  renderControlsGuide(ctx);
+  
+  // Draw inventory items count
+  renderInventoryHUD(ctx);
   
   // Draw touch controls
   if (touchControls.enabled) {
@@ -2133,7 +2338,7 @@ function renderWorld(ctx, level, camX, camY) {
 }
 
 /**
- * Render village structures
+ * Render village structures with improved textures
  */
 function renderStructures(ctx, camX, camY, startX, startY, endX, endY, tileSize) {
   if (!openWorld?.structures) return;
@@ -2150,27 +2355,139 @@ function renderStructures(ctx, camX, camY, startX, startY, endX, endY, tileSize)
     const sw = structure.width * tileSize;
     const sh = structure.height * tileSize;
     
-    // Draw roof
+    // Check if player is inside this house
+    const isInside = insideHouse === structure;
+    
+    // Draw house exterior with solid textures
     if (structure.type !== 'fountain' && structure.type !== 'well') {
-      // Roof (triangle)
-      ctx.fillStyle = '#884422';
+      // Wall base with stone/wood texture
+      const wallColor = structure.type === 'blacksmith' ? '#554444' : 
+                        structure.type === 'inn' ? '#665544' :
+                        structure.type === 'shop' ? '#556655' : '#665555';
+      
+      // Main walls
+      ctx.fillStyle = wallColor;
+      ctx.fillRect(sx, sy, sw, sh);
+      
+      // Stone/brick texture on walls
+      ctx.fillStyle = darkenHex(wallColor, 0.15);
+      for (let row = 0; row < sh / 8; row++) {
+        const offset = (row % 2) * 16;
+        for (let col = 0; col < sw / 32 + 1; col++) {
+          ctx.fillRect(sx + col * 32 + offset, sy + row * 8, 30, 1);
+          ctx.fillRect(sx + col * 32 + offset, sy + row * 8, 1, 8);
+        }
+      }
+      
+      // Window
+      if (sw > 80) {
+        ctx.fillStyle = '#334466';
+        ctx.fillRect(sx + 15, sy + 15, 20, 25);
+        ctx.fillRect(sx + sw - 35, sy + 15, 20, 25);
+        
+        // Window frame
+        ctx.strokeStyle = '#443322';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx + 15, sy + 15, 20, 25);
+        ctx.strokeRect(sx + sw - 35, sy + 15, 20, 25);
+        
+        // Window glow
+        ctx.fillStyle = 'rgba(255, 220, 150, 0.3)';
+        ctx.fillRect(sx + 17, sy + 17, 16, 21);
+        ctx.fillRect(sx + sw - 33, sy + 17, 16, 21);
+      }
+      
+      // Roof (triangle) with shingles
+      const roofColor = structure.type === 'inn' ? '#664422' : 
+                        structure.type === 'blacksmith' ? '#443333' : '#884422';
+      
+      ctx.fillStyle = roofColor;
       ctx.beginPath();
-      ctx.moveTo(sx - 10, sy);
-      ctx.lineTo(sx + sw / 2, sy - 30);
-      ctx.lineTo(sx + sw + 10, sy);
+      ctx.moveTo(sx - 15, sy);
+      ctx.lineTo(sx + sw / 2, sy - 35);
+      ctx.lineTo(sx + sw + 15, sy);
       ctx.closePath();
       ctx.fill();
       
-      // Roof edge
-      ctx.fillStyle = '#773311';
+      // Roof shingle lines
+      ctx.strokeStyle = darkenHex(roofColor, 0.2);
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        const lineY = sy - 35 + i * 10;
+        ctx.beginPath();
+        ctx.moveTo(sx - 15 + i * 5, lineY);
+        ctx.lineTo(sx + sw + 15 - i * 5, lineY);
+        ctx.stroke();
+      }
+      
+      // Roof edge/shadow
+      ctx.fillStyle = darkenHex(roofColor, 0.3);
       ctx.beginPath();
-      ctx.moveTo(sx - 10, sy);
-      ctx.lineTo(sx + sw / 2, sy - 30);
-      ctx.lineTo(sx + sw / 2 + 8, sy - 24);
-      ctx.lineTo(sx + sw + 10, sy + 6);
-      ctx.lineTo(sx - 10, sy + 6);
+      ctx.moveTo(sx - 15, sy);
+      ctx.lineTo(sx + sw / 2, sy - 35);
+      ctx.lineTo(sx + sw / 2 + 8, sy - 28);
+      ctx.lineTo(sx + sw + 15, sy + 6);
+      ctx.lineTo(sx - 15, sy + 6);
       ctx.closePath();
       ctx.fill();
+      
+      // Chimney for some buildings
+      if (structure.type === 'blacksmith' || structure.type === 'inn') {
+        ctx.fillStyle = '#554433';
+        ctx.fillRect(sx + sw - 30, sy - 45, 12, 25);
+        
+        // Smoke particles
+        const smokeTime = performance.now() * 0.001;
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
+        for (let i = 0; i < 3; i++) {
+          const smokeY = sy - 50 - Math.sin(smokeTime + i) * 10 - i * 12;
+          const smokeX = sx + sw - 24 + Math.sin(smokeTime * 2 + i) * 5;
+          ctx.beginPath();
+          ctx.arc(smokeX, smokeY, 4 + i * 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      
+      // Door with frame
+      if (structure.doorX && structure.doorY) {
+        const doorX = structure.doorX * tileSize - 10;
+        const doorY = sy + sh - 35;
+        
+        // Door frame
+        ctx.fillStyle = '#332211';
+        ctx.fillRect(doorX - 3, doorY - 3, 26, 38);
+        
+        // Door
+        ctx.fillStyle = '#664422';
+        ctx.fillRect(doorX, doorY, 20, 32);
+        
+        // Door handle
+        ctx.fillStyle = '#aa8844';
+        ctx.beginPath();
+        ctx.arc(doorX + 15, doorY + 18, 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Door planks
+        ctx.strokeStyle = '#553311';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(doorX + 10, doorY);
+        ctx.lineTo(doorX + 10, doorY + 32);
+        ctx.stroke();
+        
+        // Interaction indicator near door
+        const playerDist = distance(player.x, player.y, 
+          structure.doorX * tileSize, structure.doorY * tileSize);
+        if (playerDist < 60) {
+          const pulse = 0.5 + Math.sin(performance.now() * 0.005) * 0.3;
+          ctx.globalAlpha = pulse;
+          ctx.fillStyle = '#ffcc00';
+          ctx.font = 'bold 12px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('[E]', doorX + 10, doorY - 10);
+          ctx.globalAlpha = 1;
+        }
+      }
     }
     
     // Special decorations for structure types
@@ -2180,6 +2497,11 @@ function renderStructures(ctx, camX, camY, startX, startY, endX, endY, tileSize)
       ctx.beginPath();
       ctx.arc(sx + sw / 2, sy + sh / 2, sw / 2 - 5, 0, Math.PI * 2);
       ctx.fill();
+      
+      // Basin rim
+      ctx.strokeStyle = '#888899';
+      ctx.lineWidth = 4;
+      ctx.stroke();
       
       // Water
       const wave = Math.sin(performance.now() * 0.003) * 0.1;
@@ -2193,16 +2515,44 @@ function renderStructures(ctx, camX, camY, startX, startY, endX, endY, tileSize)
       ctx.fillRect(sx + sw / 2 - 8, sy + sh / 2 - 20, 16, 25);
       
       // Water spray particles
-      for (let i = 0; i < 5; i++) {
-        const angle = (i / 5) * Math.PI * 2 + performance.now() * 0.002;
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2 + performance.now() * 0.002;
+        const height = Math.sin(performance.now() * 0.01 + i) * 8;
         const px = sx + sw / 2 + Math.cos(angle) * 10;
-        const py = sy + sh / 2 - 20 + Math.sin(performance.now() * 0.01 + i) * 5 - 10;
+        const py = sy + sh / 2 - 20 + height - 15;
         
-        ctx.fillStyle = 'rgba(150, 200, 255, 0.6)';
+        ctx.fillStyle = 'rgba(150, 200, 255, 0.7)';
         ctx.beginPath();
         ctx.arc(px, py, 2, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    
+    // Well
+    if (structure.type === 'well') {
+      // Stone base
+      ctx.fillStyle = '#666666';
+      ctx.beginPath();
+      ctx.arc(sx + sw / 2, sy + sh / 2, 20, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#444455';
+      ctx.beginPath();
+      ctx.arc(sx + sw / 2, sy + sh / 2, 14, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Wooden frame
+      ctx.fillStyle = '#553322';
+      ctx.fillRect(sx + sw / 2 - 3, sy + sh / 2 - 35, 6, 40);
+      
+      // Roof
+      ctx.fillStyle = '#664433';
+      ctx.beginPath();
+      ctx.moveTo(sx + sw / 2 - 25, sy + sh / 2 - 30);
+      ctx.lineTo(sx + sw / 2, sy + sh / 2 - 45);
+      ctx.lineTo(sx + sw / 2 + 25, sy + sh / 2 - 30);
+      ctx.closePath();
+      ctx.fill();
     }
     
     // Sign for shops
@@ -2210,20 +2560,120 @@ function renderStructures(ctx, camX, camY, startX, startY, endX, endY, tileSize)
       const signX = sx + sw / 2;
       const signY = sy + 15;
       
-      // Sign board
+      // Sign post
       ctx.fillStyle = '#443322';
-      ctx.fillRect(signX - 20, signY, 40, 20);
+      ctx.fillRect(signX - 2, signY, 4, 20);
+      
+      // Sign board
+      ctx.fillStyle = '#554433';
+      ctx.fillRect(signX - 25, signY - 5, 50, 25);
+      
+      // Sign border
+      ctx.strokeStyle = '#332211';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(signX - 25, signY - 5, 50, 25);
       
       // Sign text/icon
       ctx.fillStyle = '#ddccaa';
-      ctx.font = '10px monospace';
+      ctx.font = '14px monospace';
       ctx.textAlign = 'center';
       
-      if (structure.type === 'shop') ctx.fillText('◆', signX, signY + 14);
-      else if (structure.type === 'inn') ctx.fillText('☆', signX, signY + 14);
-      else if (structure.type === 'blacksmith') ctx.fillText('⚒', signX, signY + 14);
+      if (structure.type === 'shop') ctx.fillText('◆', signX, signY + 12);
+      else if (structure.type === 'inn') ctx.fillText('☆', signX, signY + 12);
+      else if (structure.type === 'blacksmith') ctx.fillText('⚒', signX, signY + 12);
     }
   }
+  
+  // Render house interior effect if inside a house
+  if (insideHouse && houseTransitionAlpha > 0) {
+    renderHouseInteriorEffect(ctx, camX, camY, tileSize);
+  }
+}
+
+/**
+ * Render house interior effect (darken outside, focus on interior)
+ */
+function renderHouseInteriorEffect(ctx, camX, camY, tileSize) {
+  if (!insideHouse) return;
+  
+  const sx = insideHouse.x * tileSize - camX;
+  const sy = insideHouse.y * tileSize - camY;
+  const sw = insideHouse.width * tileSize;
+  const sh = insideHouse.height * tileSize;
+  
+  // Darken everything outside the house
+  ctx.save();
+  ctx.globalAlpha = houseTransitionAlpha * 0.7;
+  ctx.fillStyle = '#000000';
+  
+  // Top
+  ctx.fillRect(-camX, -camY, openWorld.width * tileSize, insideHouse.y * tileSize);
+  // Bottom
+  ctx.fillRect(-camX, (insideHouse.y + insideHouse.height) * tileSize - camY, 
+    openWorld.width * tileSize, openWorld.height * tileSize);
+  // Left
+  ctx.fillRect(-camX, sy, insideHouse.x * tileSize, sh);
+  // Right
+  ctx.fillRect((insideHouse.x + insideHouse.width) * tileSize - camX, sy, 
+    openWorld.width * tileSize, sh);
+  
+  ctx.restore();
+  
+  // Draw enlarged interior
+  ctx.save();
+  ctx.globalAlpha = houseTransitionAlpha;
+  
+  // Interior floor (bigger than exterior would suggest)
+  const interiorScale = 2; // Interior is 2x larger
+  const interiorX = sx - sw * (interiorScale - 1) / 2;
+  const interiorY = sy - sh * (interiorScale - 1) / 2;
+  const interiorW = sw * interiorScale;
+  const interiorH = sh * interiorScale;
+  
+  // Floor
+  ctx.fillStyle = '#8a6644';
+  ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
+  
+  // Floor planks
+  ctx.strokeStyle = '#6a4a2a';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < interiorH / 16; i++) {
+    ctx.beginPath();
+    ctx.moveTo(interiorX, interiorY + i * 16);
+    ctx.lineTo(interiorX + interiorW, interiorY + i * 16);
+    ctx.stroke();
+  }
+  
+  // Interior furniture
+  // Table
+  ctx.fillStyle = '#664422';
+  ctx.fillRect(interiorX + interiorW / 2 - 30, interiorY + interiorH / 2 - 20, 60, 40);
+  ctx.fillStyle = '#553311';
+  ctx.fillRect(interiorX + interiorW / 2 - 25, interiorY + interiorH / 2 + 15, 10, 20);
+  ctx.fillRect(interiorX + interiorW / 2 + 15, interiorY + interiorH / 2 + 15, 10, 20);
+  
+  // Bed
+  ctx.fillStyle = '#443333';
+  ctx.fillRect(interiorX + 20, interiorY + 20, 50, 80);
+  ctx.fillStyle = '#ffeecc';
+  ctx.fillRect(interiorX + 25, interiorY + 25, 40, 30);
+  ctx.fillStyle = '#aaaacc';
+  ctx.fillRect(interiorX + 25, interiorY + 55, 40, 40);
+  
+  // Chest
+  ctx.fillStyle = '#7a5a3a';
+  ctx.fillRect(interiorX + interiorW - 70, interiorY + 30, 40, 30);
+  ctx.fillStyle = '#ffcc00';
+  ctx.fillRect(interiorX + interiorW - 55, interiorY + 40, 10, 8);
+  
+  // Candle/lamp light
+  const flicker = 0.7 + Math.sin(performance.now() * 0.01) * 0.2;
+  ctx.fillStyle = `rgba(255, 200, 100, ${0.15 * flicker})`;
+  ctx.beginPath();
+  ctx.arc(interiorX + interiorW / 2, interiorY + interiorH / 2, 80, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
 }
 
 /**
@@ -2439,7 +2889,232 @@ function drawLampPost(ctx, x, y) {
 }
 
 /**
- * Render interactables (chests, ore)
+ * Draw enemy with different shapes based on archetype
+ */
+function drawEnemy(ctx, enemy) {
+  const x = enemy.x;
+  const y = enemy.y;
+  
+  // Archetype visual configurations
+  const archetypeVisuals = {
+    skirmisher: { shape: 'circle', size: 24, color: '#ff4444', eyeColor: '#ffff00' },
+    charger: { shape: 'triangle', size: 30, color: '#ff8844', eyeColor: '#ff0000' },
+    spitter: { shape: 'blob', size: 26, color: '#44ff66', eyeColor: '#000000' },
+    gunner: { shape: 'square', size: 28, color: '#888899', eyeColor: '#ff4444' },
+    lurker: { shape: 'ghost', size: 28, color: '#884488', eyeColor: '#ffffff' },
+    summoner: { shape: 'star', size: 32, color: '#aa44cc', eyeColor: '#ffcc00' },
+    berserker: { shape: 'spiky', size: 34, color: '#ff2222', eyeColor: '#000000' },
+    sniper: { shape: 'thin', size: 26, color: '#4466aa', eyeColor: '#ff0000' },
+    healer: { shape: 'aura', size: 24, color: '#44ffaa', eyeColor: '#ffffff' },
+    tank: { shape: 'block', size: 36, color: '#666677', eyeColor: '#ff4444' },
+    assassin: { shape: 'shadow', size: 24, color: '#333344', eyeColor: '#ff00ff' },
+    necromancer: { shape: 'skull', size: 30, color: '#550055', eyeColor: '#00ff00' },
+  };
+  
+  const visual = archetypeVisuals[enemy.archetype] || archetypeVisuals.skirmisher;
+  const halfSize = visual.size / 2;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + halfSize - 2, halfSize * 0.7, halfSize * 0.25, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw body based on shape
+  ctx.fillStyle = visual.color;
+  
+  switch (visual.shape) {
+    case 'circle':
+      ctx.beginPath();
+      ctx.arc(x, y, halfSize, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+      
+    case 'triangle':
+      ctx.beginPath();
+      ctx.moveTo(x, y - halfSize);
+      ctx.lineTo(x + halfSize, y + halfSize * 0.8);
+      ctx.lineTo(x - halfSize, y + halfSize * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      break;
+      
+    case 'blob':
+      // Irregular blob shape
+      ctx.beginPath();
+      ctx.moveTo(x - halfSize, y);
+      ctx.quadraticCurveTo(x - halfSize * 0.5, y - halfSize, x, y - halfSize * 0.8);
+      ctx.quadraticCurveTo(x + halfSize * 0.5, y - halfSize, x + halfSize, y);
+      ctx.quadraticCurveTo(x + halfSize, y + halfSize * 0.5, x, y + halfSize * 0.7);
+      ctx.quadraticCurveTo(x - halfSize, y + halfSize * 0.5, x - halfSize, y);
+      ctx.fill();
+      // Slime drip
+      ctx.beginPath();
+      ctx.arc(x + halfSize * 0.5, y + halfSize * 0.8, 4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+      
+    case 'square':
+      ctx.fillRect(x - halfSize, y - halfSize * 0.8, visual.size, visual.size * 0.8);
+      // Robot details
+      ctx.fillStyle = darkenHex(visual.color, 0.3);
+      ctx.fillRect(x - halfSize + 4, y - halfSize * 0.8 + 4, 8, 8);
+      ctx.fillRect(x + halfSize - 12, y - halfSize * 0.8 + 4, 8, 8);
+      break;
+      
+    case 'ghost':
+      ctx.beginPath();
+      ctx.arc(x, y - halfSize * 0.3, halfSize * 0.8, Math.PI, 0);
+      ctx.lineTo(x + halfSize * 0.8, y + halfSize * 0.5);
+      // Wavy bottom
+      for (let i = 0; i < 4; i++) {
+        const wx = x + halfSize * 0.8 - (i + 1) * (halfSize * 0.4);
+        const wy = y + halfSize * 0.5 + (i % 2 === 0 ? 8 : 0);
+        ctx.lineTo(wx, wy);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+      
+    case 'star':
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const angle = (i * 72 - 90) * Math.PI / 180;
+        const outerX = x + Math.cos(angle) * halfSize;
+        const outerY = y + Math.sin(angle) * halfSize;
+        if (i === 0) ctx.moveTo(outerX, outerY);
+        else ctx.lineTo(outerX, outerY);
+        
+        const innerAngle = ((i * 72 + 36) - 90) * Math.PI / 180;
+        const innerX = x + Math.cos(innerAngle) * halfSize * 0.4;
+        const innerY = y + Math.sin(innerAngle) * halfSize * 0.4;
+        ctx.lineTo(innerX, innerY);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+      
+    case 'spiky':
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const angle = (i * 45) * Math.PI / 180;
+        const r = i % 2 === 0 ? halfSize : halfSize * 0.6;
+        const px = x + Math.cos(angle) * r;
+        const py = y + Math.sin(angle) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+      
+    case 'thin':
+      // Tall thin sniper
+      ctx.fillRect(x - 6, y - halfSize, 12, halfSize * 1.8);
+      // Scope/eye
+      ctx.fillStyle = '#ff0000';
+      ctx.beginPath();
+      ctx.arc(x, y - halfSize + 8, 5, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+      
+    case 'aura':
+      // Glowing healer
+      ctx.fillStyle = `rgba(68, 255, 170, 0.3)`;
+      ctx.beginPath();
+      ctx.arc(x, y, halfSize * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = visual.color;
+      ctx.beginPath();
+      ctx.arc(x, y, halfSize * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+      
+    case 'block':
+      // Chunky tank
+      ctx.fillRect(x - halfSize, y - halfSize * 0.7, visual.size, halfSize * 1.4);
+      // Shield detail
+      ctx.fillStyle = lightenHex(visual.color, 0.2);
+      ctx.fillRect(x - halfSize + 4, y - halfSize * 0.5, visual.size - 8, 4);
+      break;
+      
+    case 'shadow':
+      // Flickering shadow assassin
+      const shadowAlpha = 0.6 + Math.sin(performance.now() * 0.01) * 0.3;
+      ctx.globalAlpha *= shadowAlpha;
+      ctx.beginPath();
+      ctx.arc(x, y, halfSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha /= shadowAlpha;
+      break;
+      
+    case 'skull':
+      // Skull-like necromancer
+      ctx.beginPath();
+      ctx.arc(x, y - 4, halfSize * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      // Jaw
+      ctx.beginPath();
+      ctx.arc(x, y + 8, halfSize * 0.5, 0, Math.PI);
+      ctx.fill();
+      // Eye sockets
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(x - 6, y - 6, 5, 0, Math.PI * 2);
+      ctx.arc(x + 6, y - 6, 5, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+      
+    default:
+      ctx.beginPath();
+      ctx.arc(x, y, halfSize, 0, Math.PI * 2);
+      ctx.fill();
+  }
+  
+  // Highlight (for most shapes)
+  if (!['ghost', 'shadow', 'skull'].includes(visual.shape)) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.beginPath();
+    ctx.arc(x - halfSize * 0.3, y - halfSize * 0.3, halfSize * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Eyes (varies by type)
+  if (!['skull', 'thin'].includes(visual.shape)) {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(x - halfSize * 0.3, y - halfSize * 0.15, 4, 0, Math.PI * 2);
+    ctx.arc(x + halfSize * 0.3, y - halfSize * 0.15, 4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = visual.eyeColor;
+    ctx.beginPath();
+    ctx.arc(x - halfSize * 0.25, y - halfSize * 0.15, 2, 0, Math.PI * 2);
+    ctx.arc(x + halfSize * 0.35, y - halfSize * 0.15, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Health bar
+  const healthPercent = (enemy.stats?.hp || 0) / (enemy.stats?.hpMax || 1);
+  const barWidth = visual.size;
+  const barHeight = 4;
+  const barY = y - halfSize - 10;
+  
+  ctx.fillStyle = '#333333';
+  ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
+  
+  ctx.fillStyle = healthPercent > 0.5 ? '#44ff44' : healthPercent > 0.25 ? '#ffaa00' : '#ff4444';
+  ctx.fillRect(x - barWidth / 2, barY, barWidth * healthPercent, barHeight);
+  
+  // Archetype indicator
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '8px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(enemy.archetype?.charAt(0).toUpperCase() || '?', x, y + halfSize + 12);
+}
+
+/**
+ * Render interactables (chests, ore, berries, health flowers)
  */
 function renderInteractables(ctx, camX, camY) {
   for (const inter of interactables) {
@@ -2454,6 +3129,12 @@ function renderInteractables(ctx, camX, camY) {
     } else if (inter.type === 'ore_iron') {
       if (!inter.collected) {
         drawOre(ctx, inter.x, inter.y);
+      }
+    } else if (inter.type === 'berry_bush') {
+      drawBerryBush(ctx, inter.x, inter.y, inter.collected);
+    } else if (inter.type === 'health_flower') {
+      if (!inter.collected) {
+        drawHealthFlower(ctx, inter.x, inter.y);
       }
     }
   }
@@ -2530,6 +3211,103 @@ function drawOre(ctx, x, y) {
   ctx.fillStyle = `rgba(200, 180, 150, ${shine * 0.5})`;
   ctx.beginPath();
   ctx.arc(x - 3, y - 10, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Draw berry bush
+ */
+function drawBerryBush(ctx, x, y, collected) {
+  // Bush base
+  ctx.fillStyle = '#3a6a3a';
+  ctx.beginPath();
+  ctx.arc(x, y, 14, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#4a8a4a';
+  ctx.beginPath();
+  ctx.arc(x - 5, y - 3, 10, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = '#5a9a5a';
+  ctx.beginPath();
+  ctx.arc(x + 4, y - 2, 8, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Berries (if not collected)
+  if (!collected) {
+    const berryPositions = [
+      { x: -6, y: -5 },
+      { x: 2, y: -8 },
+      { x: 7, y: -2 },
+      { x: -3, y: 2 },
+      { x: 5, y: 4 },
+    ];
+    
+    ctx.fillStyle = '#ff4466';
+    for (const pos of berryPositions) {
+      ctx.beginPath();
+      ctx.arc(x + pos.x, y + pos.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Shine on berries
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath();
+    ctx.arc(x - 5, y - 6, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Draw health flower (rare healing item)
+ */
+function drawHealthFlower(ctx, x, y) {
+  const pulse = 0.8 + Math.sin(performance.now() * 0.004) * 0.2;
+  
+  // Glow effect
+  ctx.fillStyle = `rgba(100, 255, 150, ${0.2 * pulse})`;
+  ctx.beginPath();
+  ctx.arc(x, y - 8, 20, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Stem
+  ctx.fillStyle = '#3a7a3a';
+  ctx.fillRect(x - 1, y - 5, 2, 15);
+  
+  // Leaves
+  ctx.fillStyle = '#4a9a4a';
+  ctx.beginPath();
+  ctx.ellipse(x - 6, y + 2, 5, 3, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + 6, y + 4, 5, 3, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Flower petals
+  const petalCount = 6;
+  for (let i = 0; i < petalCount; i++) {
+    const angle = (i / petalCount) * Math.PI * 2 + performance.now() * 0.001;
+    const px = x + Math.cos(angle) * 8;
+    const py = y - 10 + Math.sin(angle) * 8;
+    
+    ctx.fillStyle = `rgba(150, 255, 200, ${pulse})`;
+    ctx.beginPath();
+    ctx.ellipse(px, py, 5, 3, angle, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Center
+  ctx.fillStyle = '#ffff88';
+  ctx.beginPath();
+  ctx.arc(x, y - 10, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Sparkle
+  const sparkle = Math.sin(performance.now() * 0.008) * 0.5 + 0.5;
+  ctx.fillStyle = `rgba(255, 255, 255, ${sparkle})`;
+  ctx.beginPath();
+  ctx.arc(x + 3, y - 13, 2, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -2716,14 +3494,14 @@ function renderDialogue(ctx) {
   ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
   
   // NPC name
-  const npcName = dialogueState.npc.definition?.name || 'NPC';
+  const npcName = dialogueState.npc?.definition?.name || 'NPC';
   ctx.fillStyle = '#ffcc00';
   ctx.font = 'bold 16px monospace';
   ctx.textAlign = 'left';
   ctx.fillText(npcName, boxX + 20, boxY + 25);
   
   // Dialogue text
-  const currentDialogue = dialogueState.dialogues[dialogueState.currentIndex] || '';
+  const currentDialogue = (dialogueState.dialogues && dialogueState.dialogues[dialogueState.currentIndex]) || '...';
   ctx.fillStyle = '#ffffff';
   ctx.font = '14px monospace';
   
@@ -2748,7 +3526,8 @@ function renderDialogue(ctx) {
   ctx.fillText(line, boxX + 20, lineY);
   
   // Options (if on last dialogue)
-  if (dialogueState.currentIndex >= dialogueState.dialogues.length - 1 && dialogueState.options.length > 0) {
+  const dialoguesLength = dialogueState.dialogues?.length || 0;
+  if (dialogueState.currentIndex >= dialoguesLength - 1 && dialogueState.options && dialogueState.options.length > 0) {
     const optionY = boxY + boxHeight - 50;
     
     for (let i = 0; i < dialogueState.options.length; i++) {
@@ -2764,7 +3543,7 @@ function renderDialogue(ctx) {
   }
   
   // Continue prompt
-  if (dialogueState.currentIndex < dialogueState.dialogues.length - 1) {
+  if (dialogueState.currentIndex < dialoguesLength - 1) {
     const pulse = 0.5 + Math.sin(performance.now() * 0.005) * 0.3;
     ctx.globalAlpha = pulse;
     ctx.fillStyle = '#888888';
@@ -2774,6 +3553,113 @@ function renderDialogue(ctx) {
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
   }
+}
+
+/**
+ * Render atmospheric fog based on distance from village center
+ * Creates more ominous atmosphere in dangerous areas
+ */
+function renderAtmosphericFog(ctx, camX, camY) {
+  if (!openWorld) return;
+  
+  const villageCenter = openWorld.villageCenter || { x: 100, y: 75 };
+  const tileSize = openWorld.tileSize || 16;
+  const villageCenterPixelX = villageCenter.x * tileSize;
+  const villageCenterPixelY = villageCenter.y * tileSize;
+  
+  // Player distance from village center
+  const playerDist = Math.sqrt(
+    Math.pow(player.x - villageCenterPixelX, 2) + 
+    Math.pow(player.y - villageCenterPixelY, 2)
+  );
+  
+  // Safe zone radius in pixels
+  const safeRadius = 600;  // ~37 tiles
+  const maxRadius = 2000;  // Full fog distance
+  
+  // Calculate fog intensity based on distance
+  if (playerDist > safeRadius) {
+    const fogProgress = Math.min(1, (playerDist - safeRadius) / (maxRadius - safeRadius));
+    const fogIntensity = fogProgress * 0.35;
+    
+    // Color shifts based on zone danger - darker purple/blue tint for danger
+    const dangerLevel = Math.min(1, playerDist / 2500);
+    const r = Math.floor(20 + dangerLevel * 30);
+    const g = Math.floor(10 + dangerLevel * 15);
+    const b = Math.floor(40 + dangerLevel * 40);
+    
+    // Apply fog overlay
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${fogIntensity})`;
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    
+    // Add vignette effect for more atmosphere
+    const vignette = ctx.createRadialGradient(
+      window.innerWidth / 2, window.innerHeight / 2, window.innerWidth * 0.3,
+      window.innerWidth / 2, window.innerHeight / 2, window.innerWidth * 0.8
+    );
+    vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignette.addColorStop(1, `rgba(0, 0, 0, ${fogIntensity * 0.6})`);
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+  }
+}
+
+/**
+ * Render controls guide (bottom left)
+ */
+function renderControlsGuide(ctx) {
+  const guideX = 15;
+  const guideY = window.innerHeight - 140;
+  
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillRect(guideX - 5, guideY - 5, 145, 135);
+  
+  ctx.fillStyle = '#888899';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  
+  const controls = [
+    'WASD - Déplacer',
+    'ESPACE - Attaquer',
+    'SHIFT - Esquiver',
+    'E - Interagir',
+    'H - Utiliser soin',
+    'I - Inventaire',
+    'P - Options',
+    'M - Carte',
+    'ESC - Pause',
+  ];
+  
+  controls.forEach((text, i) => {
+    ctx.fillText(text, guideX, guideY + 12 + i * 13);
+  });
+}
+
+/**
+ * Render inventory HUD (items count)
+ */
+function renderInventoryHUD(ctx) {
+  const hudX = window.innerWidth - 130;
+  const hudY = 120;
+  
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillRect(hudX - 5, hudY - 5, 125, 65);
+  
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  
+  // Berries
+  ctx.fillStyle = '#ff6688';
+  ctx.fillText(`🍓 Baies: ${playerInventory.berries}`, hudX, hudY + 12);
+  
+  // Health Potions
+  ctx.fillStyle = '#ff44aa';
+  ctx.fillText(`🧪 Potions: ${playerInventory.healthPotions}`, hudX, hudY + 28);
+  
+  // Gold
+  const gold = worldState?.player?.gold || 0;
+  ctx.fillStyle = '#ffcc00';
+  ctx.fillText(`💰 Or: ${gold}`, hudX, hudY + 44);
 }
 
 /**

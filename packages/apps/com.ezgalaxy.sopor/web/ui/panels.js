@@ -661,10 +661,49 @@ export function drawSettingsPanel(ctx, manager, settings, screenWidth, screenHei
 }
 
 /**
- * Draw audio settings
+ * Draw audio settings (volume sliders with mute toggle)
  */
 function drawAudioSettings(ctx, settings, x, y, width, height) {
   const config = PANEL_CONFIG;
+  
+  // Mute toggles first
+  const toggles = [
+    { key: 'musicEnabled', label: 'Musique activée', value: settings.musicEnabled ?? true },
+    { key: 'sfxEnabled', label: 'Effets sonores activés', value: settings.sfxEnabled ?? true },
+  ];
+  
+  toggles.forEach((toggle, i) => {
+    const toggleY = y + i * 35;
+    
+    // Label
+    ctx.fillStyle = config.textColor;
+    ctx.font = `${config.textSize - 1}px ${config.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.fillText(toggle.label, x, toggleY + 15);
+    
+    // Toggle box
+    const boxX = x + width - 50;
+    const boxY = toggleY + 3;
+    const boxW = 40;
+    const boxH = 20;
+    
+    ctx.fillStyle = toggle.value ? '#44aa66' : '#664444';
+    roundRect(ctx, boxX, boxY, boxW, boxH, 10);
+    ctx.fill();
+    
+    // Toggle circle
+    const circleX = toggle.value ? boxX + boxW - 12 : boxX + 12;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(circleX, boxY + boxH / 2, 7, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Status text
+    ctx.fillStyle = config.textSecondary;
+    ctx.textAlign = 'right';
+    ctx.font = `${config.textSize - 2}px ${config.fontFamily}`;
+    ctx.fillText(toggle.value ? 'ON' : 'OFF', boxX - 10, toggleY + 15);
+  });
   
   const sliders = [
     { key: 'masterVolume', label: t('settings.audio.master'), value: settings.masterVolume ?? 0.7 },
@@ -672,41 +711,44 @@ function drawAudioSettings(ctx, settings, x, y, width, height) {
     { key: 'sfxVolume', label: t('settings.audio.sfx'), value: settings.sfxVolume ?? 0.7 },
   ];
   
+  const sliderStartY = y + toggles.length * 35 + 20;
+  
   sliders.forEach((slider, i) => {
-    const sliderY = y + i * 60;
+    const sliderY = sliderStartY + i * 55;
     
     // Label
     ctx.fillStyle = config.textColor;
-    ctx.font = `${config.textSize}px ${config.fontFamily}`;
+    ctx.font = `${config.textSize - 1}px ${config.fontFamily}`;
     ctx.textAlign = 'left';
-    ctx.fillText(slider.label, x, sliderY + 15);
+    ctx.fillText(slider.label, x, sliderY + 12);
     
     // Slider track
     const trackX = x;
-    const trackY = sliderY + 30;
+    const trackY = sliderY + 25;
     const trackWidth = width;
-    const trackHeight = 8;
+    const trackHeight = 6;
     
     ctx.fillStyle = '#333344';
-    roundRect(ctx, trackX, trackY, trackWidth, trackHeight, 4);
+    roundRect(ctx, trackX, trackY, trackWidth, trackHeight, 3);
     ctx.fill();
     
     // Slider fill
     ctx.fillStyle = config.accentColor;
-    roundRect(ctx, trackX, trackY, trackWidth * slider.value, trackHeight, 4);
+    roundRect(ctx, trackX, trackY, trackWidth * slider.value, trackHeight, 3);
     ctx.fill();
     
     // Slider handle
     const handleX = trackX + trackWidth * slider.value;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(handleX, trackY + trackHeight / 2, 10, 0, Math.PI * 2);
+    ctx.arc(handleX, trackY + trackHeight / 2, 8, 0, Math.PI * 2);
     ctx.fill();
     
     // Value
     ctx.fillStyle = config.textSecondary;
     ctx.textAlign = 'right';
-    ctx.fillText(`${Math.round(slider.value * 100)}%`, x + width, sliderY + 15);
+    ctx.font = `${config.textSize - 2}px ${config.fontFamily}`;
+    ctx.fillText(`${Math.round(slider.value * 100)}%`, x + width, sliderY + 12);
   });
 }
 
@@ -742,15 +784,39 @@ function drawGeneralSettings(ctx, settings, x, y, width, height) {
 }
 
 /**
- * Draw controls settings
+ * Draw controls settings (key rebinding)
  */
 function drawControlsSettings(ctx, settings, x, y, width, height) {
   const config = PANEL_CONFIG;
   
-  ctx.fillStyle = config.textSecondary;
-  ctx.font = `${config.textSize}px ${config.fontFamily}`;
+  const controls = [
+    { key: 'moveUp', label: 'Haut', default: 'W / ↑' },
+    { key: 'moveDown', label: 'Bas', default: 'S / ↓' },
+    { key: 'moveLeft', label: 'Gauche', default: 'A / ←' },
+    { key: 'moveRight', label: 'Droite', default: 'D / →' },
+    { key: 'attack', label: 'Attaquer', default: 'ESPACE / Z' },
+    { key: 'dodge', label: 'Esquiver', default: 'SHIFT' },
+    { key: 'interact', label: 'Interagir', default: 'E / F' },
+    { key: 'heal', label: 'Utiliser soin', default: 'H' },
+  ];
+  
+  ctx.fillStyle = '#888899';
+  ctx.font = `${config.textSize - 2}px ${config.fontFamily}`;
   ctx.textAlign = 'center';
-  ctx.fillText(t('settings.controls.info'), x + width / 2, y + height / 2);
+  ctx.fillText('Contrôles du jeu:', x + width / 2, y + 15);
+  
+  controls.forEach((control, i) => {
+    const controlY = y + 35 + i * 28;
+    
+    ctx.fillStyle = config.textColor;
+    ctx.font = `${config.textSize - 1}px ${config.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.fillText(control.label, x, controlY);
+    
+    ctx.fillStyle = config.accentColor;
+    ctx.textAlign = 'right';
+    ctx.fillText(control.default, x + width, controlY);
+  });
 }
 
 /**
