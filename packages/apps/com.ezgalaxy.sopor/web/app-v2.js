@@ -685,7 +685,7 @@ function handleAttack() {
           if (angleDiff <= halfArcRad) {
             // Damage the animal
             deco.health = (deco.health || 30) - baseDamage;
-            addDamageNumber(deco.x, deco.y, baseDamage, true);
+            showDamageNumber(deco.x, deco.y, baseDamage, { color: '#ffffff' });
             
             // Create hit effect
             createHitEffect(particles, deco.x, deco.y);
@@ -1622,7 +1622,7 @@ function updateAnimals(dt) {
           // Deal damage
           if (distToPlayer < AGGRESSIVE_ATTACK_DISTANCE * 1.5) {
             player.health -= deco.damage || 5;
-            addDamageNumber(player.x, player.y, deco.damage || 5, false);
+            showDamageNumber(player.x, player.y, deco.damage || 5, { color: '#ff4444' });
             
             // Knockback player
             const angle = Math.atan2(player.y - deco.y, player.x - deco.x);
