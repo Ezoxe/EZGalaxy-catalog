@@ -1,27 +1,1307 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Network Sim</title>
-    <style>
-      html, body { margin: 0; padding: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-      body { background: #0b0f19; color: #e5e7eb; }
-      .wrap { padding: 16px; }
-      .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 16px; max-width: 720px; }
-      .muted { opacity: 0.8; font-size: 12px; }
-      code { background: rgba(0,0,0,0.35); padding: 2px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="card">
-        <h1 style="margin: 0 0 8px;">Network Sim</h1>
-        <div class="muted">Simulation réseau (package standard)</div>
-        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.12); margin: 12px 0;" />
-        <p style="margin: 0 0 10px;">Si vous voyez cette page, le catalogue et l’installation de packages fonctionnent.</p>
-        <p class="muted" style="margin: 0;">Note: la version intégrée (hors package) est accessible dans EZGalaxy via <code>/network-sim</code>.</p>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Network Sim - Simulateur Réseau & Cybersécurité</title>
+  <style>
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #0f1420;
+      --bg-card: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.1);
+      --text-primary: #e5e7eb;
+      --text-secondary: #9ca3af;
+      --accent-blue: #3b82f6;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-yellow: #eab308;
+      --accent-purple: #a855f7;
+      --accent-orange: #f97316;
+      --accent-cyan: #06b6d4;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+    
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .header h1 .icon { font-size: 1.5rem; }
+    
+    .header-tabs {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+    
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+    
+    .tab-btn:hover {
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+    
+    .tab-btn.active {
+      background: var(--accent-blue);
+      color: white;
+      border-color: var(--accent-blue);
+    }
+    
+    .main-layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    
+    .sidebar {
+      width: 280px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .sidebar-section h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+    
+    .node-palette {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    
+    .palette-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: grab;
+      transition: all 0.2s;
+      font-size: 0.75rem;
+    }
+    
+    .palette-item:hover {
+      border-color: var(--accent-blue);
+      background: rgba(59, 130, 246, 0.1);
+    }
+    
+    .palette-item .icon {
+      font-size: 1.5rem;
+      display: block;
+      margin-bottom: 4px;
+    }
+    
+    .attack-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .attack-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s;
+      font-size: 0.85rem;
+    }
+    
+    .attack-btn:hover {
+      border-color: var(--accent-red);
+      background: rgba(239, 68, 68, 0.1);
+    }
+    
+    .attack-btn.active {
+      border-color: var(--accent-red);
+      background: rgba(239, 68, 68, 0.2);
+    }
+    
+    .attack-btn .icon { font-size: 1.2rem; }
+    
+    .defense-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s;
+      font-size: 0.85rem;
+    }
+    
+    .defense-btn:hover {
+      border-color: var(--accent-green);
+      background: rgba(34, 197, 94, 0.1);
+    }
+    
+    .defense-btn.active {
+      border-color: var(--accent-green);
+      background: rgba(34, 197, 94, 0.2);
+    }
+    
+    .defense-btn .icon { font-size: 1.2rem; }
+    
+    .canvas-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    #networkCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    
+    .info-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 320px;
+      background: rgba(15, 20, 32, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      display: none;
+    }
+    
+    .info-panel.visible { display: block; }
+    
+    .info-panel-header {
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .info-panel-header h3 { font-size: 0.9rem; font-weight: 600; }
+    
+    .info-panel-close {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 4px;
+    }
+    
+    .info-panel-content {
+      padding: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: var(--text-secondary); }
+    .info-value { font-weight: 500; }
+    
+    .log-panel {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      height: 160px;
+      background: rgba(15, 20, 32, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .log-header {
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 12px 12px 0 0;
+    }
+    
+    .log-header h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .log-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.75rem;
+    }
+    
+    .log-entry {
+      padding: 4px 0;
+      display: flex;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .log-time { color: var(--text-secondary); min-width: 70px; }
+    .log-type { min-width: 80px; font-weight: 600; }
+    .log-type.info { color: var(--accent-blue); }
+    .log-type.success { color: var(--accent-green); }
+    .log-type.warning { color: var(--accent-yellow); }
+    .log-type.danger { color: var(--accent-red); }
+    .log-type.attack { color: var(--accent-orange); }
+    .log-message { flex: 1; }
+    
+    .log-controls { display: flex; gap: 8px; }
+    
+    .log-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+    
+    .log-btn:hover {
+      border-color: var(--accent-blue);
+      color: var(--text-primary);
+    }
+    
+    .tooltip {
+      position: absolute;
+      background: rgba(15, 20, 32, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      max-width: 250px;
+      z-index: 1000;
+    }
+    
+    .tooltip.visible { opacity: 1; }
+    .tooltip-title { font-weight: 600; margin-bottom: 4px; }
+    .tooltip-text { color: var(--text-secondary); font-size: 0.75rem; }
+    
+    .status-bar {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      gap: 24px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+    }
+    
+    .status-dot.warning { background: var(--accent-yellow); }
+    .status-dot.danger { background: var(--accent-red); }
+    
+    .tutorial-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      max-width: 90vw;
+      background: rgba(15, 20, 32, 0.98);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      z-index: 100;
+      display: none;
+    }
+    
+    .tutorial-panel.visible { display: block; }
+    
+    .tutorial-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .tutorial-header h2 { font-size: 1.25rem; margin-bottom: 8px; }
+    .tutorial-header p { color: var(--text-secondary); font-size: 0.9rem; }
+    
+    .tutorial-content {
+      padding: 24px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .tutorial-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    
+    .tutorial-step-number {
+      width: 32px;
+      height: 32px;
+      background: var(--accent-blue);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    
+    .tutorial-step-content h4 { font-size: 0.95rem; margin-bottom: 4px; }
+    .tutorial-step-content p { color: var(--text-secondary); font-size: 0.85rem; }
+    
+    .tutorial-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .tutorial-btn {
+      background: var(--accent-blue);
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    
+    .tutorial-btn.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    
+    .email-preview {
+      position: absolute;
+      background: rgba(15, 20, 32, 0.98);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      width: 280px;
+      z-index: 60;
+      transition: border-color 0.3s;
+    }
+    
+    .email-preview.intercepted {
+      border-color: var(--accent-red);
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+    }
+    
+    .email-header { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 8px; }
+    .email-subject { font-weight: 600; margin-bottom: 8px; }
+    .email-body {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      background: rgba(0,0,0,0.3);
+      padding: 10px;
+      border-radius: 6px;
+    }
+    
+    .learn-panel {
+      display: none;
+      padding: 24px;
+      max-width: 900px;
+      margin: 0 auto;
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    .learn-panel.visible { display: block; }
+    
+    .learn-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    
+    .learn-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .learn-card p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 12px;
+    }
+    
+    .learn-card ul {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      padding-left: 20px;
+    }
+    
+    .learn-card li { margin-bottom: 8px; }
+    
+    .scenarios-panel {
+      display: none;
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    .scenarios-panel.visible { display: block; }
+    
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    
+    .scenario-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .scenario-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+    
+    .scenario-card h4 {
+      font-size: 1rem;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .scenario-card p { color: var(--text-secondary); font-size: 0.85rem; }
+    
+    .scenario-tag {
+      display: inline-block;
+      background: var(--accent-blue);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      margin-top: 12px;
+    }
+    
+    .scenario-tag.attack { background: var(--accent-red); }
+    .scenario-tag.defense { background: var(--accent-green); }
+    
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    
+    @media (max-width: 900px) {
+      .sidebar { width: 220px; }
+      .info-panel { width: 280px; }
+    }
+    
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+      .log-panel { height: 120px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <h1><span class="icon"></span>Network Sim</h1>
+      <div class="header-tabs">
+        <button class="tab-btn active" data-tab="simulation">Simulation</button>
+        <button class="tab-btn" data-tab="learn">Apprendre</button>
+        <button class="tab-btn" data-tab="scenarios">Scénarios</button>
+      </div>
+    </header>
+    
+    <div class="main-layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-section">
+          <h3>Équipements Réseau</h3>
+          <div class="node-palette">
+            <div class="palette-item" draggable="true" data-type="computer"><span class="icon"></span>PC</div>
+            <div class="palette-item" draggable="true" data-type="server"><span class="icon"></span>Serveur</div>
+            <div class="palette-item" draggable="true" data-type="router"><span class="icon"></span>Routeur</div>
+            <div class="palette-item" draggable="true" data-type="switch"><span class="icon"></span>Switch</div>
+            <div class="palette-item" draggable="true" data-type="firewall"><span class="icon"></span>Firewall</div>
+            <div class="palette-item" draggable="true" data-type="dns"><span class="icon"></span>DNS</div>
+            <div class="palette-item" draggable="true" data-type="attacker"><span class="icon"></span>Attaquant</div>
+            <div class="palette-item" draggable="true" data-type="mitm"><span class="icon"></span>MITM</div>
+          </div>
+        </div>
+        
+        <div class="sidebar-section">
+          <h3>Attaques</h3>
+          <div class="attack-buttons">
+            <button class="attack-btn" data-attack="ddos"><span class="icon"></span><div><div>DDoS Attack</div><small style="color:var(--text-secondary);font-size:0.7rem">Déni de service distribué</small></div></button>
+            <button class="attack-btn" data-attack="mitm"><span class="icon"></span><div><div>Man-in-the-Middle</div><small style="color:var(--text-secondary);font-size:0.7rem">Interception de données</small></div></button>
+            <button class="attack-btn" data-attack="portscan"><span class="icon"></span><div><div>Port Scanning</div><small style="color:var(--text-secondary);font-size:0.7rem">Détection des ports ouverts</small></div></button>
+            <button class="attack-btn" data-attack="dnsspoof"><span class="icon"></span><div><div>DNS Spoofing</div><small style="color:var(--text-secondary);font-size:0.7rem">Falsification DNS</small></div></button>
+            <button class="attack-btn" data-attack="arp"><span class="icon"></span><div><div>ARP Poisoning</div><small style="color:var(--text-secondary);font-size:0.7rem">Empoisonnement ARP</small></div></button>
+            <button class="attack-btn" data-attack="bruteforce"><span class="icon"></span><div><div>Brute Force</div><small style="color:var(--text-secondary);font-size:0.7rem">Attaque par force brute</small></div></button>
+            <button class="attack-btn" data-attack="synflood"><span class="icon"></span><div><div>SYN Flood</div><small style="color:var(--text-secondary);font-size:0.7rem">Inondation TCP SYN</small></div></button>
+            <button class="attack-btn" data-attack="phishing"><span class="icon"></span><div><div>Phishing</div><small style="color:var(--text-secondary);font-size:0.7rem">Hameçonnage par email</small></div></button>
+          </div>
+        </div>
+        
+        <div class="sidebar-section">
+          <h3>Défenses</h3>
+          <div class="attack-buttons">
+            <button class="defense-btn" data-defense="firewall"><span class="icon"></span><div><div>Activer Firewall</div><small style="color:var(--text-secondary);font-size:0.7rem">Bloquer le trafic malveillant</small></div></button>
+            <button class="defense-btn" data-defense="ids"><span class="icon"></span><div><div>Activer IDS/IPS</div><small style="color:var(--text-secondary);font-size:0.7rem">Détection d intrusion</small></div></button>
+            <button class="defense-btn" data-defense="encryption"><span class="icon"></span><div><div>Chiffrement TLS</div><small style="color:var(--text-secondary);font-size:0.7rem">Communications sécurisées</small></div></button>
+            <button class="defense-btn" data-defense="vpn"><span class="icon"></span><div><div>Activer VPN</div><small style="color:var(--text-secondary);font-size:0.7rem">Tunnel chiffré</small></div></button>
+            <button class="defense-btn" data-defense="ratelimit"><span class="icon"></span><div><div>Rate Limiting</div><small style="color:var(--text-secondary);font-size:0.7rem">Limiter les requêtes</small></div></button>
+            <button class="defense-btn" data-defense="2fa"><span class="icon"></span><div><div>2FA</div><small style="color:var(--text-secondary);font-size:0.7rem">Double authentification</small></div></button>
+          </div>
+        </div>
+        
+        <div class="sidebar-section">
+          <h3>Actions</h3>
+          <div class="attack-buttons">
+            <button class="defense-btn" data-action="ping"><span class="icon"></span><div>Ping</div></button>
+            <button class="defense-btn" data-action="traceroute"><span class="icon"></span><div>Traceroute</div></button>
+            <button class="defense-btn" data-action="sendemail"><span class="icon"></span><div>Envoyer Email</div></button>
+            <button class="defense-btn" data-action="http"><span class="icon"></span><div>Requête HTTP</div></button>
+            <button class="defense-btn" data-action="dns"><span class="icon"></span><div>Requête DNS</div></button>
+            <button class="defense-btn" data-action="ssh"><span class="icon"></span><div>Connexion SSH</div></button>
+          </div>
+        </div>
+      </aside>
+      
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="networkCanvas"></canvas>
+        <div class="info-panel" id="infoPanel">
+          <div class="info-panel-header">
+            <h3 id="infoPanelTitle">Informations</h3>
+            <button class="info-panel-close" onclick="closeInfoPanel()"></button>
+          </div>
+          <div class="info-panel-content" id="infoPanelContent"></div>
+        </div>
+        <div class="log-panel">
+          <div class="log-header">
+            <h3> Journal des événements</h3>
+            <div class="log-controls">
+              <button class="log-btn" onclick="clearLogs()">Effacer</button>
+              <button class="log-btn" onclick="exportLogs()">Exporter</button>
+            </div>
+          </div>
+          <div class="log-content" id="logContent"></div>
+        </div>
+        <div class="tooltip" id="tooltip">
+          <div class="tooltip-title"></div>
+          <div class="tooltip-text"></div>
+        </div>
+      </div>
+      
+      <div class="learn-panel" id="learnPanel">
+        <div class="learn-card"><h3> Qu est-ce qu un réseau ?</h3><p>Un réseau informatique est un ensemble d équipements reliés entre eux pour échanger des informations. Les données circulent sous forme de <strong>paquets</strong> qui suivent des chemins définis par des <strong>protocoles</strong>.</p><ul><li><strong>LAN</strong> (Local Area Network) : Réseau local</li><li><strong>WAN</strong> (Wide Area Network) : Réseau étendu comme Internet</li><li><strong>IP</strong> : Adresse unique identifiant chaque équipement</li><li><strong>MAC</strong> : Adresse physique de la carte réseau</li></ul></div>
+        <div class="learn-card"><h3> Les équipements réseau</h3><p>Chaque équipement a un rôle spécifique :</p><ul><li><strong>Routeur</strong> : Dirige le trafic entre différents réseaux</li><li><strong>Switch</strong> : Connecte les équipements d un même réseau</li><li><strong>Firewall</strong> : Filtre le trafic selon des règles de sécurité</li><li><strong>Serveur DNS</strong> : Traduit les noms de domaine en adresses IP</li></ul></div>
+        <div class="learn-card"><h3> Attaque DDoS</h3><p>Une attaque DDoS vise à rendre un service indisponible en le submergeant de requêtes. Des milliers de machines compromises envoient simultanément du trafic vers la cible.</p><p><strong>Protection :</strong> Rate limiting, pare-feu applicatif, services anti-DDoS.</p></div>
+        <div class="learn-card"><h3> Attaque Man-in-the-Middle</h3><p>L attaquant s interpose entre deux parties, interceptant et modifiant potentiellement les données échangées.</p><p><strong>Protection :</strong> Chiffrement TLS/SSL, HTTPS, VPN.</p></div>
+        <div class="learn-card"><h3> DNS Spoofing</h3><p>L attaquant falsifie les réponses DNS pour rediriger vers un faux site web.</p><p><strong>Protection :</strong> DNSSEC, DNS over HTTPS.</p></div>
+        <div class="learn-card"><h3> ARP Poisoning</h3><p>L attaquant envoie de fausses réponses ARP pour associer son adresse MAC à l IP de la passerelle.</p><p><strong>Protection :</strong> ARP statique, segmentation réseau, 802.1X.</p></div>
+        <div class="learn-card"><h3> Le chiffrement TLS</h3><p>TLS chiffre les communications entre client et serveur.</p><ul><li>Authentification du serveur via certificat</li><li>Chiffrement des données en transit</li><li>Intégrité des données</li></ul></div>
+        <div class="learn-card"><h3> Les couches de défense</h3><p>La sécurité en profondeur combine plusieurs mesures :</p><ul><li><strong>Firewall</strong> : Première ligne de défense</li><li><strong>IDS/IPS</strong> : Détecte les comportements suspects</li><li><strong>Chiffrement</strong> : Protège la confidentialité</li><li><strong>2FA</strong> : Renforce l authentification</li><li><strong>VPN</strong> : Crée un tunnel sécurisé</li></ul></div>
+      </div>
+      
+      <div class="scenarios-panel" id="scenariosPanel">
+        <h2 style="margin-bottom:20px">Scénarios de simulation</h2>
+        <div class="scenario-grid">
+          <div class="scenario-card" onclick="loadScenario('basic')"><h4> Réseau basique</h4><p>Un réseau simple avec PC, routeur et serveur.</p><span class="scenario-tag">Débutant</span></div>
+          <div class="scenario-card" onclick="loadScenario('ddos')"><h4> Simulation DDoS</h4><p>Visualisez une attaque DDoS et apprenez à la contrer.</p><span class="scenario-tag attack">Attaque</span></div>
+          <div class="scenario-card" onclick="loadScenario('mitm')"><h4> Interception MITM</h4><p>Voyez comment un attaquant intercepte les emails non chiffrés.</p><span class="scenario-tag attack">Attaque</span></div>
+          <div class="scenario-card" onclick="loadScenario('secure')"><h4> Réseau sécurisé</h4><p>Architecture avec firewall, IDS et chiffrement TLS.</p><span class="scenario-tag defense">Défense</span></div>
+          <div class="scenario-card" onclick="loadScenario('enterprise')"><h4> Réseau d entreprise</h4><p>DMZ, serveurs multiples, segmentation réseau.</p><span class="scenario-tag">Avancé</span></div>
+          <div class="scenario-card" onclick="loadScenario('dnsspoof')"><h4> DNS Spoofing</h4><p>Attaque de falsification DNS.</p><span class="scenario-tag attack">Attaque</span></div>
+        </div>
       </div>
     </div>
-  </body>
+    
+    <div class="status-bar">
+      <div class="status-item"><span class="status-dot" id="networkStatusDot"></span><span id="networkStatus">Réseau actif</span></div>
+      <div class="status-item"><span>Nœuds: <span id="nodeCount">0</span></span></div>
+      <div class="status-item"><span>Connexions: <span id="connectionCount">0</span></span></div>
+      <div class="status-item"><span>Paquets: <span id="packetCount">0</span></span></div>
+      <div class="status-item" id="attackStatus" style="display:none"><span class="status-dot danger"></span><span style="color:var(--accent-red)">Attaque en cours</span></div>
+    </div>
+    
+    <div class="tutorial-panel" id="tutorialPanel">
+      <div class="tutorial-header"><h2> Bienvenue dans Network Sim</h2><p>Apprenez les fondamentaux du réseau et de la cybersécurité</p></div>
+      <div class="tutorial-content">
+        <div class="tutorial-step"><div class="tutorial-step-number">1</div><div class="tutorial-step-content"><h4>Ajoutez des équipements</h4><p>Glissez-déposez des équipements depuis la barre latérale.</p></div></div>
+        <div class="tutorial-step"><div class="tutorial-step-number">2</div><div class="tutorial-step-content"><h4>Connectez les équipements</h4><p>Maintenez Shift et cliquez sur deux équipements pour les connecter.</p></div></div>
+        <div class="tutorial-step"><div class="tutorial-step-number">3</div><div class="tutorial-step-content"><h4>Simulez du trafic</h4><p>Utilisez les actions (Ping, Traceroute, Email, HTTP).</p></div></div>
+        <div class="tutorial-step"><div class="tutorial-step-number">4</div><div class="tutorial-step-content"><h4>Testez les attaques</h4><p>Ajoutez un attaquant et lancez des attaques DDoS, MITM, etc.</p></div></div>
+        <div class="tutorial-step"><div class="tutorial-step-number">5</div><div class="tutorial-step-content"><h4>Activez les défenses</h4><p>Protégez votre réseau avec des firewalls, IDS, et le chiffrement.</p></div></div>
+      </div>
+      <div class="tutorial-footer">
+        <button class="tutorial-btn secondary" onclick="closeTutorial()">Fermer</button>
+        <button class="tutorial-btn" onclick="loadDemoNetwork()">Charger un exemple</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('networkCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let nodes = [];
+    let connections = [];
+    let packets = [];
+    let selectedNode = null;
+    let connectingFrom = null;
+    let draggedNode = null;
+    let dragOffset = { x: 0, y: 0 };
+    let hoveredNode = null;
+    let packetCounter = 0;
+    let currentTab = 'simulation';
+    
+    let activeAttacks = { ddos: false, mitm: false, portscan: false, dnsspoof: false, arp: false, bruteforce: false, synflood: false, phishing: false };
+    let activeDefenses = { firewall: false, ids: false, encryption: false, vpn: false, ratelimit: false, '2fa': false };
+    
+    const nodeTypes = {
+      computer: { icon: '', label: 'PC', color: '#3b82f6', ports: [22, 80, 443, 3389] },
+      server: { icon: '', label: 'Serveur', color: '#22c55e', ports: [22, 80, 443, 21, 25, 3306] },
+      router: { icon: '', label: 'Routeur', color: '#eab308', ports: [23, 161] },
+      switch: { icon: '', label: 'Switch', color: '#06b6d4', ports: [] },
+      firewall: { icon: '', label: 'Firewall', color: '#a855f7', ports: [443] },
+      dns: { icon: '', label: 'DNS', color: '#f97316', ports: [53] },
+      attacker: { icon: '', label: 'Attaquant', color: '#ef4444', ports: [] },
+      mitm: { icon: '', label: 'MITM', color: '#dc2626', ports: [] }
+    };
+    
+    const packetTypes = {
+      ping: { color: '#22c55e', label: 'ICMP' },
+      pong: { color: '#86efac', label: 'ICMP Reply' },
+      http: { color: '#3b82f6', label: 'HTTP' },
+      https: { color: '#2563eb', label: 'HTTPS' },
+      dns: { color: '#f97316', label: 'DNS' },
+      dnsResponse: { color: '#fb923c', label: 'DNS Resp' },
+      email: { color: '#8b5cf6', label: 'SMTP' },
+      emailIntercepted: { color: '#ef4444', label: 'INTERCEPTÉ' },
+      ddos: { color: '#ef4444', label: 'DDoS' },
+      portscan: { color: '#eab308', label: 'Scan' },
+      arp: { color: '#f97316', label: 'ARP' },
+      syn: { color: '#ec4899', label: 'SYN' },
+      synack: { color: '#f472b6', label: 'SYN-ACK' },
+      ack: { color: '#06b6d4', label: 'ACK' },
+      encrypted: { color: '#22d3ee', label: 'TLS' },
+      ssh: { color: '#84cc16', label: 'SSH' },
+      phishing: { color: '#f43f5e', label: 'Phishing' }
+    };
+    
+    let logs = [];
+    
+    function init() {
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      setupCanvasEvents();
+      setupDragAndDrop();
+      setupButtons();
+      setupTabs();
+      if (!localStorage.getItem('networkSimTutorialSeen')) {
+        document.getElementById('tutorialPanel').classList.add('visible');
+      }
+      animate();
+      addLog('info', 'Simulateur réseau initialisé');
+    }
+    
+    function resizeCanvas() {
+      const container = canvas.parentElement;
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+    
+    function setupTabs() {
+      document.querySelectorAll('.tab-btn').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentTab = tab.dataset.tab;
+          document.getElementById('canvasContainer').style.display = currentTab === 'simulation' ? 'block' : 'none';
+          document.getElementById('sidebar').style.display = currentTab === 'simulation' ? 'flex' : 'none';
+          document.getElementById('learnPanel').classList.toggle('visible', currentTab === 'learn');
+          document.getElementById('scenariosPanel').classList.toggle('visible', currentTab === 'scenarios');
+        });
+      });
+    }
+    
+    function setupDragAndDrop() {
+      document.querySelectorAll('.palette-item').forEach(item => {
+        item.addEventListener('dragstart', e => e.dataTransfer.setData('nodeType', item.dataset.type));
+      });
+      canvas.addEventListener('dragover', e => e.preventDefault());
+      canvas.addEventListener('drop', e => {
+        e.preventDefault();
+        const nodeType = e.dataTransfer.getData('nodeType');
+        if (nodeType) {
+          const rect = canvas.getBoundingClientRect();
+          createNode(nodeType, e.clientX - rect.left, e.clientY - rect.top);
+        }
+      });
+    }
+    
+    function setupCanvasEvents() {
+      canvas.addEventListener('mousedown', onMouseDown);
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mouseup', () => draggedNode = null);
+      canvas.addEventListener('dblclick', e => { const node = getNodeAtPosition(getMousePos(e)); if (node) showNodeInfo(node); });
+      canvas.addEventListener('contextmenu', e => { e.preventDefault(); const node = getNodeAtPosition(getMousePos(e)); if (node) deleteNode(node); });
+    }
+    
+    function onMouseDown(e) {
+      const pos = getMousePos(e);
+      const node = getNodeAtPosition(pos);
+      if (e.button === 0 && node) {
+        if (e.shiftKey) {
+          if (connectingFrom && connectingFrom !== node) { createConnection(connectingFrom, node); connectingFrom = null; }
+          else { connectingFrom = node; addLog('info', 'Connexion depuis ' + node.name + '...'); }
+        } else {
+          draggedNode = node;
+          dragOffset = { x: pos.x - node.x, y: pos.y - node.y };
+        }
+        selectedNode = node;
+        showNodeInfo(node);
+      } else { selectedNode = null; connectingFrom = null; closeInfoPanel(); }
+    }
+    
+    function onMouseMove(e) {
+      const pos = getMousePos(e);
+      if (draggedNode) { draggedNode.x = pos.x - dragOffset.x; draggedNode.y = pos.y - dragOffset.y; }
+      const node = getNodeAtPosition(pos);
+      if (node !== hoveredNode) {
+        hoveredNode = node;
+        if (node) showTooltip(node, e); else hideTooltip();
+      }
+      if (hoveredNode) updateTooltipPosition(e);
+    }
+    
+    function getMousePos(e) { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+    function getNodeAtPosition(pos) { for (let i = nodes.length - 1; i >= 0; i--) { if (Math.sqrt((pos.x - nodes[i].x) ** 2 + (pos.y - nodes[i].y) ** 2) <= nodes[i].radius) return nodes[i]; } return null; }
+    
+    function createNode(type, x, y) {
+      const config = nodeTypes[type];
+      const node = { id: Date.now() + Math.random(), type, x, y, radius: 35, name: config.label + '-' + (nodes.filter(n => n.type === type).length + 1), ip: '192.168.' + Math.floor(Math.random() * 255) + '.' + (Math.floor(Math.random() * 254) + 1), mac: Array(6).fill().map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase()).join(':'), ports: [...config.ports], attacked: false, intercepting: false, traced: false, config };
+      nodes.push(node);
+      updateStatusBar();
+      addLog('success', node.name + ' ajouté (' + node.ip + ')');
+      return node;
+    }
+    
+    function deleteNode(node) {
+      connections = connections.filter(c => c.from !== node && c.to !== node);
+      packets = packets.filter(p => p.source !== node && p.target !== node);
+      nodes = nodes.filter(n => n !== node);
+      if (selectedNode === node) { selectedNode = null; closeInfoPanel(); }
+      updateStatusBar();
+      addLog('warning', node.name + ' supprimé');
+    }
+    
+    function createConnection(from, to) {
+      if (!connections.some(c => (c.from === from && c.to === to) || (c.from === to && c.to === from))) {
+        connections.push({ id: Date.now(), from, to, latency: Math.floor(Math.random() * 50) + 5, encrypted: activeDefenses.encryption });
+        updateStatusBar();
+        addLog('success', 'Connexion: ' + from.name + '  ' + to.name);
+      }
+    }
+    
+    function createPacket(source, target, type, data = {}) {
+      const path = findPath(source, target);
+      if (path.length < 2) { addLog('warning', 'Pas de route vers ' + target.name); return null; }
+      const packet = { id: ++packetCounter, source, target, type, data, x: source.x, y: source.y, progress: 0, speed: 0.015 + Math.random() * 0.01, path, currentPathIndex: 0, trail: [], intercepted: false, blocked: false, timestamp: Date.now() };
+      if (activeAttacks.mitm && (type === 'email' || type === 'http') && !activeDefenses.encryption) {
+        const mitmNode = nodes.find(n => n.type === 'mitm' && n.intercepting);
+        if (mitmNode && path.includes(mitmNode)) { packet.willBeIntercepted = true; packet.mitmNode = mitmNode; }
+      }
+      if (activeDefenses.firewall) {
+        const fw = nodes.find(n => n.type === 'firewall');
+        if (fw && path.includes(fw) && ['ddos', 'portscan', 'arp', 'syn', 'phishing'].includes(type)) { packet.blocked = true; packet.blockedAt = fw; }
+      }
+      if (activeDefenses.ratelimit && type === 'ddos') { packet.blocked = true; packet.blockedReason = 'Rate limit'; }
+      packets.push(packet);
+      updateStatusBar();
+      return packet;
+    }
+    
+    function findPath(source, target) {
+      const visited = new Set(), queue = [[source]];
+      while (queue.length > 0) {
+        const path = queue.shift(), current = path[path.length - 1];
+        if (current === target) return path;
+        if (!visited.has(current.id)) {
+          visited.add(current.id);
+          connections.filter(c => c.from === current || c.to === current).forEach(c => {
+            const neighbor = c.from === current ? c.to : c.from;
+            if (!visited.has(neighbor.id)) queue.push([...path, neighbor]);
+          });
+        }
+      }
+      return [source];
+    }
+    
+    function updatePackets() {
+      packets = packets.filter(packet => {
+        if (packet.blocked && packet.progress > 0.3) {
+          addLog('success', ' ' + (packetTypes[packet.type]?.label || packet.type) + ' bloqué' + (packet.blockedAt ? ' par ' + packet.blockedAt.name : ''));
+          return false;
+        }
+        packet.trail.push({ x: packet.x, y: packet.y });
+        if (packet.trail.length > 25) packet.trail.shift();
+        if (packet.currentPathIndex < packet.path.length - 1) {
+          const next = packet.path[packet.currentPathIndex + 1];
+          const dx = next.x - packet.x, dy = next.y - packet.y, dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 5) {
+            packet.currentPathIndex++;
+            if (packet.willBeIntercepted && next === packet.mitmNode && !packet.intercepted) {
+              packet.intercepted = true;
+              if (packet.type === 'email') { packet.type = 'emailIntercepted'; addLog('danger', ' Email intercepté par ' + packet.mitmNode.name + '!'); showEmailPreview(packet, true); }
+              else addLog('danger', ' HTTP intercepté par ' + packet.mitmNode.name + '!');
+            }
+          } else { packet.x += (dx / dist) * 3; packet.y += (dy / dist) * 3; }
+        }
+        packet.progress += packet.speed;
+        if (packet.progress >= 1) { handlePacketArrival(packet); return false; }
+        return true;
+      });
+    }
+    
+    function handlePacketArrival(packet) {
+      const { type, target, source } = packet;
+      switch (type) {
+        case 'ping': createPacket(target, source, 'pong', { sentAt: packet.timestamp }); addLog('info', 'Ping reçu par ' + target.name); break;
+        case 'pong': addLog('success', 'Pong de ' + source.name + ' (' + (Date.now() - (packet.data.sentAt || packet.timestamp)) + 'ms)'); break;
+        case 'http': case 'https': addLog('success', type.toUpperCase() + ' reçu de ' + target.name); break;
+        case 'email': addLog('success', ' Email délivré à ' + target.name); showEmailPreview(packet, false); break;
+        case 'emailIntercepted': addLog('danger', ' Email compromis délivré à ' + target.name); break;
+        case 'ddos': target.attacked = true; setTimeout(() => target.attacked = false, 500); break;
+        case 'dns': if (activeAttacks.dnsspoof) { const att = nodes.find(n => n.type === 'attacker'); addLog('danger', ' DNS falsifié: ' + packet.data.domain + '  ' + (att?.ip || '10.0.0.1')); } else { createPacket(target, source, 'dnsResponse', { domain: packet.data.domain, ip: target.ip }); addLog('info', 'DNS: ' + packet.data.domain + '  ' + target.ip); } break;
+        case 'dnsResponse': addLog('success', 'DNS Response: ' + packet.data.domain + ' = ' + packet.data.ip); break;
+        case 'ssh': addLog(activeDefenses['2fa'] ? 'success' : 'info', (activeDefenses['2fa'] ? ' SSH sécurisé (2FA) à ' : ' SSH à ') + target.name); break;
+        case 'syn': if (!activeDefenses.firewall) createPacket(target, source, 'synack'); break;
+        case 'synack': createPacket(packet.target, packet.source, 'ack'); break;
+        case 'ack': addLog('info', 'TCP établi avec ' + source.name); break;
+        case 'phishing': addLog(activeDefenses['2fa'] ? 'success' : 'danger', activeDefenses['2fa'] ? ' Phishing bloqué (2FA) sur ' + target.name : ' Credentials volés sur ' + target.name + '!'); break;
+      }
+    }
+    
+    function startDDoSAttack() {
+      if (!activeAttacks.ddos) {
+        const attacker = nodes.find(n => n.type === 'attacker'), target = nodes.find(n => n.type === 'server');
+        if (!attacker || !target) { addLog('warning', 'DDoS nécessite Attaquant + Serveur'); return; }
+        activeAttacks.ddos = true;
+        document.querySelector('[data-attack="ddos"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' DDoS lancé: ' + attacker.name + '  ' + target.name);
+        activeAttacks.ddosInterval = setInterval(() => { if (activeAttacks.ddos) { for (let i = 0; i < 5; i++) createPacket(attacker, target, 'ddos'); target.attacked = true; } }, 200);
+      } else stopDDoSAttack();
+    }
+    function stopDDoSAttack() { activeAttacks.ddos = false; clearInterval(activeAttacks.ddosInterval); document.querySelector('[data-attack="ddos"]').classList.remove('active'); const t = nodes.find(n => n.type === 'server'); if (t) t.attacked = false; checkAttackStatus(); addLog('info', 'DDoS arrêté'); }
+    
+    function startMITMAttack() {
+      if (!activeAttacks.mitm) {
+        const mitmNode = nodes.find(n => n.type === 'mitm');
+        if (!mitmNode) { addLog('warning', 'MITM nécessite un nœud MITM'); return; }
+        activeAttacks.mitm = true; mitmNode.intercepting = true;
+        document.querySelector('[data-attack="mitm"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' MITM activé sur ' + mitmNode.name);
+        addLog(activeDefenses.encryption ? 'success' : 'danger', activeDefenses.encryption ? ' TLS protège contre l interception' : ' Communications non chiffrées - vulnérable!');
+      } else stopMITMAttack();
+    }
+    function stopMITMAttack() { activeAttacks.mitm = false; const m = nodes.find(n => n.type === 'mitm'); if (m) m.intercepting = false; document.querySelector('[data-attack="mitm"]').classList.remove('active'); checkAttackStatus(); addLog('info', 'MITM arrêté'); }
+    
+    function startPortScan() {
+      if (!activeAttacks.portscan) {
+        const attacker = nodes.find(n => n.type === 'attacker'), target = nodes.find(n => n.type === 'server' || n.type === 'computer');
+        if (!attacker || !target) { addLog('warning', 'Port Scan nécessite Attaquant + cible'); return; }
+        activeAttacks.portscan = true;
+        document.querySelector('[data-attack="portscan"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' Scan de ports sur ' + target.name);
+        const ports = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 8080];
+        let i = 0, open = [];
+        activeAttacks.portscanInterval = setInterval(() => {
+          if (activeAttacks.portscan && i < ports.length) {
+            createPacket(attacker, target, 'portscan', { port: ports[i] });
+            if (target.ports.includes(ports[i])) { open.push(ports[i]); addLog('warning', 'Port ' + ports[i] + ' OUVERT'); }
+            i++;
+          } else { stopPortScan(); addLog('info', 'Scan terminé. Ports ouverts: ' + (open.length ? open.join(', ') : 'Aucun')); }
+        }, 300);
+      } else stopPortScan();
+    }
+    function stopPortScan() { activeAttacks.portscan = false; clearInterval(activeAttacks.portscanInterval); document.querySelector('[data-attack="portscan"]').classList.remove('active'); checkAttackStatus(); }
+    
+    function startDNSSpoof() {
+      if (!activeAttacks.dnsspoof) {
+        const attacker = nodes.find(n => n.type === 'attacker');
+        if (!attacker) { addLog('warning', 'DNS Spoofing nécessite Attaquant'); return; }
+        activeAttacks.dnsspoof = true;
+        document.querySelector('[data-attack="dnsspoof"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' DNS Spoofing activé');
+        addLog('danger', 'www.banque-secure.com  ' + attacker.ip + ' (malveillant)');
+      } else stopDNSSpoof();
+    }
+    function stopDNSSpoof() { activeAttacks.dnsspoof = false; document.querySelector('[data-attack="dnsspoof"]').classList.remove('active'); checkAttackStatus(); addLog('info', 'DNS Spoofing arrêté'); }
+    
+    function startARPPoisoning() {
+      if (!activeAttacks.arp) {
+        const attacker = nodes.find(n => n.type === 'attacker');
+        if (!attacker) { addLog('warning', 'ARP Poisoning nécessite Attaquant'); return; }
+        activeAttacks.arp = true;
+        document.querySelector('[data-attack="arp"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' ARP Poisoning depuis ' + attacker.name);
+        activeAttacks.arpInterval = setInterval(() => { if (activeAttacks.arp) nodes.filter(n => n !== attacker && n.type !== 'mitm').forEach(n => createPacket(attacker, n, 'arp')); }, 1500);
+      } else stopARPPoisoning();
+    }
+    function stopARPPoisoning() { activeAttacks.arp = false; clearInterval(activeAttacks.arpInterval); document.querySelector('[data-attack="arp"]').classList.remove('active'); checkAttackStatus(); addLog('info', 'ARP Poisoning arrêté'); }
+    
+    function startBruteForce() {
+      if (!activeAttacks.bruteforce) {
+        const attacker = nodes.find(n => n.type === 'attacker'), target = nodes.find(n => n.type === 'server');
+        if (!attacker || !target) { addLog('warning', 'Brute Force nécessite Attaquant + Serveur'); return; }
+        activeAttacks.bruteforce = true;
+        document.querySelector('[data-attack="bruteforce"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' Brute Force SSH sur ' + target.name);
+        const passwords = ['admin', 'password', '123456', 'root', 'admin123', 'qwerty'];
+        let i = 0;
+        activeAttacks.bruteforceInterval = setInterval(() => {
+          if (activeAttacks.bruteforce && i < passwords.length) { createPacket(attacker, target, 'syn', { port: 22 }); addLog('warning', 'SSH: root:' + passwords[i]); i++; }
+          else if (i >= passwords.length) {
+            if (activeDefenses.ids) addLog('success', ' IDS: Brute force bloqué!');
+            else if (activeDefenses['2fa']) addLog('success', ' 2FA: Mot de passe trouvé mais 2FA requis!');
+            else addLog('danger', ' SSH réussi avec root:admin123!');
+            stopBruteForce();
+          }
+        }, 400);
+      } else stopBruteForce();
+    }
+    function stopBruteForce() { activeAttacks.bruteforce = false; clearInterval(activeAttacks.bruteforceInterval); document.querySelector('[data-attack="bruteforce"]').classList.remove('active'); checkAttackStatus(); }
+    
+    function startSYNFlood() {
+      if (!activeAttacks.synflood) {
+        const attacker = nodes.find(n => n.type === 'attacker'), target = nodes.find(n => n.type === 'server');
+        if (!attacker || !target) { addLog('warning', 'SYN Flood nécessite Attaquant + Serveur'); return; }
+        activeAttacks.synflood = true;
+        document.querySelector('[data-attack="synflood"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' SYN Flood sur ' + target.name);
+        activeAttacks.synfloodInterval = setInterval(() => { if (activeAttacks.synflood) { for (let i = 0; i < 4; i++) createPacket(attacker, target, 'syn'); target.attacked = true; } }, 250);
+      } else stopSYNFlood();
+    }
+    function stopSYNFlood() { activeAttacks.synflood = false; clearInterval(activeAttacks.synfloodInterval); document.querySelector('[data-attack="synflood"]').classList.remove('active'); const t = nodes.find(n => n.type === 'server'); if (t) t.attacked = false; checkAttackStatus(); addLog('info', 'SYN Flood arrêté'); }
+    
+    function startPhishing() {
+      if (!activeAttacks.phishing) {
+        const attacker = nodes.find(n => n.type === 'attacker'), target = nodes.find(n => n.type === 'computer');
+        if (!attacker || !target) { addLog('warning', 'Phishing nécessite Attaquant + PC'); return; }
+        activeAttacks.phishing = true;
+        document.querySelector('[data-attack="phishing"]').classList.add('active');
+        document.getElementById('attackStatus').style.display = 'flex';
+        addLog('attack', ' Phishing envoyé à ' + target.name);
+        createPacket(attacker, target, 'phishing');
+        setTimeout(() => { activeAttacks.phishing = false; document.querySelector('[data-attack="phishing"]').classList.remove('active'); checkAttackStatus(); }, 3000);
+      }
+    }
+    
+    function checkAttackStatus() { if (!Object.values(activeAttacks).some(v => v)) document.getElementById('attackStatus').style.display = 'none'; }
+    
+    function toggleFirewall() { activeDefenses.firewall = !activeDefenses.firewall; document.querySelector('[data-defense="firewall"]').classList.toggle('active', activeDefenses.firewall); addLog(activeDefenses.firewall ? 'success' : 'warning', activeDefenses.firewall ? ' Firewall activé' : ' Firewall désactivé'); }
+    function toggleIDS() { activeDefenses.ids = !activeDefenses.ids; document.querySelector('[data-defense="ids"]').classList.toggle('active', activeDefenses.ids); addLog(activeDefenses.ids ? 'success' : 'warning', activeDefenses.ids ? ' IDS/IPS activé' : ' IDS/IPS désactivé'); }
+    function toggleEncryption() { activeDefenses.encryption = !activeDefenses.encryption; document.querySelector('[data-defense="encryption"]').classList.toggle('active', activeDefenses.encryption); connections.forEach(c => c.encrypted = activeDefenses.encryption); addLog(activeDefenses.encryption ? 'success' : 'warning', activeDefenses.encryption ? ' TLS activé' : ' Chiffrement désactivé'); }
+    function toggleVPN() { activeDefenses.vpn = !activeDefenses.vpn; document.querySelector('[data-defense="vpn"]').classList.toggle('active', activeDefenses.vpn); addLog(activeDefenses.vpn ? 'success' : 'warning', activeDefenses.vpn ? ' VPN activé' : ' VPN désactivé'); }
+    function toggleRateLimit() { activeDefenses.ratelimit = !activeDefenses.ratelimit; document.querySelector('[data-defense="ratelimit"]').classList.toggle('active', activeDefenses.ratelimit); addLog(activeDefenses.ratelimit ? 'success' : 'warning', activeDefenses.ratelimit ? ' Rate Limiting activé' : ' Rate Limiting désactivé'); }
+    function toggle2FA() { activeDefenses['2fa'] = !activeDefenses['2fa']; document.querySelector('[data-defense="2fa"]').classList.toggle('active', activeDefenses['2fa']); addLog(activeDefenses['2fa'] ? 'success' : 'warning', activeDefenses['2fa'] ? ' 2FA activé' : ' 2FA désactivé'); }
+    
+    function sendPing() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n !== src && (n.type === 'server' || n.type === 'router')) || nodes[nodes.length - 1]; if (nodes.length < 2) { addLog('warning', 'Ajoutez au moins 2 nœuds'); return; } if (src && tgt) { createPacket(src, tgt, 'ping', { sentAt: Date.now() }); addLog('info', ' Ping ' + src.ip + '  ' + tgt.ip); } }
+    function sendTraceroute() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server') || nodes[nodes.length - 1]; if (nodes.length < 2) { addLog('warning', 'Ajoutez au moins 2 nœuds'); return; } if (src && tgt) { const path = findPath(src, tgt); addLog('info', ' Traceroute vers ' + tgt.ip); let total = 0; path.forEach((n, i) => { const lat = Math.floor(Math.random() * 30) + 5; total += lat; setTimeout(() => { addLog('info', '  ' + (i+1) + '. ' + n.ip + ' (' + n.name + ') - ' + lat + 'ms'); n.traced = true; setTimeout(() => n.traced = false, 500); if (i === path.length - 1) addLog('success', 'Terminé - ' + path.length + ' hops, ' + total + 'ms'); }, i * 400); }); } }
+    function sendEmail() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server') || nodes[nodes.length - 1]; if (!src || !tgt || src === tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, activeDefenses.encryption ? 'encrypted' : 'email', { from: 'alice@company.com', to: 'bob@company.com', subject: 'Données confidentielles', body: 'Mot de passe: Sup3rS3cr3t!\nPIN: 4521', encrypted: activeDefenses.encryption }); addLog('info', activeDefenses.encryption ? ' Email chiffré envoyé' : ' Email envoyé ( non chiffré)'); if (!activeDefenses.encryption && activeAttacks.mitm) addLog('danger', ' MITM actif - email sera intercepté!'); }
+    function sendHTTP() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server') || nodes[nodes.length - 1]; if (!src || !tgt || src === tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, activeDefenses.encryption ? 'https' : 'http'); addLog('info', ' ' + (activeDefenses.encryption ? 'HTTPS' : 'HTTP') + ' GET  ' + tgt.ip); }
+    function sendDNS() { const src = nodes.find(n => n.type === 'computer') || nodes[0], dns = nodes.find(n => n.type === 'dns'); if (!src || !dns) { addLog('warning', 'Ajoutez PC + DNS'); return; } createPacket(src, dns, 'dns', { domain: 'www.banque-secure.com' }); addLog('info', ' DNS Query: www.banque-secure.com'); }
+    function sendSSH() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server'); if (!src || !tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, 'ssh'); addLog('info', ' SSH ' + src.ip + '  ' + tgt.ip + ':22'); }
+    
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid(); drawConnections(); drawConnectingLine(); drawPacketTrails(); drawPackets(); drawNodes();
+      updatePackets();
+      requestAnimationFrame(animate);
+    }
+    
+    function drawGrid() { ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1; for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); } for (let y = 0; y < canvas.height; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); } }
+    
+    function drawConnections() {
+      connections.forEach(c => {
+        ctx.beginPath(); ctx.moveTo(c.from.x, c.from.y); ctx.lineTo(c.to.x, c.to.y);
+        if (c.encrypted || activeDefenses.vpn) { ctx.setLineDash([8, 4]); ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 3; }
+        else { ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; }
+        ctx.stroke(); ctx.setLineDash([]);
+        const mx = (c.from.x + c.to.x) / 2, my = (c.from.y + c.to.y) / 2;
+        ctx.font = '10px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.textAlign = 'center';
+        ctx.fillText(c.latency + 'ms', mx, my - 8);
+        if (c.encrypted) ctx.fillText('', mx, my + 12);
+      });
+    }
+    
+    function drawConnectingLine() { if (connectingFrom && hoveredNode && hoveredNode !== connectingFrom) { ctx.beginPath(); ctx.moveTo(connectingFrom.x, connectingFrom.y); ctx.lineTo(hoveredNode.x, hoveredNode.y); ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(59,130,246,0.5)'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]); } }
+    
+    function drawNodes() {
+      nodes.forEach(node => {
+        const cfg = node.config;
+        if (node.attacked) { ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 20, 0, Math.PI * 2); const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 20); g.addColorStop(0, 'rgba(239,68,68,0.6)'); g.addColorStop(1, 'rgba(239,68,68,0)'); ctx.fillStyle = g; ctx.fill(); }
+        if (node.traced) { ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 15, 0, Math.PI * 2); const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 15); g.addColorStop(0, 'rgba(34,197,94,0.6)'); g.addColorStop(1, 'rgba(34,197,94,0)'); ctx.fillStyle = g; ctx.fill(); }
+        if (node.intercepting) { ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 18, 0, Math.PI * 2); const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 18); g.addColorStop(0, 'rgba(168,85,247,0.6)'); g.addColorStop(1, 'rgba(168,85,247,0)'); ctx.fillStyle = g; ctx.fill(); const p = Math.sin(Date.now() / 200) * 0.3 + 0.7; ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 25, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(168,85,247,' + p * 0.5 + ')'; ctx.lineWidth = 2; ctx.stroke(); }
+        ctx.beginPath(); ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+        const bg = ctx.createRadialGradient(node.x - 10, node.y - 10, 0, node.x, node.y, node.radius); bg.addColorStop(0, 'rgba(30,35,50,0.95)'); bg.addColorStop(1, 'rgba(15,20,30,0.95)'); ctx.fillStyle = bg; ctx.fill();
+        ctx.strokeStyle = node === selectedNode ? '#3b82f6' : (node === connectingFrom ? '#22c55e' : cfg.color);
+        ctx.lineWidth = (node === selectedNode || node === connectingFrom) ? 3 : 2; ctx.stroke();
+        ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(cfg.icon, node.x, node.y);
+        ctx.font = 'bold 11px system-ui'; ctx.fillStyle = '#e5e7eb'; ctx.fillText(node.name, node.x, node.y + node.radius + 14);
+        ctx.font = '9px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillText(node.ip, node.x, node.y + node.radius + 26);
+        if (node.type === 'firewall' && activeDefenses.firewall) { ctx.font = '12px Arial'; ctx.fillText('', node.x + node.radius - 5, node.y - node.radius + 5); }
+      });
+    }
+    
+    function drawPacketTrails() { packets.forEach(p => { if (p.trail.length > 1) { ctx.beginPath(); ctx.moveTo(p.trail[0].x, p.trail[0].y); p.trail.forEach(t => ctx.lineTo(t.x, t.y)); const c = packetTypes[p.type]?.color || '#fff'; const g = ctx.createLinearGradient(p.trail[0].x, p.trail[0].y, p.x, p.y); g.addColorStop(0, c + '00'); g.addColorStop(1, c + '80'); ctx.strokeStyle = g; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke(); } }); }
+    
+    function drawPackets() {
+      packets.forEach(p => {
+        const cfg = packetTypes[p.type], c = cfg?.color || '#fff';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, Math.PI * 2); const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15); g.addColorStop(0, c); g.addColorStop(0.5, c + '80'); g.addColorStop(1, c + '00'); ctx.fillStyle = g; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); ctx.strokeStyle = 'white'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.font = 'bold 8px system-ui'; ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.fillText(cfg?.label || p.type, p.x, p.y + 22);
+        if (['https', 'encrypted', 'ssh'].includes(p.type) && activeDefenses.encryption) { ctx.font = '12px Arial'; ctx.fillText('', p.x + 12, p.y - 12); }
+        if (p.intercepted) { ctx.font = '14px Arial'; ctx.fillText('', p.x + 12, p.y - 12); }
+        if (p.blocked) { ctx.font = '14px Arial'; ctx.fillText('', p.x + 12, p.y - 12); }
+      });
+    }
+    
+    function showNodeInfo(node) {
+      const panel = document.getElementById('infoPanel');
+      document.getElementById('infoPanelTitle').textContent = node.config.icon + ' ' + node.name;
+      let sc = 'var(--accent-green)', st = ' Actif';
+      if (node.attacked) { sc = 'var(--accent-red)'; st = ' Sous attaque'; }
+      else if (node.intercepting) { sc = 'var(--accent-purple)'; st = ' Interception active'; }
+      document.getElementById('infoPanelContent').innerHTML = '<div class="info-row"><span class="info-label">Type</span><span class="info-value">' + node.config.label + '</span></div><div class="info-row"><span class="info-label">IP</span><span class="info-value" style="font-family:monospace">' + node.ip + '</span></div><div class="info-row"><span class="info-label">MAC</span><span class="info-value" style="font-family:monospace;font-size:0.75rem">' + node.mac + '</span></div><div class="info-row"><span class="info-label">Ports</span><span class="info-value">' + (node.ports.length ? node.ports.join(', ') : 'Aucun') + '</span></div><div class="info-row"><span class="info-label">Statut</span><span class="info-value" style="color:' + sc + '">' + st + '</span></div>' + (node.type === 'mitm' ? '<div class="info-row"><span class="info-label">Mode</span><span class="info-value" style="color:' + (node.intercepting ? 'var(--accent-red)' : 'var(--text-secondary)') + '">' + (node.intercepting ? ' Interception' : ' En attente') + '</span></div>' : '') + (node.type === 'firewall' ? '<div class="info-row"><span class="info-label">Protection</span><span class="info-value" style="color:' + (activeDefenses.firewall ? 'var(--accent-green)' : 'var(--accent-red)') + '">' + (activeDefenses.firewall ? ' Activée' : ' Désactivée') + '</span></div>' : '') + '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><small style="color:var(--text-secondary)"> Clic droit: supprimer<br>Shift+clic: connecter</small></div>';
+      panel.classList.add('visible');
+    }
+    
+    function closeInfoPanel() { document.getElementById('infoPanel').classList.remove('visible'); }
+    function showTooltip(node, e) { const t = document.getElementById('tooltip'); t.querySelector('.tooltip-title').textContent = node.config.icon + ' ' + node.name; t.querySelector('.tooltip-text').textContent = node.config.label + '  ' + node.ip; t.classList.add('visible'); updateTooltipPosition(e); }
+    function updateTooltipPosition(e) { const t = document.getElementById('tooltip'); t.style.left = (e.clientX + 15) + 'px'; t.style.top = (e.clientY + 15) + 'px'; }
+    function hideTooltip() { document.getElementById('tooltip').classList.remove('visible'); }
+    
+    function showEmailPreview(packet, intercepted) {
+      document.querySelectorAll('.email-preview').forEach(el => el.remove());
+      const p = document.createElement('div');
+      p.className = 'email-preview' + (intercepted ? ' intercepted' : '');
+      p.innerHTML = '<div class="email-header">' + (intercepted ? ' EMAIL INTERCEPTÉ' : ' Email') + '</div><div style="font-size:0.8rem;margin-bottom:8px"><div><strong>De:</strong> ' + packet.data.from + '</div><div><strong>À:</strong> ' + packet.data.to + '</div></div><div class="email-subject">' + packet.data.subject + '</div><div class="email-body" style="background:' + (intercepted ? 'rgba(239,68,68,0.1)' : 'rgba(0,0,0,0.3)') + '">' + (intercepted ? '<span style="color:var(--accent-red);font-weight:bold"> Visible par l attaquant:</span><br><br>' : '') + packet.data.body.replace(/\n/g, '<br>') + '</div>' + (packet.data.encrypted ? '<div style="margin-top:10px;color:var(--accent-cyan);font-size:0.75rem"> Chiffré - protégé</div>' : '');
+      const rect = document.getElementById('canvasContainer').getBoundingClientRect();
+      p.style.left = Math.min(packet.x + 40, rect.width - 300) + 'px';
+      p.style.top = Math.max(20, packet.y - 80) + 'px';
+      document.getElementById('canvasContainer').appendChild(p);
+      setTimeout(() => p.remove(), 5000);
+    }
+    
+    function updateStatusBar() { document.getElementById('nodeCount').textContent = nodes.length; document.getElementById('connectionCount').textContent = connections.length; document.getElementById('packetCount').textContent = packetCounter; }
+    
+    function addLog(type, msg) {
+      const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const labels = { info: 'INFO', success: 'SUCCESS', warning: 'WARNING', danger: 'DANGER', attack: 'ATTACK' };
+      logs.push({ time, type, message: msg });
+      const lc = document.getElementById('logContent'), e = document.createElement('div');
+      e.className = 'log-entry';
+      e.innerHTML = '<span class="log-time">' + time + '</span><span class="log-type ' + type + '">' + labels[type] + '</span><span class="log-message">' + msg + '</span>';
+      lc.appendChild(e); lc.scrollTop = lc.scrollHeight;
+      while (lc.children.length > 150) lc.removeChild(lc.firstChild);
+    }
+    
+    function clearLogs() { logs = []; document.getElementById('logContent').innerHTML = ''; addLog('info', 'Journal effacé'); }
+    function exportLogs() { const t = logs.map(l => '[' + l.time + '] ' + l.type.toUpperCase().padEnd(8) + ' ' + l.message).join('\n'); const b = new Blob([t], { type: 'text/plain' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'network-sim-logs-' + new Date().toISOString().slice(0,10) + '.txt'; a.click(); URL.revokeObjectURL(u); addLog('success', 'Logs exportés'); }
+    
+    function setupButtons() {
+      document.querySelector('[data-attack="ddos"]').addEventListener('click', startDDoSAttack);
+      document.querySelector('[data-attack="mitm"]').addEventListener('click', startMITMAttack);
+      document.querySelector('[data-attack="portscan"]').addEventListener('click', startPortScan);
+      document.querySelector('[data-attack="dnsspoof"]').addEventListener('click', startDNSSpoof);
+      document.querySelector('[data-attack="arp"]').addEventListener('click', startARPPoisoning);
+      document.querySelector('[data-attack="bruteforce"]').addEventListener('click', startBruteForce);
+      document.querySelector('[data-attack="synflood"]').addEventListener('click', startSYNFlood);
+      document.querySelector('[data-attack="phishing"]').addEventListener('click', startPhishing);
+      document.querySelector('[data-defense="firewall"]').addEventListener('click', toggleFirewall);
+      document.querySelector('[data-defense="ids"]').addEventListener('click', toggleIDS);
+      document.querySelector('[data-defense="encryption"]').addEventListener('click', toggleEncryption);
+      document.querySelector('[data-defense="vpn"]').addEventListener('click', toggleVPN);
+      document.querySelector('[data-defense="ratelimit"]').addEventListener('click', toggleRateLimit);
+      document.querySelector('[data-defense="2fa"]').addEventListener('click', toggle2FA);
+      document.querySelector('[data-action="ping"]').addEventListener('click', sendPing);
+      document.querySelector('[data-action="traceroute"]').addEventListener('click', sendTraceroute);
+      document.querySelector('[data-action="sendemail"]').addEventListener('click', sendEmail);
+      document.querySelector('[data-action="http"]').addEventListener('click', sendHTTP);
+      document.querySelector('[data-action="dns"]').addEventListener('click', sendDNS);
+      document.querySelector('[data-action="ssh"]').addEventListener('click', sendSSH);
+    }
+    
+    function loadScenario(scenario) {
+      nodes = []; connections = []; packets = []; packetCounter = 0;
+      Object.keys(activeAttacks).forEach(k => activeAttacks[k] = false);
+      Object.keys(activeDefenses).forEach(k => activeDefenses[k] = false);
+      document.querySelectorAll('.attack-btn, .defense-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('attackStatus').style.display = 'none';
+      clearLogs();
+      
+      switch (scenario) {
+        case 'basic':
+          createNode('computer', 150, 250); createNode('router', 400, 250); createNode('server', 650, 250);
+          setTimeout(() => { createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); }, 100);
+          addLog('success', 'Scénario "Réseau basique" chargé'); addLog('info', 'Essayez Ping, Traceroute, HTTP');
+          break;
+        case 'ddos':
+          createNode('attacker', 100, 150); createNode('attacker', 100, 350); createNode('router', 300, 250); createNode('firewall', 500, 250); createNode('server', 700, 250);
+          setTimeout(() => { createConnection(nodes[0], nodes[2]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]); }, 100);
+          addLog('success', 'Scénario "DDoS" chargé'); addLog('info', '1. Lancez DDoS  2. Activez Firewall');
+          break;
+        case 'mitm':
+          createNode('computer', 100, 250); createNode('mitm', 350, 250); createNode('router', 500, 250); createNode('server', 700, 250);
+          setTimeout(() => { createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]); }, 100);
+          addLog('success', 'Scénario "MITM" chargé'); addLog('info', '1. Activez MITM  2. Envoyez email  3. Activez TLS');
+          break;
+        case 'secure':
+          createNode('computer', 100, 200); createNode('computer', 100, 350); createNode('switch', 250, 275); createNode('firewall', 400, 275); createNode('router', 550, 275); createNode('server', 700, 200); createNode('dns', 700, 350);
+          setTimeout(() => { createConnection(nodes[0], nodes[2]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]); createConnection(nodes[4], nodes[5]); createConnection(nodes[4], nodes[6]); toggleFirewall(); toggleEncryption(); toggleIDS(); }, 100);
+          addLog('success', 'Scénario "Sécurisé" chargé');
+          break;
+        case 'enterprise':
+          createNode('computer', 80, 150); createNode('computer', 80, 300); createNode('computer', 80, 450); createNode('switch', 200, 300); createNode('firewall', 350, 300); createNode('router', 500, 300); createNode('firewall', 650, 200); createNode('server', 780, 150); createNode('server', 780, 250); createNode('dns', 650, 400);
+          setTimeout(() => { createConnection(nodes[0], nodes[3]); createConnection(nodes[1], nodes[3]); createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]); createConnection(nodes[4], nodes[5]); createConnection(nodes[5], nodes[6]); createConnection(nodes[6], nodes[7]); createConnection(nodes[6], nodes[8]); createConnection(nodes[5], nodes[9]); }, 100);
+          addLog('success', 'Scénario "Entreprise" chargé');
+          break;
+        case 'dnsspoof':
+          createNode('computer', 100, 250); createNode('attacker', 300, 150); createNode('dns', 300, 350); createNode('router', 500, 250); createNode('server', 700, 250);
+          setTimeout(() => { createConnection(nodes[0], nodes[3]); createConnection(nodes[1], nodes[3]); createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]); }, 100);
+          addLog('success', 'Scénario "DNS Spoofing" chargé'); addLog('info', '1. Requête DNS  2. Activez DNS Spoofing  3. Refaites');
+          break;
+      }
+      
+      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      document.querySelector('[data-tab="simulation"]').classList.add('active');
+      currentTab = 'simulation';
+      document.getElementById('canvasContainer').style.display = 'block';
+      document.getElementById('sidebar').style.display = 'flex';
+      document.getElementById('learnPanel').classList.remove('visible');
+      document.getElementById('scenariosPanel').classList.remove('visible');
+      updateStatusBar();
+    }
+    
+    function loadDemoNetwork() { loadScenario('mitm'); closeTutorial(); }
+    function closeTutorial() { document.getElementById('tutorialPanel').classList.remove('visible'); localStorage.setItem('networkSimTutorialSeen', 'true'); }
+    
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
 </html>
