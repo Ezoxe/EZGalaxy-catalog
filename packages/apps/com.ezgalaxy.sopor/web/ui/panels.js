@@ -180,8 +180,11 @@ export function drawInventoryPanel(ctx, manager, inventory, screenWidth, screenH
   
   const cols = Math.floor(gridWidth / (config.itemSize + config.itemSpacing));
   
+  // Ensure inventory is an array
+  const items = Array.isArray(inventory) ? inventory : (inventory?.items || []);
+  
   // Filter items
-  const filteredItems = inventory.filter(item => {
+  const filteredItems = items.filter(item => {
     if (manager.inventory.filter === 'all') return true;
     return item.type === manager.inventory.filter;
   });
@@ -666,10 +669,13 @@ export function drawSettingsPanel(ctx, manager, settings, screenWidth, screenHei
 function drawAudioSettings(ctx, settings, x, y, width, height) {
   const config = PANEL_CONFIG;
   
+  // Ensure settings is defined
+  const safeSettings = settings || {};
+  
   // Mute toggles first
   const toggles = [
-    { key: 'musicEnabled', label: 'Musique activée', value: settings.musicEnabled ?? true },
-    { key: 'sfxEnabled', label: 'Effets sonores activés', value: settings.sfxEnabled ?? true },
+    { key: 'musicEnabled', label: 'Musique activée', value: safeSettings.musicEnabled ?? true },
+    { key: 'sfxEnabled', label: 'Effets sonores activés', value: safeSettings.sfxEnabled ?? true },
   ];
   
   toggles.forEach((toggle, i) => {
@@ -706,9 +712,9 @@ function drawAudioSettings(ctx, settings, x, y, width, height) {
   });
   
   const sliders = [
-    { key: 'masterVolume', label: t('settings.audio.master'), value: settings.masterVolume ?? 0.7 },
-    { key: 'musicVolume', label: t('settings.audio.music'), value: settings.musicVolume ?? 0.5 },
-    { key: 'sfxVolume', label: t('settings.audio.sfx'), value: settings.sfxVolume ?? 0.7 },
+    { key: 'masterVolume', label: t('settings.audio.master'), value: safeSettings.masterVolume ?? 0.7 },
+    { key: 'musicVolume', label: t('settings.audio.music'), value: safeSettings.musicVolume ?? 0.5 },
+    { key: 'sfxVolume', label: t('settings.audio.sfx'), value: safeSettings.sfxVolume ?? 0.7 },
   ];
   
   const sliderStartY = y + toggles.length * 35 + 20;
@@ -758,10 +764,13 @@ function drawAudioSettings(ctx, settings, x, y, width, height) {
 function drawGeneralSettings(ctx, settings, x, y, width, height) {
   const config = PANEL_CONFIG;
   
+  // Ensure settings is defined
+  const safeSettings = settings || {};
+  
   const options = [
-    { key: 'language', label: t('settings.general.language'), value: settings.language || 'fr' },
-    { key: 'showTutorial', label: t('settings.general.tutorial'), value: settings.showTutorial ?? true },
-    { key: 'autosave', label: t('settings.general.autosave'), value: settings.autosave ?? true },
+    { key: 'language', label: t('settings.general.language'), value: safeSettings.language || 'fr' },
+    { key: 'showTutorial', label: t('settings.general.tutorial'), value: safeSettings.showTutorial ?? true },
+    { key: 'autosave', label: t('settings.general.autosave'), value: safeSettings.autosave ?? true },
   ];
   
   options.forEach((option, i) => {

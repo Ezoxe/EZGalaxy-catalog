@@ -70,8 +70,10 @@ import {
 import {
   OPEN_WORLD_CONFIG, WORLD_TILES, ENTITY_TYPES,
   NPC_DEFINITIONS, QUEST_DEFINITIONS,
+  ZONE_TYPES, ZONE_CONFIG,
   generateOpenWorld, getZoneAt, isInSafeZone,
-  getEnemyArchetypesForDifficulty
+  getZoneTypeAt, getZoneConfig, getZoneLighting, hasCorruptionAt,
+  getEnemyArchetypesForDifficulty, getEnemyLevelAt
 } from './world/open-world.js';
 
 // ========== Graphics Imports ==========
@@ -221,6 +223,10 @@ let tweens = null;
 let worldState = null;
 let currentLevel = null;
 let currentBiome = STRATA.JARDIN;
+
+// Day/Night cycle
+let gameTime = 0.25; // 0-1, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset, 0/1 = midnight
+let dayNightSpeed = 0.00002; // How fast time passes (0.00002 = ~14 min for full cycle)
 
 // Player
 let player = null;
@@ -1055,6 +1061,9 @@ function update(dt) {
  * Update playing state
  */
 function updatePlaying(dt) {
+  // Update day/night cycle
+  gameTime = (gameTime + dt * dayNightSpeed) % 1;
+  
   // Update player
   updatePlayer(dt);
   
@@ -1207,6 +1216,10 @@ function updateInteractables(dt) {
 let lastSpawnCheck = 0;
 const SPAWN_CHECK_INTERVAL = 2000; // Check every 2 seconds
 
+// Boss enemy archetypes for corrupted core zones
+const BOSS_ARCHETYPES = ['berserker', 'summoner'];
+const ELITE_ARCHETYPES = ['gunner', 'lurker'];
+
 function updateEnemySpawning(dt) {
   lastSpawnCheck += dt;
   
@@ -1215,53 +1228,128 @@ function updateEnemySpawning(dt) {
   
   if (!openWorld) return;
   
-  // Get current zone
-  const zone = getZoneAt(openWorld, player.x, player.y);
-  if (!zone || zone.difficulty === 'safe') return;
+  const villageCenter = openWorld.villageCenter || { x: 100, y: 75 };
+  const tileSize = openWorld.tileSize || 32;
   
-  // Check if we need more enemies in this zone
+  // Get zone type at player position (in tiles)
+  const playerTileX = player.x / tileSize;
+  const playerTileY = player.y / tileSize;
+  const zoneType = getZoneTypeAt(villageCenter, playerTileX, playerTileY);
+  
+  // No enemies in village
+  if (zoneType === ZONE_TYPES.VILLAGE) return;
+  
+  // Get zone config for spawn rules
+  const zoneConfig = ZONE_CONFIG[zoneType];
+  const enemyLevel = zoneConfig?.enemyLevel || 1;
+  
+  // Check nearby enemies
   const nearbyEnemies = enemies.filter(e => {
     const dist = distance(e.x, e.y, player.x, player.y);
-    return dist < 500;
+    return dist < 600;
   });
   
-  const maxNearby = zone.maxEnemies || 3;
+  // Max enemies based on zone danger
+  const maxNearby = enemyLevel + 2;
   if (nearbyEnemies.length >= maxNearby) return;
   
-  // Spawn chance based on difficulty
+  // Spawn chance based on zone
   const spawnChance = {
-    easy: 0.2,
-    medium: 0.35,
-    hard: 0.5,
-    danger: 0.7,
+    [ZONE_TYPES.FOREST]: 0.2,
+    [ZONE_TYPES.DEEP_FOREST]: 0.35,
+    [ZONE_TYPES.CORRUPTED]: 0.5,
+    [ZONE_TYPES.CORRUPTED_CORE]: 0.65,
   };
   
-  if (Math.random() > (spawnChance[zone.difficulty] || 0.1)) return;
+  if (Math.random() > (spawnChance[zoneType] || 0.1)) return;
   
-  // Get valid archetypes for this difficulty
-  const archetypes = getEnemyArchetypesForDifficulty(zone.difficulty);
+  // Get archetypes based on zone
+  let archetypes;
+  let isBoss = false;
+  let isElite = false;
+  
+  switch (zoneType) {
+    case ZONE_TYPES.FOREST:
+      archetypes = ['skirmisher'];
+      break;
+    case ZONE_TYPES.DEEP_FOREST:
+      archetypes = ['skirmisher', 'charger', 'spitter'];
+      break;
+    case ZONE_TYPES.CORRUPTED:
+      archetypes = ['charger', 'spitter', 'gunner', 'lurker'];
+      // 10% chance for elite
+      if (Math.random() < 0.1) {
+        archetypes = ELITE_ARCHETYPES;
+        isElite = true;
+      }
+      break;
+    case ZONE_TYPES.CORRUPTED_CORE:
+      archetypes = ['gunner', 'lurker', 'summoner', 'berserker'];
+      // 5% chance for boss, 20% for elite
+      if (Math.random() < 0.05) {
+        archetypes = BOSS_ARCHETYPES;
+        isBoss = true;
+      } else if (Math.random() < 0.2) {
+        archetypes = ELITE_ARCHETYPES;
+        isElite = true;
+      }
+      break;
+    default:
+      return;
+  }
+  
   if (archetypes.length === 0) return;
   
-  // Find spawn position away from player but within zone
+  // Find spawn position away from player
   const spawnAngle = Math.random() * Math.PI * 2;
-  const spawnDist = 300 + Math.random() * 200;
+  const spawnDist = 350 + Math.random() * 250;
   
   const spawnX = player.x + Math.cos(spawnAngle) * spawnDist;
   const spawnY = player.y + Math.sin(spawnAngle) * spawnDist;
   
-  // Make sure it's in a valid position
-  if (spawnX < 0 || spawnX > openWorld.width * openWorld.tileSize ||
-      spawnY < 0 || spawnY > openWorld.height * openWorld.tileSize) {
+  // Validate spawn position
+  if (spawnX < 0 || spawnX > openWorld.width * tileSize ||
+      spawnY < 0 || spawnY > openWorld.height * tileSize) {
     return;
   }
   
-  // Check if spawn position is in safe zone
-  if (isInSafeZone(openWorld, spawnX, spawnY)) return;
+  // Check spawn zone type
+  const spawnTileX = spawnX / tileSize;
+  const spawnTileY = spawnY / tileSize;
+  const spawnZoneType = getZoneTypeAt(villageCenter, spawnTileX, spawnTileY);
   
-  // Spawn the enemy with spawn point for leashing
+  // Don't spawn in village
+  if (spawnZoneType === ZONE_TYPES.VILLAGE) return;
+  
+  // Spawn enemy
   const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
   const enemy = createEnemy(archetype, spawnX, spawnY);
+  
+  // Apply level scaling based on zone
+  if (enemy.stats) {
+    const levelMultiplier = 1 + (enemyLevel - 1) * 0.3;
+    enemy.stats.health *= levelMultiplier;
+    enemy.stats.maxHealth *= levelMultiplier;
+    enemy.stats.damage *= levelMultiplier;
+    
+    // Elite/Boss scaling
+    if (isBoss) {
+      enemy.stats.health *= 3;
+      enemy.stats.maxHealth *= 3;
+      enemy.stats.damage *= 2;
+      enemy.isBoss = true;
+      enemy.scale = 1.5;
+    } else if (isElite) {
+      enemy.stats.health *= 1.5;
+      enemy.stats.maxHealth *= 1.5;
+      enemy.stats.damage *= 1.3;
+      enemy.isElite = true;
+      enemy.scale = 1.2;
+    }
+  }
+  
   enemy.spawnPoint = { x: spawnX, y: spawnY };
+  enemy.spawnZone = spawnZoneType;
   enemy.returning = false;
   enemies.push(enemy);
 }
@@ -1384,14 +1472,27 @@ function updatePlayer(dt) {
     player.vx = inputX * CONFIG.playerSpeed;
     player.vy = inputY * CONFIG.playerSpeed;
     
-    player.x += player.vx * dt / 1000;
-    player.y += player.vy * dt / 1000;
+    const newX = player.x + player.vx * dt / 1000;
+    const newY = player.y + player.vy * dt / 1000;
+    
+    // Check collision with structures (houses)
+    const canMove = checkStructureCollision(player.x, player.y, newX, newY);
+    
+    if (canMove.x) {
+      player.x = newX;
+    }
+    if (canMove.y) {
+      player.y = newY;
+    }
     
     // Update facing
     if (inputX !== 0) {
       player.facing = inputX > 0 ? 1 : -1;
     }
   }
+  
+  // Check if player is inside a house (for interior reveal)
+  checkPlayerInsideHouse();
   
   // Update cooldowns
   if (player.dashCooldown > 0) {
@@ -1466,6 +1567,88 @@ function updateCamera(dt) {
   // Decay shake
   camera.shakeX *= CONFIG.cameraShakeDecay;
   camera.shakeY *= CONFIG.cameraShakeDecay;
+}
+
+/**
+ * Check collision with structures (houses, buildings)
+ * Returns which axes can move
+ */
+function checkStructureCollision(oldX, oldY, newX, newY) {
+  const result = { x: true, y: true };
+  
+  if (!openWorld?.structures) return result;
+  
+  const tileSize = openWorld.tileSize || 16;
+  const playerRadius = player.width / 2;
+  
+  for (const structure of openWorld.structures) {
+    // Skip fountains and wells (can walk through)
+    if (structure.type === 'fountain' || structure.type === 'well') continue;
+    
+    const sx = structure.x * tileSize;
+    const sy = structure.y * tileSize;
+    const sw = structure.width * tileSize;
+    const sh = structure.height * tileSize;
+    
+    // Check if there's a door and player is near it (can enter through door)
+    if (structure.doorX && structure.doorY) {
+      const doorX = structure.doorX * tileSize;
+      const doorY = structure.doorY * tileSize;
+      const doorDist = distance(newX, newY, doorX, doorY);
+      
+      // Player can pass through door area
+      if (doorDist < 25) {
+        continue;
+      }
+    }
+    
+    // Collision box for structure walls (exclude door)
+    // Check X movement
+    if (newX + playerRadius > sx && newX - playerRadius < sx + sw &&
+        oldY + playerRadius > sy && oldY - playerRadius < sy + sh) {
+      result.x = false;
+    }
+    
+    // Check Y movement
+    if (oldX + playerRadius > sx && oldX - playerRadius < sx + sw &&
+        newY + playerRadius > sy && newY - playerRadius < sy + sh) {
+      result.y = false;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Check if player is currently inside a house
+ * Updates insideHouse state for interior rendering
+ */
+function checkPlayerInsideHouse() {
+  if (!openWorld?.structures) {
+    insideHouse = null;
+    return;
+  }
+  
+  const tileSize = openWorld.tileSize || 16;
+  
+  for (const structure of openWorld.structures) {
+    // Only check houses/buildings
+    if (structure.type === 'fountain' || structure.type === 'well') continue;
+    
+    const sx = structure.x * tileSize;
+    const sy = structure.y * tileSize;
+    const sw = structure.width * tileSize;
+    const sh = structure.height * tileSize;
+    
+    // Check if player is inside the house bounds
+    if (player.x > sx && player.x < sx + sw &&
+        player.y > sy && player.y < sy + sh) {
+      insideHouse = structure;
+      return;
+    }
+  }
+  
+  insideHouse = null;
 }
 
 /**
@@ -1858,7 +2041,7 @@ function render() {
     
     switch (panels.activePanel) {
       case 'inventory':
-        drawInventoryPanel(ctx, panels, worldState.inventory, 
+        drawInventoryPanel(ctx, panels, worldState?.player?.inventory?.items || [], 
           window.innerWidth, window.innerHeight);
         break;
       case 'skills':
@@ -1867,10 +2050,10 @@ function render() {
         break;
       case 'equipment':
         drawEquipmentPanel(ctx, panels, playerProgression.equipment, 
-          worldState.inventory, window.innerWidth, window.innerHeight);
+          worldState?.player?.inventory?.items || [], window.innerWidth, window.innerHeight);
         break;
       case 'settings':
-        drawSettingsPanel(ctx, panels, worldState.settings, 
+        drawSettingsPanel(ctx, panels, worldState?.settings || {}, 
           window.innerWidth, window.innerHeight);
         break;
     }
@@ -2123,6 +2306,9 @@ function renderPlaying() {
   // Draw minimap
   drawMinimap(ctx, minimap, player.x, player.y, currentBiome, window.innerWidth);
   
+  // Draw zone indicator (top center)
+  renderZoneIndicator(ctx);
+  
   // Draw controls guide (bottom left)
   renderControlsGuide(ctx);
   
@@ -2159,18 +2345,54 @@ function hexToCSS(hex) {
 }
 
 /**
- * Render world tiles with pixel art style
+ * Get zone-based tile colors
  */
-function renderWorld(ctx, level, camX, camY) {
-  const tileSize = openWorld?.tileSize || TILE_SIZE;
+function getZoneTileColors(zoneType, tile) {
+  const zoneConfig = ZONE_CONFIG[zoneType];
   
-  const startTileX = Math.max(0, Math.floor(camX / tileSize));
-  const startTileY = Math.max(0, Math.floor(camY / tileSize));
-  const endTileX = Math.min(level.width, Math.ceil((camX + window.innerWidth) / tileSize) + 1);
-  const endTileY = Math.min(level.height, Math.ceil((camY + window.innerHeight) / tileSize) + 1);
+  // Base colors for each zone type
+  const zoneColors = {
+    [ZONE_TYPES.VILLAGE]: {
+      [WORLD_TILES.GRASS]: ['#5aaf5a', '#5abf5a', '#6acf6a'],
+      [WORLD_TILES.DIRT]: ['#9a7b5a', '#8a6b4a', '#aa8b6a'],
+      [WORLD_TILES.FLOWERS]: ['#5aaf5a', '#5abf5a', '#6acf6a'],
+      [WORLD_TILES.PATH]: ['#c4a878', '#b49868', '#d4b888'],
+    },
+    [ZONE_TYPES.FOREST]: {
+      [WORLD_TILES.GRASS]: ['#3a8f3a', '#3a7f3a', '#4a8f4a'],
+      [WORLD_TILES.DIRT]: ['#6a5b3a', '#5a4b2a', '#7a6b4a'],
+      [WORLD_TILES.FLOWERS]: ['#3a8f3a', '#4a9f4a', '#3a7f3a'],
+      [WORLD_TILES.TALL_GRASS]: ['#2a6f2a', '#3a7f3a', '#2a5f2a'],
+      [WORLD_TILES.MUSHROOM_PATCH]: ['#5a4a3a', '#4a3a2a', '#6a5a4a'],
+    },
+    [ZONE_TYPES.DEEP_FOREST]: {
+      [WORLD_TILES.GRASS]: ['#2a5f2a', '#2a4f2a', '#3a5f3a'],
+      [WORLD_TILES.DIRT]: ['#4a3b2a', '#3a2b1a', '#5a4b3a'],
+      [WORLD_TILES.TALL_GRASS]: ['#1a4f1a', '#2a5f2a', '#1a3f1a'],
+      [WORLD_TILES.MOSS]: ['#2a6f3a', '#3a7f4a', '#2a5f2a'],
+      [WORLD_TILES.SWAMP]: ['#3a4f3a', '#2a3f2a', '#4a5f4a'],
+    },
+    [ZONE_TYPES.CORRUPTED]: {
+      [WORLD_TILES.GRASS]: ['#4a3a5a', '#5a4a6a', '#3a2a4a'],
+      [WORLD_TILES.CORRUPTED_GRASS]: ['#5a3a6a', '#6a4a7a', '#4a2a5a'],
+      [WORLD_TILES.DIRT]: ['#3a2a3a', '#4a3a4a', '#2a1a2a'],
+      [WORLD_TILES.CORRUPTED_DIRT]: ['#4a2a4a', '#5a3a5a', '#3a1a3a'],
+      [WORLD_TILES.STONE]: ['#4a3a4a', '#5a4a5a', '#3a2a3a'],
+      [WORLD_TILES.CORRUPTION_VEIN]: ['#8a4aaa', '#9a5aba', '#7a3a9a'],
+      [WORLD_TILES.DEAD_GRASS]: ['#5a5a4a', '#6a6a5a', '#4a4a3a'],
+    },
+    [ZONE_TYPES.CORRUPTED_CORE]: {
+      [WORLD_TILES.GRASS]: ['#2a1a3a', '#3a2a4a', '#1a0a2a'],
+      [WORLD_TILES.CORRUPTED_GRASS]: ['#3a1a4a', '#4a2a5a', '#2a0a3a'],
+      [WORLD_TILES.DIRT]: ['#2a1a2a', '#3a2a3a', '#1a0a1a'],
+      [WORLD_TILES.STONE]: ['#3a2a3a', '#4a3a4a', '#2a1a2a'],
+      [WORLD_TILES.CORRUPTION_VEIN]: ['#aa5acc', '#ba6add', '#9a4abb'],
+      [WORLD_TILES.DEAD_GRASS]: ['#3a3a2a', '#4a4a3a', '#2a2a1a'],
+    },
+  };
   
-  // Define tile colors for open world
-  const tileColors = {
+  // Default colors
+  const defaultColors = {
     [WORLD_TILES.GRASS]: ['#4a8f4a', '#4a9a4a', '#5a9f5a'],
     [WORLD_TILES.DIRT]: ['#8a6b4a', '#7a5b3a', '#9a7b5a'],
     [WORLD_TILES.STONE]: ['#666666', '#777777', '#555555'],
@@ -2185,156 +2407,1330 @@ function renderWorld(ctx, level, camX, camY) {
     [WORLD_TILES.TALL_GRASS]: ['#3a7f3a', '#3a8a3a', '#4a8f4a'],
   };
   
+  return zoneColors[zoneType]?.[tile] || defaultColors[tile] || defaultColors[WORLD_TILES.GRASS];
+}
+
+/**
+ * Get day/night lighting parameters
+ * Returns brightness (0-1), color tint, and whether it's night
+ */
+function getDayNightLighting() {
+  // Time ranges:
+  // 0.0 - 0.20: Night (dark blue)
+  // 0.20 - 0.30: Dawn (orange/pink transition)
+  // 0.30 - 0.70: Day (bright white/yellow)
+  // 0.70 - 0.80: Dusk (orange/pink transition)
+  // 0.80 - 1.0: Night (dark blue)
+  
+  let brightness = 1.0;
+  let tintR = 0, tintG = 0, tintB = 0;
+  let isNight = false;
+  
+  if (gameTime < 0.20 || gameTime > 0.80) {
+    // Night
+    isNight = true;
+    brightness = 0.35;
+    tintR = 20;
+    tintG = 30;
+    tintB = 60;
+  } else if (gameTime < 0.30) {
+    // Dawn transition
+    const t = (gameTime - 0.20) / 0.10;
+    brightness = 0.35 + t * 0.65;
+    tintR = Math.floor(20 + t * 40); // Orange tint
+    tintG = Math.floor(30 - t * 10);
+    tintB = Math.floor(60 - t * 60);
+  } else if (gameTime > 0.70 && gameTime <= 0.80) {
+    // Dusk transition
+    const t = (gameTime - 0.70) / 0.10;
+    brightness = 1.0 - t * 0.65;
+    tintR = Math.floor(60 - t * 40); // Orange to dark
+    tintG = Math.floor(20 + t * 10);
+    tintB = Math.floor(t * 60);
+  } else {
+    // Full day
+    brightness = 1.0;
+    tintR = 0;
+    tintG = 0;
+    tintB = 0;
+  }
+  
+  return { brightness, tintR, tintG, tintB, isNight };
+}
+
+/**
+ * Render world tiles with zone-based graphics
+ */
+function renderWorld(ctx, level, camX, camY) {
+  const tileSize = openWorld?.tileSize || TILE_SIZE;
+  const villageCenter = openWorld?.villageCenter || { x: 100, y: 75 };
+  
+  // Get day/night lighting
+  const dayNight = getDayNightLighting();
+  
+  const startTileX = Math.max(0, Math.floor(camX / tileSize));
+  const startTileY = Math.max(0, Math.floor(camY / tileSize));
+  const endTileX = Math.min(level.width, Math.ceil((camX + window.innerWidth) / tileSize) + 1);
+  const endTileY = Math.min(level.height, Math.ceil((camY + window.innerHeight) / tileSize) + 1);
+  
+  // Time for animations
+  const time = performance.now();
+  
   for (let y = startTileY; y < endTileY; y++) {
     for (let x = startTileX; x < endTileX; x++) {
       const tile = level.tiles[y * level.width + x];
       const tileX = x * tileSize;
       const tileY = y * tileSize;
       
-      // Use position-based variation for consistent tile appearance
-      const variation = ((x * 7 + y * 13) % 3);
+      // Get zone type for this tile
+      const zoneType = getZoneTypeAt(villageCenter, x, y);
+      const zoneConfig = ZONE_CONFIG[zoneType];
       
-      // Get colors for this tile type
-      const colors = tileColors[tile] || tileColors[WORLD_TILES.GRASS];
+      // Distance from village for effects
+      const distFromVillage = distance(x, y, villageCenter.x, villageCenter.y);
+      
+      // Use position-based variation
+      const variation = ((x * 7 + y * 13) % 3);
+      const seed = x * 1000 + y;
+      
+      // Get zone-aware colors
+      const colors = getZoneTileColors(zoneType, tile);
       const baseColor = colors[variation % colors.length];
       
-      // Draw tile based on type
-      if (tile === WORLD_TILES.WALL) {
-        // Wall tile with brick pattern
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        
-        // Brick pattern
-        const brickH = tileSize / 2;
-        const offset = (y % 2) * (tileSize / 2);
-        
-        ctx.fillStyle = darkenHex(baseColor, 0.3);
-        ctx.fillRect(tileX, tileY + brickH - 1, tileSize, 2);
-        ctx.fillRect(tileX + (tileSize / 2 + offset) % tileSize, tileY, 2, brickH);
-        ctx.fillRect(tileX + offset, tileY + brickH, 2, brickH);
-        
-        // Top highlight
-        ctx.fillStyle = lightenHex(baseColor, 0.2);
-        ctx.fillRect(tileX, tileY, tileSize, 2);
-        
-      } else if (tile === WORLD_TILES.WATER) {
-        // Animated water
-        const wave = Math.sin(performance.now() * 0.002 + x * 0.5 + y * 0.3) * 0.15;
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        
-        // Wave highlight
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.1 + wave})`;
-        ctx.fillRect(tileX + (variation * 4), tileY + (variation * 3), tileSize / 2, 2);
-        
-      } else if (tile === WORLD_TILES.FLOOR_WOOD) {
-        // Wood floor with planks
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        
-        // Wood grain lines
-        ctx.fillStyle = darkenHex(baseColor, 0.2);
-        for (let i = 0; i < 3; i++) {
-          ctx.fillRect(tileX, tileY + i * (tileSize / 3), tileSize, 1);
-        }
-        
-        // Knots
-        if ((x + y) % 7 === 0) {
-          ctx.fillStyle = darkenHex(baseColor, 0.3);
-          ctx.beginPath();
-          ctx.arc(tileX + tileSize / 2, tileY + tileSize / 2, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        
-      } else if (tile === WORLD_TILES.PATH) {
-        // Dirt path with stones
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        
-        // Small stones
-        const seed = x * 1000 + y;
-        if (seed % 5 === 0) {
-          ctx.fillStyle = '#999988';
-          ctx.beginPath();
-          ctx.arc(tileX + (seed % 20) + 6, tileY + ((seed * 3) % 20) + 6, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        
-        // Edge darkening
-        ctx.fillStyle = 'rgba(0,0,0,0.1)';
-        ctx.fillRect(tileX, tileY, 2, tileSize);
-        ctx.fillRect(tileX + tileSize - 2, tileY, 2, tileSize);
-        
-      } else if (tile === WORLD_TILES.FLOWERS) {
-        // Grass base
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        
-        // Flowers
-        const flowerColors = ['#ff6688', '#ffcc44', '#88aaff', '#ff88cc', '#ffffff'];
-        const seed = (x * 13 + y * 17);
-        
-        for (let i = 0; i < 3; i++) {
-          const fx = tileX + ((seed + i * 7) % (tileSize - 4)) + 2;
-          const fy = tileY + ((seed + i * 11) % (tileSize - 4)) + 2;
-          const fc = flowerColors[(seed + i) % flowerColors.length];
-          
-          ctx.fillStyle = fc;
-          ctx.beginPath();
-          ctx.arc(fx, fy, 2, 0, Math.PI * 2);
-          ctx.fill();
-          
-          // Stem
-          ctx.fillStyle = '#3a6a3a';
-          ctx.fillRect(fx - 0.5, fy, 1, 4);
-        }
-        
-      } else if (tile === WORLD_TILES.TALL_GRASS) {
-        // Base grass
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        
-        // Tall grass blades
-        const seed = x * 13 + y * 7;
-        ctx.fillStyle = '#5aaf5a';
-        
-        for (let i = 0; i < 5; i++) {
-          const gx = tileX + ((seed + i * 5) % (tileSize - 2));
-          const sway = Math.sin(performance.now() * 0.002 + seed + i) * 2;
-          
-          ctx.beginPath();
-          ctx.moveTo(gx, tileY + tileSize);
-          ctx.lineTo(gx + sway, tileY + tileSize - 12);
-          ctx.lineTo(gx + 2, tileY + tileSize);
-          ctx.fill();
-        }
-        
-      } else {
-        // Default tile (grass, dirt, sand, stone, etc.)
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(tileX, tileY, tileSize, tileSize);
-        
-        // Add subtle texture
-        const seed = x * 1000 + y;
-        if ((seed % 5) === 0) {
-          ctx.fillStyle = 'rgba(0,0,0,0.08)';
-          ctx.fillRect(tileX + (seed % 12), tileY + ((seed * 3) % 12), 2, 2);
-        }
-        if ((seed % 7) === 0) {
-          ctx.fillStyle = 'rgba(255,255,255,0.06)';
-          ctx.fillRect(tileX + ((seed * 2) % 10), tileY + ((seed * 5) % 10), 2, 2);
-        }
-        
-        // Subtle grid lines
-        ctx.fillStyle = 'rgba(0,0,0,0.03)';
-        ctx.fillRect(tileX, tileY, 1, tileSize);
-        ctx.fillRect(tileX, tileY, tileSize, 1);
-      }
+      // Apply ambient lighting based on zone AND day/night cycle
+      const zoneAmbientLight = zoneConfig?.ambientLight || 1.0;
+      const combinedLight = zoneAmbientLight * dayNight.brightness;
+      const adjustedColor = adjustColorBrightness(baseColor, combinedLight);
+      
+      // Draw tile based on type with zone-specific effects
+      renderTileWithZoneEffects(ctx, tile, tileX, tileY, tileSize, {
+        baseColor: adjustedColor,
+        zoneType,
+        zoneConfig,
+        variation,
+        seed,
+        time,
+        distFromVillage,
+        x, y,
+        dayNight,
+      });
     }
   }
   
+  // Render zone-specific decorations on top
+  renderZoneDecorations(ctx, camX, camY, startTileX, startTileY, endTileX, endTileY, tileSize);
+  
   // Draw village structures on top
   renderStructures(ctx, camX, camY, startTileX, startTileY, endTileX, endTileY, tileSize);
+  
+  // Apply day/night color tint overlay
+  if (dayNight.tintR !== 0 || dayNight.tintG !== 0 || dayNight.tintB !== 0) {
+    ctx.fillStyle = `rgba(${dayNight.tintR}, ${dayNight.tintG}, ${dayNight.tintB}, 0.2)`;
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  }
+  
+  // Render stars at night
+  if (dayNight.isNight) {
+    renderNightStars(ctx, camX, camY);
+  }
+}
+
+/**
+ * Render stars during night time
+ */
+function renderNightStars(ctx, camX, camY) {
+  const time = performance.now();
+  const starCount = 50;
+  
+  for (let i = 0; i < starCount; i++) {
+    // Seeded position
+    const sx = ((i * 137) % ctx.canvas.width);
+    const sy = ((i * 251) % (ctx.canvas.height * 0.4)); // Stars only in upper half
+    
+    // Twinkling effect
+    const twinkle = 0.5 + Math.sin(time * 0.002 + i * 0.5) * 0.5;
+    
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + twinkle * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1 + twinkle, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render a single tile with zone-specific effects
+ */
+function renderTileWithZoneEffects(ctx, tile, tileX, tileY, tileSize, params) {
+  const { baseColor, zoneType, zoneConfig, variation, seed, time, distFromVillage, x, y } = params;
+  
+  // Base tile
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(tileX, tileY, tileSize, tileSize);
+  
+  // Zone-specific tile effects
+  if (tile === WORLD_TILES.WALL) {
+    renderWallTile(ctx, tileX, tileY, tileSize, baseColor, y);
+  } else if (tile === WORLD_TILES.WATER) {
+    renderWaterTile(ctx, tileX, tileY, tileSize, baseColor, time, x, y, zoneType);
+  } else if (tile === WORLD_TILES.FLOOR_WOOD) {
+    renderWoodFloorTile(ctx, tileX, tileY, tileSize, baseColor, x, y);
+  } else if (tile === WORLD_TILES.PATH) {
+    renderPathTile(ctx, tileX, tileY, tileSize, baseColor, seed, zoneType);
+  } else if (tile === WORLD_TILES.FLOWERS) {
+    renderFlowersTile(ctx, tileX, tileY, tileSize, baseColor, seed, zoneType);
+  } else if (tile === WORLD_TILES.TALL_GRASS) {
+    renderTallGrassTile(ctx, tileX, tileY, tileSize, baseColor, seed, time, zoneType);
+  } else {
+    // Default grass/dirt with zone effects
+    renderDefaultTile(ctx, tileX, tileY, tileSize, baseColor, seed, zoneType, zoneConfig);
+  }
+  
+  // Add corruption effects for corrupted zones
+  if (zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE) {
+    renderCorruptionOverlay(ctx, tileX, tileY, tileSize, seed, time, zoneType);
+  }
+  
+  // Add shadows based on distance (darker at edges)
+  if (distFromVillage > 50) {
+    const shadowIntensity = Math.min(0.4, (distFromVillage - 50) / 200);
+    ctx.fillStyle = `rgba(0, 0, 0, ${shadowIntensity * 0.3})`;
+    ctx.fillRect(tileX, tileY, tileSize, tileSize);
+  }
+}
+
+/**
+ * Render wall tile with brick pattern
+ */
+function renderWallTile(ctx, tileX, tileY, tileSize, baseColor, y) {
+  const brickH = tileSize / 2;
+  const offset = (y % 2) * (tileSize / 2);
+  
+  ctx.fillStyle = darkenHex(baseColor, 0.3);
+  ctx.fillRect(tileX, tileY + brickH - 1, tileSize, 2);
+  ctx.fillRect(tileX + (tileSize / 2 + offset) % tileSize, tileY, 2, brickH);
+  ctx.fillRect(tileX + offset, tileY + brickH, 2, brickH);
+  
+  ctx.fillStyle = lightenHex(baseColor, 0.2);
+  ctx.fillRect(tileX, tileY, tileSize, 2);
+}
+
+/**
+ * Render water tile with animation and zone effects
+ */
+function renderWaterTile(ctx, tileX, tileY, tileSize, baseColor, time, x, y, zoneType) {
+  const wave = Math.sin(time * 0.002 + x * 0.5 + y * 0.3) * 0.15;
+  
+  // Corrupted water is darker and has different color
+  if (zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE) {
+    ctx.fillStyle = '#2a1a4a';
+    ctx.fillRect(tileX, tileY, tileSize, tileSize);
+    ctx.fillStyle = `rgba(150, 80, 200, ${0.2 + wave})`;
+  } else {
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.1 + wave})`;
+  }
+  
+  const variation = ((x * 7 + y * 13) % 3);
+  ctx.fillRect(tileX + (variation * 4), tileY + (variation * 3), tileSize / 2, 2);
+}
+
+/**
+ * Render wood floor tile
+ */
+function renderWoodFloorTile(ctx, tileX, tileY, tileSize, baseColor, x, y) {
+  ctx.fillStyle = darkenHex(baseColor, 0.2);
+  for (let i = 0; i < 3; i++) {
+    ctx.fillRect(tileX, tileY + i * (tileSize / 3), tileSize, 1);
+  }
+  
+  if ((x + y) % 7 === 0) {
+    ctx.fillStyle = darkenHex(baseColor, 0.3);
+    ctx.beginPath();
+    ctx.arc(tileX + tileSize / 2, tileY + tileSize / 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render path tile with zone effects
+ */
+function renderPathTile(ctx, tileX, tileY, tileSize, baseColor, seed, zoneType) {
+  // Small stones
+  if (seed % 5 === 0) {
+    const stoneColor = zoneType === ZONE_TYPES.CORRUPTED ? '#6a5a7a' : '#999988';
+    ctx.fillStyle = stoneColor;
+    ctx.beginPath();
+    ctx.arc(tileX + (seed % 20) + 6, tileY + ((seed * 3) % 20) + 6, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fillRect(tileX, tileY, 2, tileSize);
+  ctx.fillRect(tileX + tileSize - 2, tileY, 2, tileSize);
+}
+
+/**
+ * Render flowers tile with zone-specific flowers
+ */
+function renderFlowersTile(ctx, tileX, tileY, tileSize, baseColor, seed, zoneType) {
+  const flowerColors = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE
+    ? ['#aa66cc', '#8844aa', '#cc88ee', '#6622aa']
+    : ['#ff6688', '#ffcc44', '#88aaff', '#ff88cc', '#ffffff'];
+  
+  for (let i = 0; i < 3; i++) {
+    const fx = tileX + ((seed + i * 7) % (tileSize - 4)) + 2;
+    const fy = tileY + ((seed + i * 11) % (tileSize - 4)) + 2;
+    const fc = flowerColors[(seed + i) % flowerColors.length];
+    
+    ctx.fillStyle = fc;
+    ctx.beginPath();
+    ctx.arc(fx, fy, 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = zoneType === ZONE_TYPES.CORRUPTED ? '#4a3a5a' : '#3a6a3a';
+    ctx.fillRect(fx - 0.5, fy, 1, 4);
+  }
+}
+
+/**
+ * Render tall grass tile with animation
+ */
+function renderTallGrassTile(ctx, tileX, tileY, tileSize, baseColor, seed, time, zoneType) {
+  const grassColor = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE
+    ? '#5a4a6a' 
+    : zoneType === ZONE_TYPES.DEEP_FOREST 
+    ? '#2a5f2a' 
+    : '#5aaf5a';
+  
+  ctx.fillStyle = grassColor;
+  
+  for (let i = 0; i < 5; i++) {
+    const gx = tileX + ((seed + i * 5) % (tileSize - 2));
+    const sway = Math.sin(time * 0.002 + seed + i) * 2;
+    
+    ctx.beginPath();
+    ctx.moveTo(gx, tileY + tileSize);
+    ctx.lineTo(gx + sway, tileY + tileSize - 12);
+    ctx.lineTo(gx + 2, tileY + tileSize);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render default tile with subtle texture
+ */
+function renderDefaultTile(ctx, tileX, tileY, tileSize, baseColor, seed, zoneType, zoneConfig) {
+  if ((seed % 5) === 0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(tileX + (seed % 12), tileY + ((seed * 3) % 12), 2, 2);
+  }
+  if ((seed % 7) === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(tileX + ((seed * 2) % 10), tileY + ((seed * 5) % 10), 2, 2);
+  }
+  
+  // Subtle grid
+  ctx.fillStyle = 'rgba(0,0,0,0.03)';
+  ctx.fillRect(tileX, tileY, 1, tileSize);
+  ctx.fillRect(tileX, tileY, tileSize, 1);
+}
+
+/**
+ * Render corruption overlay effects
+ */
+function renderCorruptionOverlay(ctx, tileX, tileY, tileSize, seed, time, zoneType) {
+  // Corruption veins
+  if (seed % 15 === 0) {
+    const pulseIntensity = 0.3 + Math.sin(time * 0.003 + seed) * 0.2;
+    const veinColor = zoneType === ZONE_TYPES.CORRUPTED_CORE 
+      ? `rgba(180, 100, 220, ${pulseIntensity})`
+      : `rgba(140, 80, 180, ${pulseIntensity})`;
+    
+    ctx.fillStyle = veinColor;
+    
+    // Draw corruption vein pattern
+    ctx.beginPath();
+    ctx.moveTo(tileX + (seed % tileSize), tileY);
+    ctx.lineTo(tileX + ((seed * 2) % tileSize), tileY + tileSize);
+    ctx.lineTo(tileX + ((seed * 2) % tileSize) + 3, tileY + tileSize);
+    ctx.lineTo(tileX + (seed % tileSize) + 3, tileY);
+    ctx.fill();
+  }
+  
+  // Corruption particles (rare)
+  if (seed % 30 === 0) {
+    const particleY = tileY + (time * 0.02 + seed) % tileSize;
+    const particleX = tileX + tileSize / 2 + Math.sin(time * 0.005 + seed) * 5;
+    
+    ctx.fillStyle = 'rgba(200, 120, 255, 0.6)';
+    ctx.beginPath();
+    ctx.arc(particleX, particleY, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render zone-specific decorations (trees, rocks, effects)
+ */
+function renderZoneDecorations(ctx, camX, camY, startX, startY, endX, endY, tileSize) {
+  if (!openWorld?.decorations) return;
+  
+  const villageCenter = openWorld.villageCenter || { x: 100, y: 75 };
+  const time = performance.now();
+  
+  // Sort decorations by Y for proper depth
+  const visibleDecorations = openWorld.decorations.filter(d => {
+    const dx = d.x / tileSize;
+    const dy = d.y / tileSize;
+    return dx >= startX - 5 && dx <= endX + 5 && dy >= startY - 5 && dy <= endY + 5;
+  }).sort((a, b) => a.y - b.y);
+  
+  for (const deco of visibleDecorations) {
+    const zoneType = getZoneTypeAt(villageCenter, deco.x / tileSize, deco.y / tileSize);
+    renderDecoration(ctx, deco, zoneType, time);
+  }
+}
+
+/**
+ * Render a single decoration with zone-aware styling
+ */
+function renderDecoration(ctx, deco, zoneType, time) {
+  const x = deco.x;
+  const y = deco.y;
+  
+  switch (deco.type) {
+    case ENTITY_TYPES.TREE_OAK:
+    case ENTITY_TYPES.TREE_PINE:
+    case ENTITY_TYPES.TREE_WILLOW:
+    case ENTITY_TYPES.TREE_GIANT:
+      renderTree(ctx, x, y, deco.type, zoneType, time);
+      break;
+    case ENTITY_TYPES.TREE_DEAD:
+    case ENTITY_TYPES.TREE_CORRUPTED:
+      renderDeadTree(ctx, x, y, deco.type, zoneType, time);
+      break;
+    case ENTITY_TYPES.BUSH:
+    case ENTITY_TYPES.BUSH_BERRY:
+    case ENTITY_TYPES.BUSH_THORNS:
+      renderBush(ctx, x, y, zoneType, deco.type);
+      break;
+    case ENTITY_TYPES.ROCK:
+    case ENTITY_TYPES.ROCK_LARGE:
+      renderRock(ctx, x, y, deco.type, zoneType);
+      break;
+    case ENTITY_TYPES.MUSHROOM:
+    case ENTITY_TYPES.MUSHROOM_GLOWING:
+      renderMushroom(ctx, x, y, deco.type, zoneType, time);
+      break;
+    case ENTITY_TYPES.LAMP_POST:
+      renderLampPost(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.CORRUPTION_CRYSTAL:
+      renderCorruptionCrystal(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.CORRUPTION_TENDRIL:
+      renderCorruptionTendril(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.DARK_OBELISK:
+      renderDarkObelisk(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.PORTAL_SMALL:
+      renderPortal(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.SKULL_PILE:
+      renderSkullPile(ctx, x, y, zoneType);
+      break;
+    case ENTITY_TYPES.FIREFLY_ZONE:
+      renderFireflies(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.MIST_ZONE:
+      renderMist(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.SPORE_ZONE:
+      renderSpores(ctx, x, y, time);
+      break;
+    default:
+      // Default decoration
+      ctx.fillStyle = '#888888';
+      ctx.fillRect(x - 5, y - 5, 10, 10);
+  }
+}
+
+/**
+ * Render tree with zone-specific appearance
+ */
+function renderTree(ctx, x, y, treeType, zoneType, time) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  const isDeepForest = zoneType === ZONE_TYPES.DEEP_FOREST;
+  const isGiant = treeType === ENTITY_TYPES.TREE_GIANT;
+  const isPine = treeType === ENTITY_TYPES.TREE_PINE;
+  const isWillow = treeType === ENTITY_TYPES.TREE_WILLOW;
+  
+  const scale = isGiant ? 1.8 : 1.0;
+  
+  // Tree shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5, 25 * scale, 10 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Trunk color based on zone
+  const trunkColor = isCorrupted ? '#3a2a3a' : isDeepForest ? '#4a3a2a' : '#5a4a3a';
+  const trunkDark = darkenHex(trunkColor, 0.3);
+  
+  // Trunk dimensions
+  const trunkWidth = (isPine ? 10 : 16) * scale;
+  const trunkHeight = (isPine ? 70 : isGiant ? 90 : 55) * scale;
+  
+  // Trunk
+  ctx.fillStyle = trunkColor;
+  ctx.fillRect(x - trunkWidth/2, y - trunkHeight, trunkWidth, trunkHeight + 5);
+  
+  // Trunk shadow
+  ctx.fillStyle = trunkDark;
+  ctx.fillRect(x - trunkWidth/2, y - trunkHeight, trunkWidth * 0.25, trunkHeight + 5);
+  
+  // Trunk texture
+  ctx.fillStyle = darkenHex(trunkColor, 0.15);
+  for (let i = 0; i < 5; i++) {
+    ctx.fillRect(x - trunkWidth/2 + 2 + (i * 3 * scale), y - trunkHeight + 5 + (i * 10 * scale), 2 * scale, 8 * scale);
+  }
+  
+  // Leaves/canopy color based on zone
+  let leafColor, leafDark, leafLight;
+  
+  if (isCorrupted) {
+    leafColor = zoneType === ZONE_TYPES.CORRUPTED_CORE ? '#4a2a5a' : '#5a3a6a';
+    leafDark = '#3a1a4a';
+    leafLight = '#6a4a7a';
+  } else if (isDeepForest) {
+    leafColor = '#2a5f2a';
+    leafDark = '#1a4f1a';
+    leafLight = '#3a6f3a';
+  } else {
+    leafColor = '#3a8f3a';
+    leafDark = '#2a7f2a';
+    leafLight = '#4a9f4a';
+  }
+  
+  // Canopy with wind sway
+  const sway = Math.sin(time * 0.001 + x * 0.1) * 3 * scale;
+  
+  if (isPine) {
+    // Pine tree - triangular layers
+    const layers = isGiant ? 5 : 3;
+    for (let i = 0; i < layers; i++) {
+      const layerY = y - trunkHeight - i * 20 * scale + 30 * scale;
+      const layerWidth = (40 - i * 8) * scale;
+      
+      ctx.fillStyle = i % 2 === 0 ? leafDark : leafColor;
+      ctx.beginPath();
+      ctx.moveTo(x + sway, layerY - 25 * scale);
+      ctx.lineTo(x + sway - layerWidth/2, layerY);
+      ctx.lineTo(x + sway + layerWidth/2, layerY);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (isWillow) {
+    // Willow tree - drooping branches
+    ctx.fillStyle = leafColor;
+    ctx.beginPath();
+    ctx.arc(x + sway, y - trunkHeight - 10, 30 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Hanging vines
+    ctx.strokeStyle = leafDark;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      const vx = x + sway + (i - 4) * 8 * scale;
+      const vineLength = 40 + Math.sin(time * 0.002 + i) * 10;
+      ctx.beginPath();
+      ctx.moveTo(vx, y - trunkHeight);
+      ctx.bezierCurveTo(vx - 5, y - trunkHeight + vineLength * 0.3, 
+                        vx + 5, y - trunkHeight + vineLength * 0.6, 
+                        vx + Math.sin(time * 0.001 + i) * 5, y - trunkHeight + vineLength * scale);
+      ctx.stroke();
+    }
+  } else {
+    // Oak/default tree - round canopy
+    ctx.fillStyle = leafDark;
+    ctx.beginPath();
+    ctx.arc(x + sway - 15 * scale, y - trunkHeight - 5, 20 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = leafColor;
+    ctx.beginPath();
+    ctx.arc(x + sway, y - trunkHeight - 15, 25 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.arc(x + sway + 12 * scale, y - trunkHeight - 5, 18 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Highlights
+    ctx.fillStyle = leafLight;
+    ctx.beginPath();
+    ctx.arc(x + sway - 5 * scale, y - trunkHeight - 22, 12 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Corrupted trees have glowing particles
+  if (isCorrupted && Math.random() < 0.1) {
+    ctx.fillStyle = 'rgba(180, 100, 220, 0.7)';
+    ctx.beginPath();
+    ctx.arc(x + sway + (Math.random() - 0.5) * 30 * scale, y - trunkHeight - 10 + (Math.random() - 0.5) * 20 * scale, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render bush with zone effects
+ */
+function renderBush(ctx, x, y, zoneType, bushType = ENTITY_TYPES.BUSH) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  const isThorns = bushType === ENTITY_TYPES.BUSH_THORNS;
+  const isBerry = bushType === ENTITY_TYPES.BUSH_BERRY;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 3, 12, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  let bushColor, bushLight;
+  
+  if (isThorns || isCorrupted) {
+    bushColor = '#3a2a3a';
+    bushLight = '#4a3a4a';
+  } else {
+    bushColor = '#3a7f3a';
+    bushLight = '#4a8f4a';
+  }
+  
+  ctx.fillStyle = bushColor;
+  ctx.beginPath();
+  ctx.arc(x - 5, y - 5, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 5, y - 3, 8, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = bushLight;
+  ctx.beginPath();
+  ctx.arc(x, y - 8, 6, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Berry decorations
+  if (isBerry && !isCorrupted) {
+    ctx.fillStyle = '#cc3333';
+    ctx.beginPath();
+    ctx.arc(x - 6, y - 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + 4, y - 6, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x - 2, y - 3, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Thorns
+  if (isThorns) {
+    ctx.strokeStyle = '#5a4a5a';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    
+    const thorns = [
+      [-10, -8, -15, -12],
+      [8, -6, 14, -10],
+      [-3, -12, -5, -18],
+      [5, -10, 10, -16],
+      [-8, -2, -14, -4],
+    ];
+    
+    for (const [x1, y1, x2, y2] of thorns) {
+      ctx.beginPath();
+      ctx.moveTo(x + x1, y + y1);
+      ctx.lineTo(x + x2, y + y2);
+      ctx.stroke();
+    }
+  }
+}
+
+/**
+ * Render rock with zone effects
+ */
+function renderRock(ctx, x, y, rockType, zoneType) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  const size = rockType === ENTITY_TYPES.ROCK_LARGE ? 1.5 : 1;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5 * size, 15 * size, 6 * size, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  const rockColor = isCorrupted ? '#4a3a4a' : '#666666';
+  const rockDark = isCorrupted ? '#3a2a3a' : '#555555';
+  const rockLight = isCorrupted ? '#5a4a5a' : '#888888';
+  
+  // Main rock shape
+  ctx.fillStyle = rockColor;
+  ctx.beginPath();
+  ctx.moveTo(x - 12 * size, y);
+  ctx.lineTo(x - 8 * size, y - 15 * size);
+  ctx.lineTo(x + 5 * size, y - 18 * size);
+  ctx.lineTo(x + 12 * size, y - 8 * size);
+  ctx.lineTo(x + 10 * size, y);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Shadow side
+  ctx.fillStyle = rockDark;
+  ctx.beginPath();
+  ctx.moveTo(x - 12 * size, y);
+  ctx.lineTo(x - 8 * size, y - 15 * size);
+  ctx.lineTo(x - 2 * size, y - 10 * size);
+  ctx.lineTo(x - 5 * size, y);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Highlight
+  ctx.fillStyle = rockLight;
+  ctx.beginPath();
+  ctx.moveTo(x + 5 * size, y - 18 * size);
+  ctx.lineTo(x + 8 * size, y - 14 * size);
+  ctx.lineTo(x + 3 * size, y - 12 * size);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Corruption crystals on rocks
+  if (isCorrupted && rockType === ENTITY_TYPES.ROCK_LARGE) {
+    ctx.fillStyle = '#aa66cc';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 20 * size);
+    ctx.lineTo(x - 3, y - 25 * size);
+    ctx.lineTo(x + 3, y - 25 * size);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/**
+ * Render mushroom with glow effect (enhanced at night)
+ */
+function renderMushroom(ctx, x, y, type, zoneType, time) {
+  const isGlowing = type === ENTITY_TYPES.MUSHROOM_GLOWING;
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  const dayNight = getDayNightLighting();
+  const nightBoost = dayNight.isNight ? 2.0 : 1.0;
+  
+  // Stem
+  ctx.fillStyle = isCorrupted ? '#8a7a9a' : '#e8e0d0';
+  ctx.fillRect(x - 3, y - 8, 6, 12);
+  
+  // Cap color
+  let capColor = isCorrupted ? '#8844aa' : '#cc4444';
+  if (isGlowing) {
+    const pulse = (0.7 + Math.sin(time * 0.005) * 0.3) * nightBoost;
+    capColor = isCorrupted 
+      ? `rgba(180, 100, 220, ${Math.min(1, pulse)})` 
+      : `rgba(100, 200, 255, ${Math.min(1, pulse)})`;
+  }
+  
+  ctx.fillStyle = capColor;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 10, 10, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Cap spots
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.beginPath();
+  ctx.arc(x - 4, y - 11, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 3, y - 9, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Glow effect (much bigger at night)
+  if (isGlowing) {
+    const glowSize = (20 + Math.sin(time * 0.003) * 5) * nightBoost;
+    const glowIntensity = dayNight.isNight ? 0.6 : 0.4;
+    const gradient = ctx.createRadialGradient(x, y - 8, 0, x, y - 8, glowSize);
+    gradient.addColorStop(0, isCorrupted 
+      ? `rgba(180, 100, 220, ${glowIntensity})` 
+      : `rgba(100, 200, 255, ${glowIntensity})`);
+    gradient.addColorStop(0.5, isCorrupted 
+      ? `rgba(160, 80, 200, ${glowIntensity * 0.4})` 
+      : `rgba(80, 180, 240, ${glowIntensity * 0.4})`);
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y - 8, glowSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Ground light at night
+    if (dayNight.isNight) {
+      const groundGlow = ctx.createRadialGradient(x, y + 5, 0, x, y + 5, 30);
+      groundGlow.addColorStop(0, isCorrupted 
+        ? 'rgba(180, 100, 220, 0.25)' 
+        : 'rgba(100, 200, 255, 0.25)');
+      groundGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = groundGlow;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 5, 30, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+/**
+ * Render lamp post with light effect (enhanced at night)
+ */
+function renderLampPost(ctx, x, y, time) {
+  const dayNight = getDayNightLighting();
+  const nightBoost = dayNight.isNight ? 2.5 : 1.0;
+  
+  // Post
+  ctx.fillStyle = '#333333';
+  ctx.fillRect(x - 3, y - 45, 6, 50);
+  
+  // Lamp housing
+  ctx.fillStyle = '#444444';
+  ctx.fillRect(x - 8, y - 52, 16, 8);
+  
+  // Light glow - much larger at night
+  const flicker = 0.8 + Math.sin(time * 0.01) * 0.1 + Math.random() * 0.1;
+  const glowRadius = 60 * nightBoost;
+  
+  const gradient = ctx.createRadialGradient(x, y - 48, 0, x, y - 48, glowRadius);
+  gradient.addColorStop(0, `rgba(255, 220, 150, ${Math.min(1, 0.6 * flicker * nightBoost)})`);
+  gradient.addColorStop(0.3, `rgba(255, 200, 120, ${Math.min(0.8, 0.4 * flicker * nightBoost)})`);
+  gradient.addColorStop(0.6, `rgba(255, 180, 100, ${0.2 * flicker * nightBoost})`);
+  gradient.addColorStop(1, 'rgba(255, 150, 50, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y - 48, glowRadius, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Light cone on ground (at night)
+  if (dayNight.isNight) {
+    const groundGlow = ctx.createRadialGradient(x, y + 10, 0, x, y + 10, 50);
+    groundGlow.addColorStop(0, `rgba(255, 220, 150, ${0.3 * flicker})`);
+    groundGlow.addColorStop(1, 'rgba(255, 180, 100, 0)');
+    ctx.fillStyle = groundGlow;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 10, 50, 25, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Lamp bulb
+  ctx.fillStyle = `rgba(255, 240, 200, ${flicker})`;
+  ctx.beginPath();
+  ctx.arc(x, y - 48, dayNight.isNight ? 7 : 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Render dead or corrupted tree
+ */
+function renderDeadTree(ctx, x, y, treeType, zoneType, time) {
+  const isCorrupted = treeType === ENTITY_TYPES.TREE_CORRUPTED;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5, 20, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Gnarled trunk
+  const trunkColor = isCorrupted ? '#2a1a2a' : '#3a3030';
+  ctx.fillStyle = trunkColor;
+  
+  // Main trunk
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y);
+  ctx.lineTo(x - 6, y - 60);
+  ctx.lineTo(x + 6, y - 65);
+  ctx.lineTo(x + 10, y);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Dead branches
+  ctx.strokeStyle = trunkColor;
+  ctx.lineWidth = 4;
+  
+  // Left branch
+  ctx.beginPath();
+  ctx.moveTo(x - 4, y - 40);
+  ctx.lineTo(x - 25, y - 55);
+  ctx.lineTo(x - 35, y - 50);
+  ctx.stroke();
+  
+  // Right branch
+  ctx.beginPath();
+  ctx.moveTo(x + 4, y - 50);
+  ctx.lineTo(x + 20, y - 65);
+  ctx.lineTo(x + 30, y - 60);
+  ctx.stroke();
+  
+  // Top branch
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 60);
+  ctx.lineTo(x - 5, y - 80);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y - 65);
+  ctx.lineTo(x + 12, y - 85);
+  ctx.stroke();
+  
+  // Corrupted glow/particles
+  if (isCorrupted) {
+    const pulse = 0.4 + Math.sin(time * 0.003) * 0.2;
+    const gradient = ctx.createRadialGradient(x, y - 40, 0, x, y - 40, 35);
+    gradient.addColorStop(0, `rgba(120, 40, 160, ${pulse * 0.3})`);
+    gradient.addColorStop(1, 'rgba(80, 20, 100, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y - 40, 35, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Corruption veins on trunk
+    ctx.strokeStyle = `rgba(160, 80, 200, ${pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y - 10);
+    ctx.bezierCurveTo(x - 8, y - 25, x + 2, y - 35, x - 2, y - 50);
+    ctx.stroke();
+  }
+}
+
+/**
+ * Render corruption crystal
+ */
+function renderCorruptionCrystal(ctx, x, y, time) {
+  const pulse = 0.6 + Math.sin(time * 0.004) * 0.4;
+  
+  // Glow
+  const gradient = ctx.createRadialGradient(x, y - 15, 0, x, y - 15, 40);
+  gradient.addColorStop(0, `rgba(180, 60, 220, ${pulse * 0.5})`);
+  gradient.addColorStop(0.5, `rgba(120, 40, 180, ${pulse * 0.2})`);
+  gradient.addColorStop(1, 'rgba(80, 20, 120, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y - 15, 40, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Main crystal
+  ctx.fillStyle = `rgba(140, 60, 180, ${0.8 + pulse * 0.2})`;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 45);
+  ctx.lineTo(x + 12, y - 10);
+  ctx.lineTo(x + 5, y);
+  ctx.lineTo(x - 5, y);
+  ctx.lineTo(x - 12, y - 10);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Crystal highlights
+  ctx.fillStyle = `rgba(200, 150, 255, ${pulse})`;
+  ctx.beginPath();
+  ctx.moveTo(x - 2, y - 40);
+  ctx.lineTo(x + 3, y - 20);
+  ctx.lineTo(x - 3, y - 15);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Side crystals
+  ctx.fillStyle = `rgba(120, 50, 160, 0.9)`;
+  ctx.beginPath();
+  ctx.moveTo(x - 8, y - 25);
+  ctx.lineTo(x - 15, y - 5);
+  ctx.lineTo(x - 10, y);
+  ctx.lineTo(x - 6, y - 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.moveTo(x + 10, y - 20);
+  ctx.lineTo(x + 18, y - 8);
+  ctx.lineTo(x + 12, y);
+  ctx.lineTo(x + 8, y - 5);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * Render corruption tendril
+ */
+function renderCorruptionTendril(ctx, x, y, time) {
+  const sway = Math.sin(time * 0.002) * 5;
+  const pulse = 0.5 + Math.sin(time * 0.005) * 0.3;
+  
+  // Base
+  ctx.fillStyle = '#2a1a2a';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 15, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tendril strands
+  ctx.strokeStyle = `rgba(100, 40, 140, ${pulse + 0.3})`;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  
+  // Main tendril
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.bezierCurveTo(x + sway * 2, y - 20, x - sway, y - 35, x + sway, y - 50);
+  ctx.stroke();
+  
+  // Side tendrils
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 5);
+  ctx.bezierCurveTo(x - 15 + sway, y - 20, x - 20, y - 30, x - 25 + sway, y - 35);
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.moveTo(x + 5, y - 5);
+  ctx.bezierCurveTo(x + 15 - sway, y - 15, x + 18, y - 25, x + 22 - sway, y - 30);
+  ctx.stroke();
+  
+  // Glowing tips
+  ctx.fillStyle = `rgba(180, 80, 220, ${pulse})`;
+  ctx.beginPath();
+  ctx.arc(x + sway, y - 50, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x - 25 + sway, y - 35, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 22 - sway, y - 30, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Render dark obelisk
+ */
+function renderDarkObelisk(ctx, x, y, time) {
+  const pulse = 0.5 + Math.sin(time * 0.002) * 0.3;
+  
+  // Ominous glow
+  const gradient = ctx.createRadialGradient(x, y - 40, 0, x, y - 40, 80);
+  gradient.addColorStop(0, `rgba(60, 20, 80, ${pulse * 0.4})`);
+  gradient.addColorStop(0.5, `rgba(40, 10, 60, ${pulse * 0.2})`);
+  gradient.addColorStop(1, 'rgba(20, 5, 40, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y - 40, 80, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5, 25, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Obelisk body
+  ctx.fillStyle = '#1a0a1a';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 100);
+  ctx.lineTo(x + 18, y - 20);
+  ctx.lineTo(x + 15, y);
+  ctx.lineTo(x - 15, y);
+  ctx.lineTo(x - 18, y - 20);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Edge highlight
+  ctx.fillStyle = '#2a1a2a';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 100);
+  ctx.lineTo(x + 18, y - 20);
+  ctx.lineTo(x + 15, y);
+  ctx.lineTo(x + 5, y);
+  ctx.lineTo(x + 8, y - 20);
+  ctx.lineTo(x, y - 95);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Glowing runes
+  ctx.strokeStyle = `rgba(180, 80, 220, ${pulse})`;
+  ctx.lineWidth = 2;
+  
+  // Rune symbols
+  const runeY = y - 60;
+  ctx.beginPath();
+  ctx.moveTo(x - 6, runeY);
+  ctx.lineTo(x, runeY - 15);
+  ctx.lineTo(x + 6, runeY);
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.moveTo(x - 4, runeY + 20);
+  ctx.lineTo(x, runeY + 10);
+  ctx.lineTo(x + 4, runeY + 20);
+  ctx.lineTo(x, runeY + 30);
+  ctx.closePath();
+  ctx.stroke();
+  
+  // Eye at top
+  const eyePulse = 0.5 + Math.sin(time * 0.003) * 0.5;
+  ctx.fillStyle = `rgba(255, 50, 100, ${eyePulse})`;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 85, 5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye glow
+  const eyeGlow = ctx.createRadialGradient(x, y - 85, 0, x, y - 85, 15);
+  eyeGlow.addColorStop(0, `rgba(255, 50, 100, ${eyePulse * 0.6})`);
+  eyeGlow.addColorStop(1, 'rgba(255, 50, 100, 0)');
+  ctx.fillStyle = eyeGlow;
+  ctx.beginPath();
+  ctx.arc(x, y - 85, 15, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Render small portal
+ */
+function renderPortal(ctx, x, y, time) {
+  const rotation = time * 0.002;
+  const pulse = 0.6 + Math.sin(time * 0.004) * 0.4;
+  
+  // Outer glow
+  const gradient = ctx.createRadialGradient(x, y - 20, 0, x, y - 20, 50);
+  gradient.addColorStop(0, `rgba(120, 40, 180, ${pulse * 0.6})`);
+  gradient.addColorStop(0.6, `rgba(80, 20, 140, ${pulse * 0.3})`);
+  gradient.addColorStop(1, 'rgba(40, 10, 80, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y - 20, 50, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Portal ring
+  ctx.strokeStyle = `rgba(200, 100, 255, ${pulse})`;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 20, 25, 25, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Inner ring
+  ctx.strokeStyle = `rgba(160, 80, 220, ${pulse * 0.8})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 20, 18, 18, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Swirling effect
+  ctx.save();
+  ctx.translate(x, y - 20);
+  ctx.rotate(rotation);
+  
+  ctx.fillStyle = `rgba(180, 60, 240, ${pulse * 0.5})`;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.arc(12, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.rotate(Math.PI / 3);
+  }
+  
+  ctx.restore();
+  
+  // Center void
+  const centerGrad = ctx.createRadialGradient(x, y - 20, 0, x, y - 20, 15);
+  centerGrad.addColorStop(0, '#0a0010');
+  centerGrad.addColorStop(0.7, `rgba(40, 10, 60, 0.8)`);
+  centerGrad.addColorStop(1, 'rgba(80, 20, 100, 0)');
+  ctx.fillStyle = centerGrad;
+  ctx.beginPath();
+  ctx.arc(x, y - 20, 15, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Render skull pile
+ */
+function renderSkullPile(ctx, x, y, zoneType) {
+  const isCore = zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  
+  // Base dirt mound
+  ctx.fillStyle = isCore ? '#2a1a2a' : '#3a3030';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 20, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Skull rendering helper
+  const drawSkull = (sx, sy, scale, rot) => {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+    
+    // Skull
+    ctx.fillStyle = isCore ? '#a090a0' : '#c0b8b0';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Eye sockets
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(-3, -2, 2, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(3, -2, 2, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Nose
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-1.5, 4);
+    ctx.lineTo(1.5, 4);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.restore();
+  };
+  
+  // Draw skulls
+  drawSkull(x - 8, y - 5, 0.8, -0.3);
+  drawSkull(x + 6, y - 3, 0.7, 0.4);
+  drawSkull(x, y - 12, 1.0, 0);
+  
+  // Bones
+  ctx.strokeStyle = isCore ? '#908090' : '#b0a8a0';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  
+  ctx.beginPath();
+  ctx.moveTo(x - 15, y - 2);
+  ctx.lineTo(x - 5, y + 3);
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.moveTo(x + 10, y);
+  ctx.lineTo(x + 18, y - 5);
+  ctx.stroke();
+}
+
+/**
+ * Render fireflies (more visible at night)
+ */
+function renderFireflies(ctx, x, y, time) {
+  const dayNight = getDayNightLighting();
+  
+  // More fireflies and brighter at night
+  const count = dayNight.isNight ? 15 : 8;
+  const nightBoost = dayNight.isNight ? 1.8 : 1.0;
+  
+  for (let i = 0; i < count; i++) {
+    const angle = (time * 0.001 + i * Math.PI * 2 / count) % (Math.PI * 2);
+    const dist = 20 + Math.sin(time * 0.002 + i) * 15;
+    const fx = x + Math.cos(angle) * dist;
+    const fy = y + Math.sin(angle) * dist * 0.5 + Math.sin(time * 0.003 + i * 2) * 10;
+    
+    const brightness = (0.5 + Math.sin(time * 0.01 + i * 1.5) * 0.5) * nightBoost;
+    const glowSize = 8 * nightBoost;
+    
+    // Glow
+    const gradient = ctx.createRadialGradient(fx, fy, 0, fx, fy, glowSize);
+    gradient.addColorStop(0, `rgba(200, 255, 100, ${Math.min(1, brightness * 0.8)})`);
+    gradient.addColorStop(0.5, `rgba(180, 240, 80, ${Math.min(0.6, brightness * 0.4)})`);
+    gradient.addColorStop(1, 'rgba(150, 220, 50, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(fx, fy, glowSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Core
+    ctx.fillStyle = `rgba(255, 255, 200, ${Math.min(1, brightness)})`;
+    ctx.beginPath();
+    ctx.arc(fx, fy, dayNight.isNight ? 3 : 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render mist effect
+ */
+function renderMist(ctx, x, y, time) {
+  const layers = 4;
+  
+  for (let i = 0; i < layers; i++) {
+    const offset = time * 0.0005 * (i + 1);
+    const mx = x + Math.sin(offset) * 30;
+    const my = y + Math.cos(offset * 0.7) * 15;
+    const size = 50 + i * 20;
+    const alpha = 0.08 - i * 0.015;
+    
+    const gradient = ctx.createRadialGradient(mx, my, 0, mx, my, size);
+    gradient.addColorStop(0, `rgba(180, 180, 200, ${alpha})`);
+    gradient.addColorStop(0.5, `rgba(150, 150, 180, ${alpha * 0.5})`);
+    gradient.addColorStop(1, 'rgba(120, 120, 150, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(mx, my, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render spore effect
+ */
+function renderSpores(ctx, x, y, time) {
+  const count = 12;
+  
+  for (let i = 0; i < count; i++) {
+    const phase = time * 0.001 + i * 0.5;
+    const rise = (phase % 3) * 30;
+    const sx = x + Math.sin(phase * 2 + i) * 25;
+    const sy = y - rise + Math.sin(phase * 3) * 10;
+    
+    const alpha = 0.6 - (rise / 90) * 0.5;
+    if (alpha <= 0) continue;
+    
+    // Spore particle
+    const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, 5);
+    gradient.addColorStop(0, `rgba(160, 100, 200, ${alpha})`);
+    gradient.addColorStop(1, 'rgba(120, 60, 160, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Core
+    ctx.fillStyle = `rgba(200, 140, 240, ${alpha * 0.8})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Adjust color brightness
+ */
+function adjustColorBrightness(hexColor, factor) {
+  if (typeof hexColor !== 'string') return hexColor;
+  
+  // Parse hex color
+  let r, g, b;
+  if (hexColor.startsWith('#')) {
+    const hex = hexColor.slice(1);
+    r = parseInt(hex.substr(0, 2), 16);
+    g = parseInt(hex.substr(2, 2), 16);
+    b = parseInt(hex.substr(4, 2), 16);
+  } else {
+    return hexColor;
+  }
+  
+  // Adjust
+  r = Math.min(255, Math.floor(r * factor));
+  g = Math.min(255, Math.floor(g * factor));
+  b = Math.min(255, Math.floor(b * factor));
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 /**
@@ -2360,6 +3756,80 @@ function renderStructures(ctx, camX, camY, startX, startY, endX, endY, tileSize)
     
     // Draw house exterior with solid textures
     if (structure.type !== 'fountain' && structure.type !== 'well') {
+      
+      // If player is inside, draw interior floor and hide exterior
+      if (isInside) {
+        // Draw interior floor (wooden planks)
+        ctx.fillStyle = '#8a6644';
+        ctx.fillRect(sx, sy, sw, sh);
+        
+        // Wood plank lines
+        ctx.strokeStyle = '#664422';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < sw / 20; i++) {
+          ctx.beginPath();
+          ctx.moveTo(sx + i * 20, sy);
+          ctx.lineTo(sx + i * 20, sy + sh);
+          ctx.stroke();
+        }
+        
+        // Interior decorations based on type
+        if (structure.type === 'blacksmith') {
+          // Anvil
+          ctx.fillStyle = '#444444';
+          ctx.fillRect(sx + sw/2 - 15, sy + 20, 30, 20);
+          ctx.fillStyle = '#555555';
+          ctx.fillRect(sx + sw/2 - 20, sy + 15, 40, 8);
+          
+          // Forge glow
+          ctx.fillStyle = 'rgba(255, 100, 50, 0.4)';
+          ctx.beginPath();
+          ctx.arc(sx + 30, sy + 30, 25, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (structure.type === 'inn') {
+          // Tables
+          ctx.fillStyle = '#664422';
+          ctx.fillRect(sx + 15, sy + 30, 35, 25);
+          ctx.fillRect(sx + sw - 50, sy + 30, 35, 25);
+          
+          // Bar counter
+          ctx.fillStyle = '#553311';
+          ctx.fillRect(sx + sw/2 - 40, sy + 10, 80, 15);
+        } else if (structure.type === 'shop') {
+          // Shelves
+          ctx.fillStyle = '#775533';
+          ctx.fillRect(sx + 10, sy + 10, sw - 20, 10);
+          ctx.fillRect(sx + 10, sy + 35, sw - 20, 10);
+          
+          // Items on shelves
+          ctx.fillStyle = '#aa8866';
+          for (let i = 0; i < 4; i++) {
+            ctx.fillRect(sx + 20 + i * 25, sy + 5, 10, 8);
+            ctx.fillRect(sx + 20 + i * 25, sy + 28, 10, 10);
+          }
+        } else {
+          // Generic house - bed and table
+          ctx.fillStyle = '#663333';
+          ctx.fillRect(sx + 10, sy + 10, 35, 50);
+          ctx.fillStyle = '#aa8866';
+          ctx.fillRect(sx + sw - 45, sy + 30, 30, 25);
+        }
+        
+        // Draw walls around interior (thin border)
+        ctx.strokeStyle = '#443322';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(sx, sy, sw, sh);
+        
+        // Draw door opening
+        if (structure.doorX && structure.doorY) {
+          const doorX = structure.doorX * tileSize - 10;
+          ctx.fillStyle = '#4a8f4a'; // grass color outside
+          ctx.fillRect(doorX - 2, sy + sh - 5, 24, 10);
+        }
+        
+        continue; // Skip exterior rendering
+      }
+      
       // Wall base with stone/wood texture
       const wallColor = structure.type === 'blacksmith' ? '#554444' : 
                         structure.type === 'inn' ? '#665544' :
@@ -2890,10 +4360,14 @@ function drawLampPost(ctx, x, y) {
 
 /**
  * Draw enemy with different shapes based on archetype
+ * Enhanced with boss/elite visuals
  */
 function drawEnemy(ctx, enemy) {
   const x = enemy.x;
   const y = enemy.y;
+  const scale = enemy.scale || 1;
+  const isBoss = enemy.isBoss;
+  const isElite = enemy.isElite;
   
   // Archetype visual configurations
   const archetypeVisuals = {
@@ -2912,16 +4386,68 @@ function drawEnemy(ctx, enemy) {
   };
   
   const visual = archetypeVisuals[enemy.archetype] || archetypeVisuals.skirmisher;
-  const halfSize = visual.size / 2;
+  const halfSize = (visual.size / 2) * scale;
+  const time = performance.now();
   
-  // Shadow
+  // Boss/Elite aura effect
+  if (isBoss) {
+    // Boss has pulsing dark aura
+    const pulseSize = halfSize * 1.8 + Math.sin(time * 0.005) * 10;
+    const gradient = ctx.createRadialGradient(x, y, halfSize * 0.5, x, y, pulseSize);
+    gradient.addColorStop(0, 'rgba(100, 0, 150, 0.5)');
+    gradient.addColorStop(0.5, 'rgba(150, 50, 200, 0.3)');
+    gradient.addColorStop(1, 'rgba(100, 0, 150, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, pulseSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Boss lightning effects
+    if (Math.random() < 0.1) {
+      ctx.strokeStyle = 'rgba(200, 100, 255, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const angle = Math.random() * Math.PI * 2;
+      const endX = x + Math.cos(angle) * pulseSize;
+      const endY = y + Math.sin(angle) * pulseSize;
+      ctx.moveTo(x, y);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+    }
+  } else if (isElite) {
+    // Elite has subtle golden glow
+    const glowSize = halfSize * 1.4;
+    const gradient = ctx.createRadialGradient(x, y, halfSize * 0.3, x, y, glowSize);
+    gradient.addColorStop(0, 'rgba(255, 200, 100, 0.4)');
+    gradient.addColorStop(1, 'rgba(255, 150, 50, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, glowSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Apply scale transform for boss/elite
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.translate(-x, -y);
+  
+  // Shadow (scaled)
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
   ctx.beginPath();
-  ctx.ellipse(x, y + halfSize - 2, halfSize * 0.7, halfSize * 0.25, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + halfSize / scale - 2, halfSize * 0.7 / scale, halfSize * 0.25 / scale, 0, 0, Math.PI * 2);
   ctx.fill();
   
+  // Modify color for corrupted enemies
+  let enemyColor = visual.color;
+  if (enemy.spawnZone === ZONE_TYPES.CORRUPTED_CORE) {
+    enemyColor = shiftToCorrupted(visual.color);
+  } else if (enemy.spawnZone === ZONE_TYPES.CORRUPTED) {
+    enemyColor = blendWithCorruption(visual.color, 0.3);
+  }
+  
   // Draw body based on shape
-  ctx.fillStyle = visual.color;
+  ctx.fillStyle = enemyColor;
   
   switch (visual.shape) {
     case 'circle':
@@ -3096,21 +4622,94 @@ function drawEnemy(ctx, enemy) {
   
   // Health bar
   const healthPercent = (enemy.stats?.hp || 0) / (enemy.stats?.hpMax || 1);
-  const barWidth = visual.size;
+  const barWidth = visual.size * scale;
   const barHeight = 4;
   const barY = y - halfSize - 10;
   
+  ctx.restore(); // Restore from scale transform
+  
+  // Health bar background
   ctx.fillStyle = '#333333';
   ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
   
-  ctx.fillStyle = healthPercent > 0.5 ? '#44ff44' : healthPercent > 0.25 ? '#ffaa00' : '#ff4444';
+  // Health bar fill
+  let healthColor = healthPercent > 0.5 ? '#44ff44' : healthPercent > 0.25 ? '#ffaa00' : '#ff4444';
+  if (isBoss) healthColor = '#aa44ff'; // Purple for boss
+  else if (isElite) healthColor = '#ffcc44'; // Gold for elite
+  
+  ctx.fillStyle = healthColor;
   ctx.fillRect(x - barWidth / 2, barY, barWidth * healthPercent, barHeight);
   
-  // Archetype indicator
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '8px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(enemy.archetype?.charAt(0).toUpperCase() || '?', x, y + halfSize + 12);
+  // Boss/Elite indicator
+  if (isBoss) {
+    ctx.fillStyle = '#ff44ff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('☠ BOSS ☠', x, barY - 5);
+  } else if (isElite) {
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('★ ELITE', x, barY - 4);
+  } else {
+    // Archetype indicator
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(enemy.archetype?.charAt(0).toUpperCase() || '?', x, y + (halfSize / scale) + 12);
+  }
+}
+
+/**
+ * Shift color towards corrupted purple
+ */
+function shiftToCorrupted(hexColor) {
+  if (typeof hexColor !== 'string') return hexColor;
+  
+  let r, g, b;
+  if (hexColor.startsWith('#')) {
+    const hex = hexColor.slice(1);
+    r = parseInt(hex.substr(0, 2), 16);
+    g = parseInt(hex.substr(2, 2), 16);
+    b = parseInt(hex.substr(4, 2), 16);
+  } else {
+    return hexColor;
+  }
+  
+  // Shift towards purple/magenta
+  r = Math.min(255, Math.floor(r * 0.7 + 100));
+  g = Math.floor(g * 0.4);
+  b = Math.min(255, Math.floor(b * 0.7 + 80));
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+/**
+ * Blend color with corruption
+ */
+function blendWithCorruption(hexColor, amount) {
+  if (typeof hexColor !== 'string') return hexColor;
+  
+  let r, g, b;
+  if (hexColor.startsWith('#')) {
+    const hex = hexColor.slice(1);
+    r = parseInt(hex.substr(0, 2), 16);
+    g = parseInt(hex.substr(2, 2), 16);
+    b = parseInt(hex.substr(4, 2), 16);
+  } else {
+    return hexColor;
+  }
+  
+  // Blend with purple
+  const corruptR = 120;
+  const corruptG = 60;
+  const corruptB = 150;
+  
+  r = Math.floor(r * (1 - amount) + corruptR * amount);
+  g = Math.floor(g * (1 - amount) + corruptG * amount);
+  b = Math.floor(b * (1 - amount) + corruptB * amount);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 /**
@@ -3633,6 +5232,106 @@ function renderControlsGuide(ctx) {
   controls.forEach((text, i) => {
     ctx.fillText(text, guideX, guideY + 12 + i * 13);
   });
+}
+
+/**
+ * Render current zone indicator (top center)
+ */
+function renderZoneIndicator(ctx) {
+  if (!openWorld) return;
+  
+  const villageCenter = openWorld.villageCenter || { x: 100, y: 75 };
+  const tileSize = openWorld.tileSize || 32;
+  
+  const playerTileX = player.x / tileSize;
+  const playerTileY = player.y / tileSize;
+  const zoneType = getZoneTypeAt(villageCenter, playerTileX, playerTileY);
+  const zoneConfig = ZONE_CONFIG[zoneType];
+  
+  // Zone names and colors
+  const zoneInfo = {
+    [ZONE_TYPES.VILLAGE]: { name: '🏘️ Village', color: '#88cc88', bgColor: 'rgba(50, 100, 50, 0.7)' },
+    [ZONE_TYPES.FOREST]: { name: '🌲 Forêt', color: '#66aa66', bgColor: 'rgba(30, 80, 30, 0.7)' },
+    [ZONE_TYPES.DEEP_FOREST]: { name: '🌳 Forêt Profonde', color: '#448844', bgColor: 'rgba(20, 60, 20, 0.8)' },
+    [ZONE_TYPES.CORRUPTED]: { name: '💀 Zone Corrompue', color: '#aa66cc', bgColor: 'rgba(80, 40, 100, 0.8)' },
+    [ZONE_TYPES.CORRUPTED_CORE]: { name: '☠️ Cœur de Corruption', color: '#ff66ff', bgColor: 'rgba(100, 20, 120, 0.9)' },
+  };
+  
+  const info = zoneInfo[zoneType] || zoneInfo[ZONE_TYPES.VILLAGE];
+  const centerX = window.innerWidth / 2;
+  
+  // Background
+  ctx.fillStyle = info.bgColor;
+  const textWidth = ctx.measureText(info.name).width + 30;
+  ctx.fillRect(centerX - textWidth / 2, 10, textWidth, 28);
+  
+  // Border
+  ctx.strokeStyle = info.color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(centerX - textWidth / 2, 10, textWidth, 28);
+  
+  // Text
+  ctx.fillStyle = info.color;
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(info.name, centerX, 29);
+  
+  // Danger level indicator for corrupted zones
+  if (zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE) {
+    const dangerLevel = zoneType === ZONE_TYPES.CORRUPTED_CORE ? '⚠️⚠️⚠️' : '⚠️⚠️';
+    ctx.fillStyle = '#ff4444';
+    ctx.font = '12px monospace';
+    ctx.fillText(dangerLevel, centerX, 52);
+  }
+  
+  // Render time of day indicator
+  renderTimeIndicator(ctx);
+}
+
+/**
+ * Render time of day indicator (top right corner)
+ */
+function renderTimeIndicator(ctx) {
+  const dayNight = getDayNightLighting();
+  const x = window.innerWidth - 80;
+  const y = 15;
+  
+  // Time icon based on period
+  let timeIcon, timeText, bgColor;
+  
+  if (gameTime < 0.20 || gameTime > 0.80) {
+    timeIcon = '🌙';
+    timeText = 'Nuit';
+    bgColor = 'rgba(20, 30, 60, 0.7)';
+  } else if (gameTime < 0.30) {
+    timeIcon = '🌅';
+    timeText = 'Aube';
+    bgColor = 'rgba(100, 60, 40, 0.7)';
+  } else if (gameTime > 0.70 && gameTime <= 0.80) {
+    timeIcon = '🌆';
+    timeText = 'Crépuscule';
+    bgColor = 'rgba(100, 50, 50, 0.7)';
+  } else {
+    timeIcon = '☀️';
+    timeText = 'Jour';
+    bgColor = 'rgba(80, 80, 40, 0.7)';
+  }
+  
+  // Background
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(x - 5, y, 70, 25);
+  
+  // Text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${timeIcon} ${timeText}`, x, y + 17);
+  
+  // Time progress bar
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.fillRect(x, y + 22, 60, 3);
+  ctx.fillStyle = dayNight.isNight ? '#8888ff' : '#ffdd88';
+  ctx.fillRect(x, y + 22, 60 * gameTime, 3);
 }
 
 /**

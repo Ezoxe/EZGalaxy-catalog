@@ -43,6 +43,78 @@ export const OPEN_WORLD_CONFIG = {
   },
 };
 
+// ========== Zone Types for Biome Generation ==========
+
+export const ZONE_TYPES = {
+  VILLAGE: 'village',
+  FOREST: 'forest',
+  DEEP_FOREST: 'deep_forest',
+  CORRUPTED: 'corrupted',
+  CORRUPTED_CORE: 'corrupted_core',
+};
+
+// ========== Zone Configuration ==========
+
+export const ZONE_CONFIG = {
+  [ZONE_TYPES.VILLAGE]: {
+    radius: 30,
+    treesDensity: 0.05,
+    grassColor: ['#4a9f4a', '#5aaf5a', '#4a8f4a'],
+    ambientLight: 1.0,
+    fogDensity: 0,
+    musicTrack: 'village',
+    enemyLevel: 0,
+  },
+  [ZONE_TYPES.FOREST]: {
+    radiusMin: 30,
+    radiusMax: 70,
+    treesDensity: 0.25,
+    grassColor: ['#3a7f3a', '#4a8f4a', '#3a6f3a'],
+    ambientLight: 0.8,
+    fogDensity: 0.15,
+    musicTrack: 'forest',
+    enemyLevel: 1,
+  },
+  [ZONE_TYPES.DEEP_FOREST]: {
+    radiusMin: 70,
+    radiusMax: 100,
+    treesDensity: 0.35,
+    grassColor: ['#2a5f2a', '#3a6f3a', '#2a4f2a'],
+    ambientLight: 0.6,
+    fogDensity: 0.3,
+    musicTrack: 'deep_forest',
+    enemyLevel: 2,
+  },
+  [ZONE_TYPES.CORRUPTED]: {
+    radiusMin: 100,
+    radiusMax: 140,
+    treesDensity: 0.15,
+    grassColor: ['#4a3a5a', '#5a4a6a', '#3a2a4a'],
+    dirtColor: ['#3a2a3a', '#4a3a4a', '#2a1a2a'],
+    ambientLight: 0.4,
+    fogDensity: 0.5,
+    fogColor: [40, 20, 60],
+    musicTrack: 'corrupted',
+    enemyLevel: 3,
+    hasCorruptionVeins: true,
+  },
+  [ZONE_TYPES.CORRUPTED_CORE]: {
+    radiusMin: 140,
+    radiusMax: 999,
+    treesDensity: 0.08,
+    grassColor: ['#2a1a3a', '#3a2a4a', '#1a0a2a'],
+    dirtColor: ['#2a1a2a', '#3a2a3a', '#1a0a1a'],
+    stoneColor: ['#3a2a3a', '#4a3a4a', '#2a1a2a'],
+    ambientLight: 0.25,
+    fogDensity: 0.7,
+    fogColor: [60, 20, 80],
+    musicTrack: 'boss',
+    enemyLevel: 4,
+    hasCorruptionVeins: true,
+    hasBossSpawns: true,
+  },
+};
+
 // ========== Tile Types ==========
 
 export const WORLD_TILES = {
@@ -58,6 +130,15 @@ export const WORLD_TILES = {
   BRIDGE: 9,
   FLOWERS: 10,
   TALL_GRASS: 11,
+  // New corrupted tiles
+  CORRUPTED_GRASS: 12,
+  CORRUPTED_DIRT: 13,
+  CORRUPTED_STONE: 14,
+  CORRUPTION_VEIN: 15,
+  DEAD_GRASS: 16,
+  MUSHROOM_PATCH: 17,
+  SWAMP: 18,
+  MOSS: 19,
 };
 
 // ========== Structure Types ==========
@@ -76,22 +157,59 @@ export const STRUCTURE_TYPES = {
 // ========== Entity Types ==========
 
 export const ENTITY_TYPES = {
-  // Decorations
+  // Decorations - Trees
   TREE_OAK: 'tree_oak',
   TREE_PINE: 'tree_pine',
   TREE_WILLOW: 'tree_willow',
+  TREE_DEAD: 'tree_dead',
+  TREE_CORRUPTED: 'tree_corrupted',
+  TREE_GIANT: 'tree_giant',
+  
+  // Decorations - Nature
   BUSH: 'bush',
+  BUSH_BERRY: 'bush_berry',
+  BUSH_THORNS: 'bush_thorns',
   ROCK: 'rock',
+  ROCK_LARGE: 'rock_large',
+  ROCK_MOSS: 'rock_moss',
   FLOWER_BED: 'flower_bed',
+  MUSHROOM: 'mushroom',
+  MUSHROOM_CLUSTER: 'mushroom_cluster',
+  MUSHROOM_GLOWING: 'mushroom_glowing',
+  STUMP: 'stump',
+  FALLEN_LOG: 'fallen_log',
+  TALL_GRASS_PATCH: 'tall_grass_patch',
+  FERN: 'fern',
+  
+  // Decorations - Village
   LAMP_POST: 'lamp_post',
   FENCE: 'fence',
   SIGN: 'sign',
   BARREL: 'barrel',
   CRATE: 'crate',
+  WELL: 'well_deco',
+  CART: 'cart',
+  BENCH: 'bench',
+  
+  // Decorations - Corrupted
+  CORRUPTION_CRYSTAL: 'corruption_crystal',
+  CORRUPTION_TENDRIL: 'corruption_tendril',
+  DEAD_ANIMAL: 'dead_animal',
+  SKULL_PILE: 'skull_pile',
+  DARK_OBELISK: 'dark_obelisk',
+  PORTAL_SMALL: 'portal_small',
+  
+  // Ambient/Effects
+  FIREFLY_ZONE: 'firefly_zone',
+  MIST_ZONE: 'mist_zone',
+  SPORE_ZONE: 'spore_zone',
   
   // Interactive
   CHEST: 'chest',
+  CHEST_RARE: 'chest_rare',
   DOOR: 'door',
+  ORE_NODE: 'ore_node',
+  HERB_PLANT: 'herb_plant',
   
   // NPCs
   NPC_VILLAGER: 'npc_villager',
@@ -674,22 +792,26 @@ function createPath(tiles, mapWidth, x1, y1, x2, y2) {
 }
 
 /**
- * Generate decoration entities
+ * Generate decoration entities with zone-specific decorations
  */
 function generateDecorations(width, height, villageCenter, structures, rng) {
   const decorations = [];
   const config = OPEN_WORLD_CONFIG;
   
-  // Trees throughout the map
-  for (let i = 0; i < 300; i++) {
+  // Trees throughout the map - different types based on zone
+  for (let i = 0; i < 500; i++) {
     const x = Math.floor(rng.next() * width);
     const y = Math.floor(rng.next() * height);
     
     // Distance from village
     const dist = distance(x, y, villageCenter.x, villageCenter.y);
     
-    // More trees further from village
-    const treeChance = dist < 15 ? 0.1 : dist < 30 ? 0.3 : 0.6;
+    // Determine zone
+    const zoneType = getZoneTypeAtInternal(villageCenter, x, y);
+    const zoneConfig = ZONE_CONFIG[zoneType];
+    
+    // Tree density varies by zone
+    const treeChance = zoneConfig?.treesDensity || 0.1;
     
     if (rng.next() < treeChance) {
       // Don't place on structures
@@ -703,45 +825,141 @@ function generateDecorations(width, height, villageCenter, structures, rng) {
       }
       
       if (!blocked) {
-        const treeTypes = [ENTITY_TYPES.TREE_OAK, ENTITY_TYPES.TREE_PINE, ENTITY_TYPES.TREE_WILLOW];
+        // Tree type based on zone
+        let treeType;
+        if (zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE) {
+          // Corrupted zones have dead/corrupted trees
+          treeType = rng.next() < 0.4 ? ENTITY_TYPES.TREE_DEAD : ENTITY_TYPES.TREE_CORRUPTED;
+        } else if (zoneType === ZONE_TYPES.DEEP_FOREST) {
+          // Deep forest has more pine and giant trees
+          const types = [ENTITY_TYPES.TREE_PINE, ENTITY_TYPES.TREE_PINE, ENTITY_TYPES.TREE_OAK, ENTITY_TYPES.TREE_GIANT];
+          treeType = types[Math.floor(rng.next() * types.length)];
+        } else if (zoneType === ZONE_TYPES.FOREST) {
+          const types = [ENTITY_TYPES.TREE_OAK, ENTITY_TYPES.TREE_PINE, ENTITY_TYPES.TREE_WILLOW];
+          treeType = types[Math.floor(rng.next() * types.length)];
+        } else {
+          // Village area - fewer, nicer trees
+          const types = [ENTITY_TYPES.TREE_OAK, ENTITY_TYPES.TREE_WILLOW];
+          treeType = types[Math.floor(rng.next() * types.length)];
+        }
+        
         decorations.push({
-          type: treeTypes[Math.floor(rng.next() * treeTypes.length)],
+          type: treeType,
           x: x * config.TILE_SIZE,
           y: y * config.TILE_SIZE,
           solid: true,
-          radius: 16,
+          radius: treeType === ENTITY_TYPES.TREE_GIANT ? 24 : 16,
+          zone: zoneType,
         });
       }
     }
   }
   
-  // Rocks
-  for (let i = 0; i < 50; i++) {
+  // Rocks - more in corrupted areas
+  for (let i = 0; i < 80; i++) {
     const x = Math.floor(rng.next() * width);
     const y = Math.floor(rng.next() * height);
+    const zoneType = getZoneTypeAtInternal(villageCenter, x, y);
     
-    decorations.push({
-      type: ENTITY_TYPES.ROCK,
-      x: x * config.TILE_SIZE,
-      y: y * config.TILE_SIZE,
-      solid: true,
-      radius: 12,
-      variant: Math.floor(rng.next() * 3),
-    });
+    // More rocks in corrupted zones
+    const rockChance = (zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE) ? 0.8 : 0.5;
+    
+    if (rng.next() < rockChance) {
+      const isLarge = rng.next() < 0.2;
+      decorations.push({
+        type: isLarge ? ENTITY_TYPES.ROCK_LARGE : ENTITY_TYPES.ROCK,
+        x: x * config.TILE_SIZE,
+        y: y * config.TILE_SIZE,
+        solid: true,
+        radius: isLarge ? 20 : 12,
+        variant: Math.floor(rng.next() * 3),
+        zone: zoneType,
+      });
+    }
   }
   
-  // Bushes
-  for (let i = 0; i < 100; i++) {
+  // Bushes - different types per zone
+  for (let i = 0; i < 150; i++) {
     const x = Math.floor(rng.next() * width);
     const y = Math.floor(rng.next() * height);
+    const zoneType = getZoneTypeAtInternal(villageCenter, x, y);
+    
+    // Skip corrupted core - too dangerous for bushes
+    if (zoneType === ZONE_TYPES.CORRUPTED_CORE) continue;
+    
+    let bushType = ENTITY_TYPES.BUSH;
+    if (zoneType === ZONE_TYPES.FOREST || zoneType === ZONE_TYPES.DEEP_FOREST) {
+      bushType = rng.next() < 0.3 ? ENTITY_TYPES.BUSH_BERRY : ENTITY_TYPES.BUSH;
+    } else if (zoneType === ZONE_TYPES.CORRUPTED) {
+      bushType = ENTITY_TYPES.BUSH_THORNS;
+    }
     
     decorations.push({
-      type: ENTITY_TYPES.BUSH,
+      type: bushType,
       x: x * config.TILE_SIZE,
       y: y * config.TILE_SIZE,
       solid: false,
       radius: 8,
+      zone: zoneType,
     });
+  }
+  
+  // Mushrooms - mostly in forests
+  for (let i = 0; i < 60; i++) {
+    const x = Math.floor(rng.next() * width);
+    const y = Math.floor(rng.next() * height);
+    const zoneType = getZoneTypeAtInternal(villageCenter, x, y);
+    
+    // Mushrooms in forest zones
+    if (zoneType === ZONE_TYPES.FOREST || zoneType === ZONE_TYPES.DEEP_FOREST || 
+        zoneType === ZONE_TYPES.CORRUPTED) {
+      const isGlowing = (zoneType === ZONE_TYPES.DEEP_FOREST && rng.next() < 0.3) ||
+                        (zoneType === ZONE_TYPES.CORRUPTED && rng.next() < 0.5);
+      
+      decorations.push({
+        type: isGlowing ? ENTITY_TYPES.MUSHROOM_GLOWING : ENTITY_TYPES.MUSHROOM,
+        x: x * config.TILE_SIZE,
+        y: y * config.TILE_SIZE,
+        solid: false,
+        radius: 4,
+        zone: zoneType,
+      });
+    }
+  }
+  
+  // Corrupted zone decorations
+  for (let i = 0; i < 40; i++) {
+    const angle = rng.next() * Math.PI * 2;
+    const dist = 100 + rng.next() * 80; // In corrupted zones
+    
+    const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
+    const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
+    
+    if (x >= 0 && x < width && y >= 0 && y < height) {
+      const zoneType = getZoneTypeAtInternal(villageCenter, x, y);
+      
+      if (zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE) {
+        const corruptedTypes = [
+          ENTITY_TYPES.CORRUPTION_CRYSTAL,
+          ENTITY_TYPES.CORRUPTION_TENDRIL,
+          ENTITY_TYPES.SKULL_PILE,
+        ];
+        
+        if (zoneType === ZONE_TYPES.CORRUPTED_CORE) {
+          corruptedTypes.push(ENTITY_TYPES.DARK_OBELISK);
+          corruptedTypes.push(ENTITY_TYPES.PORTAL_SMALL);
+        }
+        
+        decorations.push({
+          type: corruptedTypes[Math.floor(rng.next() * corruptedTypes.length)],
+          x: x * config.TILE_SIZE,
+          y: y * config.TILE_SIZE,
+          solid: true,
+          radius: 10,
+          zone: zoneType,
+        });
+      }
+    }
   }
   
   // Lamp posts in village
@@ -754,11 +972,86 @@ function generateDecorations(width, height, villageCenter, structures, rng) {
         solid: true,
         radius: 6,
         light: { radius: 150, color: 0xffdd88, intensity: 0.8 },
+        zone: ZONE_TYPES.VILLAGE,
       });
     }
   }
   
+  // Ambient effect zones
+  // Fireflies in forest at night
+  for (let i = 0; i < 20; i++) {
+    const angle = rng.next() * Math.PI * 2;
+    const dist = 40 + rng.next() * 50;
+    
+    const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
+    const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
+    
+    decorations.push({
+      type: ENTITY_TYPES.FIREFLY_ZONE,
+      x: x * config.TILE_SIZE,
+      y: y * config.TILE_SIZE,
+      solid: false,
+      radius: 60,
+      zone: ZONE_TYPES.FOREST,
+    });
+  }
+  
+  // Mist zones in deep forest
+  for (let i = 0; i < 15; i++) {
+    const angle = rng.next() * Math.PI * 2;
+    const dist = 75 + rng.next() * 30;
+    
+    const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
+    const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
+    
+    decorations.push({
+      type: ENTITY_TYPES.MIST_ZONE,
+      x: x * config.TILE_SIZE,
+      y: y * config.TILE_SIZE,
+      solid: false,
+      radius: 80,
+      zone: ZONE_TYPES.DEEP_FOREST,
+    });
+  }
+  
+  // Spore zones in corrupted areas
+  for (let i = 0; i < 12; i++) {
+    const angle = rng.next() * Math.PI * 2;
+    const dist = 110 + rng.next() * 40;
+    
+    const x = Math.floor(villageCenter.x + Math.cos(angle) * dist);
+    const y = Math.floor(villageCenter.y + Math.sin(angle) * dist);
+    
+    decorations.push({
+      type: ENTITY_TYPES.SPORE_ZONE,
+      x: x * config.TILE_SIZE,
+      y: y * config.TILE_SIZE,
+      solid: false,
+      radius: 70,
+      zone: ZONE_TYPES.CORRUPTED,
+    });
+  }
+  
   return decorations;
+}
+
+/**
+ * Internal zone type helper (doesn't depend on world object)
+ */
+function getZoneTypeAtInternal(villageCenter, tileX, tileY) {
+  const dist = distance(tileX, tileY, villageCenter.x, villageCenter.y);
+  
+  if (dist < ZONE_CONFIG[ZONE_TYPES.VILLAGE].radius) {
+    return ZONE_TYPES.VILLAGE;
+  } else if (dist < ZONE_CONFIG[ZONE_TYPES.FOREST].radiusMax) {
+    return ZONE_TYPES.FOREST;
+  } else if (dist < ZONE_CONFIG[ZONE_TYPES.DEEP_FOREST].radiusMax) {
+    return ZONE_TYPES.DEEP_FOREST;
+  } else if (dist < ZONE_CONFIG[ZONE_TYPES.CORRUPTED].radiusMax) {
+    return ZONE_TYPES.CORRUPTED;
+  } else {
+    return ZONE_TYPES.CORRUPTED_CORE;
+  }
 }
 
 /**
@@ -1008,15 +1301,78 @@ export function getEnemyArchetypesForDifficulty(difficulty) {
   }
 }
 
+/**
+ * Get zone type at a specific tile position
+ */
+export function getZoneTypeAt(villageCenter, tileX, tileY) {
+  const dist = distance(tileX, tileY, villageCenter.x, villageCenter.y);
+  
+  if (dist < ZONE_CONFIG[ZONE_TYPES.VILLAGE].radius) {
+    return ZONE_TYPES.VILLAGE;
+  } else if (dist < ZONE_CONFIG[ZONE_TYPES.FOREST].radiusMax) {
+    return ZONE_TYPES.FOREST;
+  } else if (dist < ZONE_CONFIG[ZONE_TYPES.DEEP_FOREST].radiusMax) {
+    return ZONE_TYPES.DEEP_FOREST;
+  } else if (dist < ZONE_CONFIG[ZONE_TYPES.CORRUPTED].radiusMax) {
+    return ZONE_TYPES.CORRUPTED;
+  } else {
+    return ZONE_TYPES.CORRUPTED_CORE;
+  }
+}
+
+/**
+ * Get zone configuration for rendering
+ */
+export function getZoneConfig(zoneType) {
+  return ZONE_CONFIG[zoneType] || ZONE_CONFIG[ZONE_TYPES.VILLAGE];
+}
+
+/**
+ * Get enemy spawn level for position (in tiles)
+ */
+export function getEnemyLevelAt(villageCenter, tileX, tileY) {
+  const zoneType = getZoneTypeAt(villageCenter, tileX, tileY);
+  return ZONE_CONFIG[zoneType]?.enemyLevel || 0;
+}
+
+/**
+ * Check if position has corruption effects
+ */
+export function hasCorruptionAt(villageCenter, tileX, tileY) {
+  const zoneType = getZoneTypeAt(villageCenter, tileX, tileY);
+  return ZONE_CONFIG[zoneType]?.hasCorruptionVeins || false;
+}
+
+/**
+ * Get lighting parameters for zone
+ */
+export function getZoneLighting(villageCenter, tileX, tileY) {
+  const zoneType = getZoneTypeAt(villageCenter, tileX, tileY);
+  const config = ZONE_CONFIG[zoneType];
+  
+  return {
+    ambientLight: config?.ambientLight || 1.0,
+    fogDensity: config?.fogDensity || 0,
+    fogColor: config?.fogColor || [0, 0, 0],
+  };
+}
+
 export default {
   OPEN_WORLD_CONFIG,
   WORLD_TILES,
+  ZONE_TYPES,
+  ZONE_CONFIG,
   STRUCTURE_TYPES,
   ENTITY_TYPES,
   NPC_DEFINITIONS,
   QUEST_DEFINITIONS,
   generateOpenWorld,
   getZoneAt,
+  getZoneTypeAt,
+  getZoneConfig,
+  getEnemyLevelAt,
+  hasCorruptionAt,
+  getZoneLighting,
   isInSafeZone,
   getEnemyArchetypesForDifficulty,
 };
