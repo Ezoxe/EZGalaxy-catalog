@@ -216,6 +216,30 @@ function getFrenchFallback() {
       tagline: "Offline • Pixel • Quêtes",
     },
     
+    // Menu
+    menu: {
+      subtitle: "Le Sommeil de l'Architecte",
+      start: "[ Appuyez pour commencer ]",
+    },
+    
+    // Pause
+    pause: {
+      title: "PAUSE",
+      continue: "Appuyez sur Échap pour continuer",
+    },
+    
+    // Game over
+    game_over: {
+      title: "DÉFAITE",
+      continue: "[ Appuyez pour réessayer ]",
+    },
+    
+    // Notifications
+    notification: {
+      level_up: "Niveau {{level}} atteint!",
+      item_pickup: "Objet récupéré: {{name}}",
+    },
+    
     // Strata names
     strata: {
       jardin: "Jardin",
@@ -412,6 +436,30 @@ function getEnglishFallback() {
       title: "Sopor",
       subtitle: "The Architect's Slumber",
       tagline: "Offline • Pixel • Quests",
+    },
+    
+    // Menu
+    menu: {
+      subtitle: "The Architect's Slumber",
+      start: "[ Press to start ]",
+    },
+    
+    // Pause
+    pause: {
+      title: "PAUSE",
+      continue: "Press Escape to continue",
+    },
+    
+    // Game over
+    game_over: {
+      title: "DEFEAT",
+      continue: "[ Press to retry ]",
+    },
+    
+    // Notifications
+    notification: {
+      level_up: "Level {{level}} reached!",
+      item_pickup: "Item picked up: {{name}}",
     },
     
     // Strata names

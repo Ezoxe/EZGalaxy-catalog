@@ -28,7 +28,7 @@ import {
 // ========== Game Imports ==========
 import { 
   WEAPONS, WEAPON_BEHAVIOR, getWeaponsByRarity, 
-  getRandomWeapon 
+  getRandomWeapon, getWeaponById 
 } from './game/weapons.js';
 
 import { 
@@ -42,8 +42,8 @@ import {
 } from './game/ai-enemy.js';
 
 import { 
-  createPlayerProgression, addXP, levelUp, 
-  unlockSkill, calculateStats, equipItem 
+  createPlayerProgression, addXP, 
+  calculateFinalStats as calculateStats, equipItem 
 } from './game/progression.js';
 
 import { 
@@ -343,6 +343,17 @@ function initSystems() {
  * Initialize player
  */
 function initPlayer() {
+  // Get starter weapon - fallback to first weapon if not found
+  const starterWeapon = getWeaponById('sword_neon') || WEAPONS[0];
+  
+  // Initialize progression first
+  playerProgression = createPlayerProgression();
+  playerProgression.xpToNext = 100; // First level XP requirement
+  playerProgression.stats = calculateStats(1, {}, {});
+  
+  // Use calculated stats for player
+  const stats = playerProgression.stats || { hp: 100, mana: 50 };
+  
   player = {
     x: 0,
     y: 0,
@@ -351,20 +362,19 @@ function initPlayer() {
     vx: 0,
     vy: 0,
     facing: 1,
-    health: 100,
-    maxHealth: 100,
-    mana: 50,
-    maxMana: 50,
+    health: stats.hp || 100,
+    maxHealth: stats.hpMax || stats.hp || 100,
+    mana: stats.mana || 50,
+    maxMana: stats.manaMax || stats.mana || 50,
     invincible: false,
     invincibleTimer: 0,
     dashing: false,
     dashTimer: 0,
     dashCooldown: 0,
-    weapon: WEAPONS['epee_rouille'],
+    weapon: starterWeapon,
   };
   
   playerCombat = createCombatState();
-  playerProgression = createPlayerProgression();
 }
 
 /**
@@ -496,20 +506,35 @@ function handleTouchMove(dx, dy) {
  */
 function handleAttack() {
   if (gameState !== GAME_STATE.PLAYING || panels.activePanel) return;
+  if (!player || !player.weapon) return;
   
   if (!playerCombat.attacking) {
-    startAttack(playerCombat, player.weapon);
+    playerCombat.attacking = true;
+    playerCombat.attackTimer = player.weapon.cooldownMs || 300;
     playSlashSound();
     
-    // Find enemies in range
-    const attackRange = player.weapon.range || 40;
+    // Create attack visual effect
+    const attackAngle = player.facing > 0 ? 0 : Math.PI;
+    createHitEffect(particles, 
+      player.x + player.facing * 20, 
+      player.y - 5
+    );
+    
+    // Find enemies in range - use reach property with fallback
+    const attackRange = player.weapon.reach || player.weapon.radius || 40;
+    const baseDamage = player.weapon.damage || 5;
+    const arcDeg = player.weapon.arcDeg || 90;
+    
     for (const enemy of enemies) {
       const dist = distance(player.x, player.y, enemy.x, enemy.y);
       if (dist <= attackRange) {
-        // Check if facing enemy
+        // Check if facing enemy (or if it's a slam weapon with 360 range)
         const dx = enemy.x - player.x;
-        if ((dx > 0 && player.facing > 0) || (dx < 0 && player.facing < 0)) {
-          dealDamage(enemy, playerCombat.damage);
+        const isFacingEnemy = (dx > 0 && player.facing > 0) || (dx < 0 && player.facing < 0);
+        const isAOEAttack = player.weapon.behaviorId === 'melee_slam' || arcDeg >= 360;
+        
+        if (isFacingEnemy || isAOEAttack) {
+          dealDamage(enemy, baseDamage);
         }
       }
     }
@@ -627,13 +652,39 @@ function updatePlaying(dt) {
   // Update player
   updatePlayer(dt);
   
-  // Update enemies
+  // Update enemies using AI system
   for (const enemy of enemies) {
-    updateEnemy(enemy, player, dt);
+    const decision = updateEnemy(enemy, player, enemies, dt);
+    if (decision) {
+      // Apply AI decision
+      enemy.x += (decision.moveX || 0) * dt / 1000;
+      enemy.y += (decision.moveY || 0) * dt / 1000;
+      
+      // Handle enemy attack
+      if (decision.shouldAttack && decision.attackTarget) {
+        // Spawn projectile or melee attack
+        if (decision.special?.type === 'projectile') {
+          const angleToPlayer = Math.atan2(
+            player.y - enemy.y,
+            player.x - enemy.x
+          );
+          projectiles.push({
+            x: enemy.x,
+            y: enemy.y,
+            vx: Math.cos(angleToPlayer) * (decision.special.speed || 200),
+            vy: Math.sin(angleToPlayer) * (decision.special.speed || 200),
+            damage: decision.special.damage || enemy.stats.damage,
+            hostile: true,
+            radius: 8,
+            lifetime: 3000,
+          });
+        }
+      }
+    }
   }
   
   // Remove dead enemies
-  enemies = enemies.filter(e => e.health > 0);
+  enemies = enemies.filter(e => e.stats && e.stats.hp > 0);
   
   // Update projectiles
   updateProjectiles(dt);
@@ -727,11 +778,19 @@ function updatePlayer(dt) {
     }
   }
   
+  // Update attack cooldown
+  if (playerCombat.attacking) {
+    playerCombat.attackTimer -= dt;
+    if (playerCombat.attackTimer <= 0) {
+      playerCombat.attacking = false;
+    }
+  }
+  
   // Update combat
   updateCombat(playerCombat, dt);
   
   // Update player light position
-  const playerLight = lighting.lights.find(l => l.id === 'player_light');
+  const playerLight = lighting.lights?.find(l => l.id === 'player_light');
   if (playerLight) {
     playerLight.x = player.x;
     playerLight.y = player.y;
@@ -786,12 +845,16 @@ function updateCamera(dt) {
  * Check collisions
  */
 function checkCollisions() {
-  // Enemy collision with player
+  // Enemy collision with player - use fixed enemy size
+  const enemyCollisionRadius = 14;
+  
   for (const enemy of enemies) {
+    if (!enemy.stats) continue;
+    
     const dist = distance(player.x, player.y, enemy.x, enemy.y);
-    if (dist <= player.width / 2 + enemy.width / 2) {
-      if (!player.invincible && enemy.canAttack) {
-        damagePlayer(enemy.damage);
+    if (dist <= player.width / 2 + enemyCollisionRadius) {
+      if (!player.invincible) {
+        damagePlayer(enemy.stats.damage || 5);
       }
     }
   }
@@ -803,17 +866,19 @@ function checkCollisions() {
  * Deal damage to enemy
  */
 function dealDamage(enemy, damage) {
-  const actualDamage = damage * (1 - enemy.armor / 100);
-  enemy.health -= actualDamage;
+  if (!enemy || !enemy.stats) return;
   
-  playHitSound(1, enemy.metallic);
+  const actualDamage = Math.max(1, damage * (1 - (enemy.stats.armor || 0) / 100));
+  enemy.stats.hp -= actualDamage;
+  
+  playHitSound(1, false);
   createHitEffect(particles, enemy.x, enemy.y);
-  showDamageNumber(enemy.x, enemy.y - 20, actualDamage, { color: '#ffffff' });
+  showDamageNumber(enemy.x, enemy.y - 20, Math.round(actualDamage), { color: '#ffffff' });
   
   addCombo(hud);
   playComboSound(hud.comboCount);
   
-  if (enemy.health <= 0) {
+  if (enemy.stats.hp <= 0) {
     killEnemy(enemy);
   }
 }
@@ -824,23 +889,83 @@ function dealDamage(enemy, damage) {
 function killEnemy(enemy) {
   createDeathEffect(particles, enemy.x, enemy.y);
   
-  // Award XP
-  const xpGained = addXP(playerProgression, enemy.xpValue || 10);
-  showDamageNumber(enemy.x, enemy.y, xpGained, { color: '#ffcc44' });
+  // Track stats
+  if (!worldState.stats) {
+    worldState.stats = { enemiesKilled: 0, damageDealt: 0, damageTaken: 0 };
+  }
+  worldState.stats.enemiesKilled = (worldState.stats.enemiesKilled || 0) + 1;
   
-  // Check level up
-  if (playerProgression.pendingLevelUp) {
-    levelUp(playerProgression);
-    playLevelUpSound();
-    addNotification(hud, t('notification.level_up', { level: playerProgression.level }), {
-      color: '#ffcc44',
-      size: 20,
-    });
+  // Award XP based on enemy type
+  const baseXP = {
+    skirmisher: 8,
+    charger: 12,
+    spitter: 10,
+    gunner: 15,
+    lurker: 18,
+    summoner: 25,
+    berserker: 20,
+    sniper: 22,
+    healer: 15,
+    tank: 30,
+    assassin: 25,
+    necromancer: 35,
+  };
+  const xpValue = baseXP[enemy.archetype] || 10;
+  
+  // Add XP and check for level up
+  const oldLevel = playerProgression.level;
+  const xpResult = addXP(playerProgression, xpValue);
+  
+  // Update progression state
+  if (typeof xpResult === 'object') {
+    playerProgression.xp = xpResult.newXp;
+    playerProgression.level = xpResult.newLevel;
+    playerProgression.xpToNext = xpResult.xpToNext;
+    
+    showDamageNumber(enemy.x, enemy.y - 10, `+${xpValue} XP`, { color: '#ffcc44' });
+    
+    // Check level up
+    if (xpResult.levelUps > 0) {
+      playLevelUpSound();
+      addNotification(hud, t('notification.level_up', { level: playerProgression.level }) || `Niveau ${playerProgression.level}!`, {
+        color: '#ffcc44',
+        size: 20,
+      });
+      
+      // Recalculate stats on level up
+      playerProgression.stats = calculateStats(playerProgression.level, playerProgression.skills || {}, playerProgression.equipment || {});
+      
+      // Heal on level up
+      player.maxHealth = playerProgression.stats?.hp || 100;
+      player.health = player.maxHealth;
+    }
+  } else {
+    showDamageNumber(enemy.x, enemy.y - 10, `+${xpValue} XP`, { color: '#ffcc44' });
   }
   
-  // Drop loot
-  if (Math.random() < enemy.dropChance) {
-    spawnItem(enemy.x, enemy.y, getRandomWeapon(enemy.dropRarity || RARITY.COMMON));
+  // Drop loot chance based on enemy type
+  const dropChance = {
+    skirmisher: 0.05,
+    charger: 0.08,
+    spitter: 0.06,
+    gunner: 0.10,
+    lurker: 0.12,
+    summoner: 0.15,
+    berserker: 0.12,
+    sniper: 0.14,
+    healer: 0.08,
+    tank: 0.18,
+    assassin: 0.15,
+    necromancer: 0.20,
+  };
+  
+  if (Math.random() < (dropChance[enemy.archetype] || 0.08)) {
+    // Create a random weapon drop
+    const rng = { next: Math.random };
+    const droppedWeapon = getRandomWeapon(rng);
+    if (droppedWeapon) {
+      spawnItem(enemy.x, enemy.y, droppedWeapon);
+    }
   }
 }
 
@@ -848,11 +973,15 @@ function killEnemy(enemy) {
  * Damage player
  */
 function damagePlayer(damage) {
-  const actualDamage = damage * (1 - playerProgression.stats.defense / 100);
+  if (!player || !playerProgression) return;
+  
+  // Calculate damage reduction from defense
+  const defenseValue = playerProgression.stats?.defense || 0;
+  const actualDamage = Math.max(1, Math.round(damage * (1 - defenseValue / 100)));
   player.health -= actualDamage;
   
   playHitSound(1, false);
-  showDamageNumber(player.x, player.y - 20, actualDamage, { color: '#ff4444' });
+  showDamageNumber(player.x, player.y - 20, Math.round(actualDamage), { color: '#ff4444' });
   
   player.invincible = true;
   player.invincibleTimer = CONFIG.invincibilityTime;
@@ -899,15 +1028,25 @@ function spawnItem(x, y, itemData) {
  * Pickup item
  */
 function pickupItem(item) {
-  // Add to inventory
-  worldState.inventory.push(item);
+  // Ensure inventory exists
+  if (!worldState.player) worldState.player = {};
+  if (!worldState.player.inventory) worldState.player.inventory = { items: [], weapons: [] };
+  
+  // Add to appropriate inventory
+  if (item.type === 'weapon' || item.behaviorId) {
+    worldState.player.inventory.weapons = worldState.player.inventory.weapons || [];
+    worldState.player.inventory.weapons.push(item.id);
+  } else {
+    worldState.player.inventory.items = worldState.player.inventory.items || [];
+    worldState.player.inventory.items.push(item);
+  }
   
   // Remove from world
   const idx = items.indexOf(item);
   if (idx !== -1) items.splice(idx, 1);
   
   playItemPickup(item.rarity);
-  addNotification(hud, t('notification.item_pickup', { name: item.name }), {
+  addNotification(hud, t('notification.item_pickup', { name: item.nameKey || item.id || 'Objet' }), {
     color: '#ffaa00',
   });
 }
@@ -1057,27 +1196,202 @@ function renderPlaying() {
     renderWorld(ctx, currentLevel.tileMap, camX, camY);
   }
   
-  // Draw items
+  // Draw items with glow effect
   for (const item of items) {
     const bob = Math.sin(performance.now() * 0.003 + item.bobOffset) * 3;
-    ctx.fillStyle = '#ffaa00';
-    ctx.fillRect(item.x - 8, item.y - 8 + bob, 16, 16);
+    const pulse = 0.8 + Math.sin(performance.now() * 0.005) * 0.2;
+    
+    // Glow
+    const rarityColors = {
+      common: '#888888',
+      uncommon: '#44ff66',
+      rare: '#4488ff',
+      epic: '#aa44ff',
+      legendary: '#ffaa00',
+    };
+    const glowColor = rarityColors[item.rarity] || '#ffaa00';
+    
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = 10 * pulse;
+    
+    // Item background
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(item.x - 10, item.y - 10 + bob, 20, 20);
+    
+    // Item border
+    ctx.strokeStyle = glowColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(item.x - 10, item.y - 10 + bob, 20, 20);
+    
+    // Simple weapon icon
+    ctx.fillStyle = '#cccccc';
+    ctx.beginPath();
+    ctx.moveTo(item.x, item.y - 6 + bob);
+    ctx.lineTo(item.x + 6, item.y + bob);
+    ctx.lineTo(item.x, item.y + 6 + bob);
+    ctx.lineTo(item.x - 6, item.y + bob);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.shadowBlur = 0;
   }
   
-  // Draw enemies
+  // Draw projectiles
+  for (const proj of projectiles) {
+    ctx.fillStyle = proj.hostile ? '#ff4444' : '#44ff44';
+    ctx.beginPath();
+    ctx.arc(proj.x, proj.y, proj.radius || 6, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Trail effect
+    ctx.fillStyle = proj.hostile ? 'rgba(255, 68, 68, 0.3)' : 'rgba(68, 255, 68, 0.3)';
+    ctx.beginPath();
+    ctx.arc(proj.x - proj.vx * 0.02, proj.y - proj.vy * 0.02, (proj.radius || 6) * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Draw enemies with pixel art style
   for (const enemy of enemies) {
-    ctx.fillStyle = '#ff4444';
-    ctx.fillRect(enemy.x - enemy.width / 2, enemy.y - enemy.height / 2, 
-      enemy.width, enemy.height);
+    const enemySize = 28;
+    const halfSize = enemySize / 2;
+    
+    // Draw shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(enemy.x, enemy.y + halfSize - 2, halfSize * 0.8, halfSize * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Enemy body color based on archetype
+    const archetypeColors = {
+      skirmisher: '#ff4444',
+      charger: '#ff8844',
+      spitter: '#44ff66',
+      gunner: '#888899',
+      lurker: '#884488',
+      summoner: '#aa44cc',
+      berserker: '#ff2222',
+      sniper: '#4466aa',
+      healer: '#44ffaa',
+      tank: '#666677',
+      assassin: '#333344',
+      necromancer: '#550055',
+    };
+    const bodyColor = archetypeColors[enemy.archetype] || '#ff4444';
+    
+    // Draw body
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, halfSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Highlight
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(enemy.x - 4, enemy.y - 4, halfSize * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Eyes
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(enemy.x - 5, enemy.y - 3, 4, 0, Math.PI * 2);
+    ctx.arc(enemy.x + 5, enemy.y - 3, 4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ff0000';
+    ctx.beginPath();
+    ctx.arc(enemy.x - 4, enemy.y - 3, 2, 0, Math.PI * 2);
+    ctx.arc(enemy.x + 6, enemy.y - 3, 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Health bar above enemy
+    const healthPercent = enemy.stats.hp / enemy.stats.hpMax;
+    const barWidth = enemySize;
+    const barHeight = 4;
+    const barY = enemy.y - halfSize - 8;
+    
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth, barHeight);
+    ctx.fillStyle = healthPercent > 0.3 ? '#44ff44' : '#ff4444';
+    ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth * healthPercent, barHeight);
   }
   
-  // Draw player
+  // Draw player with pixel art style
   const playerAlpha = player.invincible ? 
     0.5 + Math.sin(performance.now() * 0.02) * 0.3 : 1;
   ctx.globalAlpha = playerAlpha;
-  ctx.fillStyle = '#44ff44';
-  ctx.fillRect(player.x - player.width / 2, player.y - player.height / 2,
-    player.width, player.height);
+  
+  // Player shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(player.x, player.y + player.height / 2 - 4, player.width * 0.4, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Player body (hero character)
+  const bodyColor = '#4488ff';
+  const bodyDark = '#2266cc';
+  const skinColor = '#ffcc99';
+  
+  // Legs (simple rectangles)
+  ctx.fillStyle = '#333355';
+  ctx.fillRect(player.x - 6, player.y + 4, 5, 12);
+  ctx.fillRect(player.x + 1, player.y + 4, 5, 12);
+  
+  // Body
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(player.x - 8, player.y - 8, 16, 16);
+  
+  // Body highlight
+  ctx.fillStyle = '#66aaff';
+  ctx.fillRect(player.x - 8, player.y - 8, 4, 8);
+  
+  // Head
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(player.x - 6, player.y - 18, 12, 12);
+  
+  // Hair
+  ctx.fillStyle = '#553322';
+  ctx.fillRect(player.x - 6, player.y - 20, 12, 5);
+  ctx.fillRect(player.x - 7, player.y - 18, 3, 4);
+  
+  // Eyes
+  const eyeOffsetX = player.facing > 0 ? 2 : -2;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(player.x - 3 + eyeOffsetX, player.y - 14, 3, 3);
+  ctx.fillRect(player.x + 2 + eyeOffsetX, player.y - 14, 3, 3);
+  
+  ctx.fillStyle = '#333333';
+  ctx.fillRect(player.x - 2 + eyeOffsetX + (player.facing > 0 ? 1 : 0), player.y - 13, 2, 2);
+  ctx.fillRect(player.x + 3 + eyeOffsetX + (player.facing > 0 ? 1 : 0), player.y - 13, 2, 2);
+  
+  // Weapon (simple sword)
+  if (player.weapon) {
+    const weaponOffsetX = player.facing > 0 ? 10 : -18;
+    const weaponAngle = playerCombat.attacking ? 
+      (Math.sin(performance.now() * 0.03) * 0.5 - 0.8) : 0;
+    
+    ctx.save();
+    ctx.translate(player.x + weaponOffsetX + 4, player.y - 2);
+    ctx.rotate(weaponAngle * player.facing);
+    
+    // Blade
+    ctx.fillStyle = '#cccccc';
+    ctx.fillRect(-2, -20, 4, 18);
+    
+    // Blade highlight
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-2, -20, 1, 18);
+    
+    // Guard
+    ctx.fillStyle = '#886622';
+    ctx.fillRect(-4, -2, 8, 3);
+    
+    // Handle
+    ctx.fillStyle = '#553311';
+    ctx.fillRect(-1, 1, 3, 8);
+    
+    ctx.restore();
+  }
+  
   ctx.globalAlpha = 1;
   
   // Draw particles
@@ -1133,7 +1447,7 @@ function hexToCSS(hex) {
 }
 
 /**
- * Render world tiles
+ * Render world tiles with pixel art style
  */
 function renderWorld(ctx, level, camX, camY) {
   const startTileX = Math.max(0, Math.floor(camX / TILE_SIZE));
@@ -1142,66 +1456,308 @@ function renderWorld(ctx, level, camX, camY) {
   const endTileY = Math.min(level.height, Math.ceil((camY + window.innerHeight) / TILE_SIZE) + 1);
   
   const palette = BIOME_PALETTES[currentBiome] || BIOME_PALETTES[STRATA.JARDIN];
-  const wallColor = hexToCSS(palette.wall);
-  const floorColor = hexToCSS(palette.floor);
+  const wallColors = Array.isArray(palette.wall) ? palette.wall : [palette.wall];
+  const floorColors = Array.isArray(palette.floor) ? palette.floor : [palette.floor];
   
   for (let y = startTileY; y < endTileY; y++) {
     for (let x = startTileX; x < endTileX; x++) {
       const tile = level.tiles[y * level.width + x];
+      const tileX = x * TILE_SIZE;
+      const tileY = y * TILE_SIZE;
       
-      ctx.fillStyle = tile === 1 ? wallColor : floorColor;
-      ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+      // Use position-based variation for consistent tile appearance
+      const variation = ((x * 7 + y * 13) % 3);
+      
+      if (tile === 1) {
+        // Wall tile with brick pattern
+        const baseColor = hexToCSS(wallColors[variation % wallColors.length]);
+        const darkColor = hexToCSS(darkenColor(wallColors[variation % wallColors.length], 0.3));
+        const lightColor = hexToCSS(lightenColor(wallColors[variation % wallColors.length], 0.15));
+        
+        // Base
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+        
+        // Brick pattern
+        const brickH = TILE_SIZE / 2;
+        const offset = (y % 2) * (TILE_SIZE / 2);
+        
+        ctx.fillStyle = darkColor;
+        // Horizontal mortar lines
+        ctx.fillRect(tileX, tileY + brickH - 1, TILE_SIZE, 2);
+        // Vertical mortar lines
+        ctx.fillRect(tileX + (TILE_SIZE / 2 + offset) % TILE_SIZE, tileY, 2, brickH);
+        ctx.fillRect(tileX + offset, tileY + brickH, 2, brickH);
+        
+        // Top highlight for 3D effect
+        ctx.fillStyle = lightColor;
+        ctx.fillRect(tileX, tileY, TILE_SIZE, 1);
+        
+      } else {
+        // Floor tile with texture
+        const baseColor = hexToCSS(floorColors[variation % floorColors.length]);
+        
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+        
+        // Add subtle texture dots
+        const seed = x * 1000 + y;
+        if ((seed % 5) === 0) {
+          ctx.fillStyle = 'rgba(0,0,0,0.1)';
+          ctx.fillRect(tileX + (seed % 12), tileY + ((seed * 3) % 12), 2, 2);
+        }
+        if ((seed % 7) === 0) {
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(tileX + ((seed * 2) % 10), tileY + ((seed * 5) % 10), 2, 2);
+        }
+        
+        // Subtle grid lines
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillRect(tileX, tileY, 1, TILE_SIZE);
+        ctx.fillRect(tileX, tileY, TILE_SIZE, 1);
+      }
+    }
+  }
+  
+  // Add decorations based on biome
+  drawBiomeDecorations(ctx, startTileX, startTileY, endTileX, endTileY, level);
+}
+
+/**
+ * Helper to darken a color (hex number)
+ */
+function darkenColor(color, amount) {
+  if (typeof color !== 'number') return color;
+  const r = Math.floor(((color >> 16) & 0xff) * (1 - amount));
+  const g = Math.floor(((color >> 8) & 0xff) * (1 - amount));
+  const b = Math.floor((color & 0xff) * (1 - amount));
+  return (r << 16) | (g << 8) | b;
+}
+
+/**
+ * Helper to lighten a color (hex number)
+ */
+function lightenColor(color, amount) {
+  if (typeof color !== 'number') return color;
+  const r = Math.min(255, Math.floor(((color >> 16) & 0xff) + (255 - ((color >> 16) & 0xff)) * amount));
+  const g = Math.min(255, Math.floor(((color >> 8) & 0xff) + (255 - ((color >> 8) & 0xff)) * amount));
+  const b = Math.min(255, Math.floor((color & 0xff) + (255 - (color & 0xff)) * amount));
+  return (r << 16) | (g << 8) | b;
+}
+
+/**
+ * Draw biome-specific decorations
+ */
+function drawBiomeDecorations(ctx, startX, startY, endX, endY, level) {
+  // Decoration seeds based on position
+  for (let y = startY; y < endY; y++) {
+    for (let x = startX; x < endX; x++) {
+      const tile = level.tiles[y * level.width + x];
+      if (tile === 1) continue; // Skip walls
+      
+      const seed = x * 12345 + y * 67890;
+      const decorType = seed % 50;
+      
+      if (decorType < 2) {
+        // Grass tuft (JARDIN)
+        if (currentBiome === STRATA.JARDIN) {
+          const px = x * TILE_SIZE + (seed % 12);
+          const py = y * TILE_SIZE + ((seed * 3) % 12);
+          
+          ctx.fillStyle = '#4a8f4a';
+          ctx.beginPath();
+          ctx.moveTo(px, py + 6);
+          ctx.lineTo(px + 1, py);
+          ctx.lineTo(px + 2, py + 6);
+          ctx.fill();
+          
+          ctx.fillStyle = '#5aaf5a';
+          ctx.beginPath();
+          ctx.moveTo(px + 3, py + 6);
+          ctx.lineTo(px + 4, py + 2);
+          ctx.lineTo(px + 5, py + 6);
+          ctx.fill();
+        }
+        // Ember (FORGE)
+        else if (currentBiome === STRATA.FORGE) {
+          const px = x * TILE_SIZE + (seed % 14);
+          const py = y * TILE_SIZE + ((seed * 2) % 14);
+          const flicker = Math.sin(performance.now() * 0.01 + seed) * 0.3 + 0.7;
+          
+          ctx.globalAlpha = flicker;
+          ctx.fillStyle = '#ff6622';
+          ctx.beginPath();
+          ctx.arc(px, py, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        // Crystal (ABIME)
+        else if (currentBiome === STRATA.ABIME) {
+          const px = x * TILE_SIZE + (seed % 12);
+          const py = y * TILE_SIZE + ((seed * 3) % 12);
+          
+          ctx.fillStyle = '#88ccff';
+          ctx.beginPath();
+          ctx.moveTo(px, py + 5);
+          ctx.lineTo(px + 3, py);
+          ctx.lineTo(px + 6, py + 5);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
     }
   }
 }
 
 /**
- * Render menu
+ * Render menu with animated background
  */
 function renderMenu() {
-  ctx.fillStyle = '#1a1a2e';
+  const time = performance.now() * 0.001;
+  
+  // Animated gradient background
+  const gradient = ctx.createLinearGradient(0, 0, 0, window.innerHeight);
+  gradient.addColorStop(0, '#0a0a1a');
+  gradient.addColorStop(0.5, '#1a1a3e');
+  gradient.addColorStop(1, '#0a0a1a');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
   
-  // Title
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 72px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('SOPOR', window.innerWidth / 2, window.innerHeight / 3);
-  
-  // Subtitle
-  ctx.font = '24px monospace';
-  ctx.fillStyle = '#888888';
-  ctx.fillText(t('menu.subtitle'), window.innerWidth / 2, window.innerHeight / 3 + 50);
-  
-  // Start prompt
-  const pulse = 0.5 + Math.sin(performance.now() * 0.003) * 0.3;
-  ctx.globalAlpha = pulse;
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '20px monospace';
-  ctx.fillText(t('menu.start'), window.innerWidth / 2, window.innerHeight / 2 + 100);
+  // Animated stars/particles
+  for (let i = 0; i < 100; i++) {
+    const x = ((i * 137.5 + time * 20) % window.innerWidth);
+    const y = ((i * 73.3 + time * (10 + i % 5)) % window.innerHeight);
+    const size = 1 + (i % 3);
+    const alpha = 0.3 + Math.sin(time * 2 + i) * 0.3;
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = i % 5 === 0 ? '#88aaff' : '#ffffff';
+    ctx.fillRect(Math.floor(x), Math.floor(y), size, size);
+  }
   ctx.globalAlpha = 1;
   
+  // Floating runes/symbols in background
+  ctx.font = '24px monospace';
+  for (let i = 0; i < 15; i++) {
+    const x = (i * 89 + time * 15) % window.innerWidth;
+    const y = (i * 67 + Math.sin(time + i) * 30) % window.innerHeight;
+    ctx.globalAlpha = 0.1 + Math.sin(time * 0.5 + i) * 0.05;
+    ctx.fillStyle = '#4488ff';
+    ctx.fillText(['◇', '◆', '△', '▽', '○', '●', '☆', '★'][i % 8], x, y);
+  }
+  ctx.globalAlpha = 1;
+  
+  // Title with glow effect
+  ctx.textAlign = 'center';
+  
+  // Title glow
+  ctx.shadowColor = '#4488ff';
+  ctx.shadowBlur = 30 + Math.sin(time * 2) * 10;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 84px monospace';
+  ctx.fillText('SOPOR', window.innerWidth / 2, window.innerHeight / 3);
+  ctx.shadowBlur = 0;
+  
+  // Subtitle
+  ctx.font = '20px monospace';
+  ctx.fillStyle = '#6688aa';
+  ctx.fillText(t('menu.subtitle') || 'Le Sommeil de l\'Architecte', window.innerWidth / 2, window.innerHeight / 3 + 50);
+  
+  // Decorative line
+  const lineWidth = 200;
+  ctx.strokeStyle = '#4488ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(window.innerWidth / 2 - lineWidth, window.innerHeight / 3 + 70);
+  ctx.lineTo(window.innerWidth / 2 + lineWidth, window.innerHeight / 3 + 70);
+  ctx.stroke();
+  
+  // Small decorations on the line
+  ctx.fillStyle = '#4488ff';
+  ctx.beginPath();
+  ctx.arc(window.innerWidth / 2 - lineWidth, window.innerHeight / 3 + 70, 4, 0, Math.PI * 2);
+  ctx.arc(window.innerWidth / 2, window.innerHeight / 3 + 70, 6, 0, Math.PI * 2);
+  ctx.arc(window.innerWidth / 2 + lineWidth, window.innerHeight / 3 + 70, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Start prompt with pulsing
+  const pulse = 0.5 + Math.sin(time * 3) * 0.4;
+  ctx.globalAlpha = pulse;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '22px monospace';
+  ctx.fillText(t('menu.start') || '[ Appuyez pour commencer ]', window.innerWidth / 2, window.innerHeight / 2 + 120);
+  ctx.globalAlpha = 1;
+  
+  // Controls hint
+  ctx.font = '14px monospace';
+  ctx.fillStyle = '#555577';
+  ctx.fillText('WASD / Flèches: Déplacer | Espace: Attaquer | Shift: Esquiver', 
+    window.innerWidth / 2, window.innerHeight - 60);
+  ctx.fillText('I: Inventaire | K: Compétences | M: Carte | Échap: Pause', 
+    window.innerWidth / 2, window.innerHeight - 40);
+  
   // Touch controls on mobile
-  if (touchControls.enabled) {
+  if (touchControls && touchControls.enabled) {
     drawTouchControls(ctx, touchControls);
   }
 }
 
 /**
- * Render game over
+ * Render game over screen
  */
 function renderGameOver() {
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+  const time = performance.now() * 0.001;
+  
+  // Dark overlay with vignette effect
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
   
-  ctx.fillStyle = '#ff4444';
-  ctx.font = 'bold 48px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(t('game_over.title'), window.innerWidth / 2, window.innerHeight / 2 - 50);
+  // Red vignette
+  const gradient = ctx.createRadialGradient(
+    window.innerWidth / 2, window.innerHeight / 2, 0,
+    window.innerWidth / 2, window.innerHeight / 2, window.innerWidth * 0.7
+  );
+  gradient.addColorStop(0, 'rgba(100, 0, 0, 0)');
+  gradient.addColorStop(1, 'rgba(100, 0, 0, 0.5)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
   
+  // Floating particles (blood/essence)
+  for (let i = 0; i < 30; i++) {
+    const x = (i * 97 + Math.sin(time + i) * 50) % window.innerWidth;
+    const y = window.innerHeight - ((time * 30 + i * 40) % window.innerHeight);
+    const alpha = 0.3 + Math.sin(time + i) * 0.2;
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ff4444';
+    ctx.beginPath();
+    ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  
+  // Title with dramatic effect
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 20 + Math.sin(time * 4) * 10;
+  ctx.fillStyle = '#ff4444';
+  ctx.font = 'bold 56px monospace';
+  ctx.fillText(t('game_over.title') || 'DÉFAITE', window.innerWidth / 2, window.innerHeight / 2 - 30);
+  ctx.shadowBlur = 0;
+  
+  // Stats display
+  ctx.font = '18px monospace';
+  ctx.fillStyle = '#888888';
+  ctx.fillText(`Niveau: ${playerProgression?.level || 1}`, window.innerWidth / 2, window.innerHeight / 2 + 30);
+  ctx.fillText(`Ennemis vaincus: ${worldState?.stats?.enemiesKilled || 0}`, window.innerWidth / 2, window.innerHeight / 2 + 55);
+  
+  // Continue prompt
+  const pulse = 0.5 + Math.sin(time * 3) * 0.4;
+  ctx.globalAlpha = pulse;
   ctx.fillStyle = '#ffffff';
   ctx.font = '20px monospace';
-  ctx.fillText(t('game_over.continue'), window.innerWidth / 2, window.innerHeight / 2 + 50);
+  ctx.fillText(t('game_over.continue') || '[ Appuyez pour réessayer ]', window.innerWidth / 2, window.innerHeight / 2 + 120);
+  ctx.globalAlpha = 1;
 }
 
 // ========== Exports ==========
