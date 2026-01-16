@@ -226,7 +226,7 @@ let currentBiome = STRATA.JARDIN;
 
 // Day/Night cycle
 let gameTime = 0.25; // 0-1, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset, 0/1 = midnight
-let dayNightSpeed = 0.00002; // How fast time passes (0.00002 = ~14 min for full cycle)
+let dayNightSpeed = 0.0000008; // How fast time passes (~5 min per phase, ~20 min full cycle)
 
 // Player
 let player = null;
@@ -270,6 +270,7 @@ let attackSwingActive = false;
 // House interior state
 let insideHouse = null;
 let houseTransitionAlpha = 0;
+let playerEnteredHouseViaInteraction = false; // Track if player properly entered
 
 // Settings state
 let gameSettings = {
@@ -617,21 +618,114 @@ function handleAttack() {
       player.y - 5
     );
     
-    // Find enemies in range - use reach property with fallback
-    const attackRange = player.weapon.reach || player.weapon.radius || 40;
+    // Find enemies in range - improved hitbox matching animation
+    const attackRange = player.weapon.reach || player.weapon.radius || 50;
     const baseDamage = player.weapon.damage || 5;
-    const arcDeg = player.weapon.arcDeg || 90;
+    const arcDeg = player.weapon.arcDeg || 120;
+    
+    // Attack hitbox is a cone/arc in front of player
+    const attackCenterX = player.x + player.facing * 25;
+    const attackCenterY = player.y;
     
     for (const enemy of enemies) {
-      const dist = distance(player.x, player.y, enemy.x, enemy.y);
-      if (dist <= attackRange) {
-        // Check if facing enemy (or if it's a slam weapon with 360 range)
-        const dx = enemy.x - player.x;
-        const isFacingEnemy = (dx > 0 && player.facing > 0) || (dx < 0 && player.facing < 0);
+      if (!enemy.stats) continue;
+      
+      // Calculate distance from attack center point
+      const dx = enemy.x - attackCenterX;
+      const dy = enemy.y - attackCenterY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      // Enemy hitbox radius (enemies are about 20-30px wide)
+      const enemyRadius = enemy.isBoss ? 25 : enemy.isElite ? 20 : 15;
+      
+      // Check if enemy is within attack range (including enemy hitbox)
+      if (dist <= attackRange + enemyRadius) {
+        // Check if enemy is in the attack arc
+        const angleToEnemy = Math.atan2(dy, dx);
+        const facingAngle = player.facing > 0 ? 0 : Math.PI;
+        
+        // Calculate angle difference
+        let angleDiff = Math.abs(angleToEnemy - facingAngle);
+        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+        
+        const halfArcRad = (arcDeg / 2) * (Math.PI / 180);
         const isAOEAttack = player.weapon.behaviorId === 'melee_slam' || arcDeg >= 360;
         
-        if (isFacingEnemy || isAOEAttack) {
+        if (isAOEAttack || angleDiff <= halfArcRad) {
           dealDamage(enemy, baseDamage);
+          
+          // Visual feedback - push enemy back slightly
+          const pushDir = Math.atan2(enemy.y - player.y, enemy.x - player.x);
+          enemy.x += Math.cos(pushDir) * 5;
+          enemy.y += Math.sin(pushDir) * 5;
+        }
+      }
+    }
+    
+    // Also check for aggressive animals
+    if (openWorld?.decorations) {
+      for (const deco of openWorld.decorations) {
+        if (!deco.isAnimal || !deco.aggressive) continue;
+        
+        const dx = deco.x - attackCenterX;
+        const dy = deco.y - attackCenterY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        const animalRadius = deco.radius || 15;
+        
+        if (dist <= attackRange + animalRadius) {
+          const angleToAnimal = Math.atan2(dy, dx);
+          const facingAngle = player.facing > 0 ? 0 : Math.PI;
+          
+          let angleDiff = Math.abs(angleToAnimal - facingAngle);
+          if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+          
+          const halfArcRad = (arcDeg / 2) * (Math.PI / 180);
+          
+          if (angleDiff <= halfArcRad) {
+            // Damage the animal
+            deco.health = (deco.health || 30) - baseDamage;
+            addDamageNumber(deco.x, deco.y, baseDamage, true);
+            
+            // Create hit effect
+            createHitEffect(particles, deco.x, deco.y);
+            
+            // Knockback animal
+            const pushDir = Math.atan2(deco.y - player.y, deco.x - player.x);
+            deco.x += Math.cos(pushDir) * 8;
+            deco.y += Math.sin(pushDir) * 8;
+            
+            // Make animal aggressive if not already chasing
+            if (deco.animalState !== 'chasing' && deco.animalState !== 'attacking') {
+              deco.animalState = 'chasing';
+            }
+            
+            // Check if animal is dead
+            if (deco.health <= 0) {
+              // Remove animal by marking it as dead
+              deco.dead = true;
+              deco.isAnimal = false;
+              
+              // Spawn some loot
+              addNotification(hud, 'Animal vaincu!', { color: '#ffaa00' });
+              
+              // Maybe drop meat or leather
+              const dropRoll = Math.random();
+              if (dropRoll < 0.5) {
+                items.push({
+                  x: deco.x,
+                  y: deco.y,
+                  type: 'consumable',
+                  name: 'Viande',
+                  healAmount: 15,
+                  icon: '🍖',
+                });
+              }
+              
+              // XP gain
+              player.xp = (player.xp || 0) + 10;
+            }
+          }
         }
       }
     }
@@ -671,24 +765,45 @@ function handleInteract() {
   
   // Check for house doors first
   if (openWorld?.structures) {
+    const tileSize = openWorld.tileSize || 32;
+    
     for (const structure of openWorld.structures) {
       if (structure.doorX && structure.doorY && structure.type !== 'fountain' && structure.type !== 'well') {
-        const doorWorldX = structure.doorX * openWorld.tileSize;
-        const doorWorldY = structure.doorY * openWorld.tileSize;
-        const dist = distance(player.x, player.y, doorWorldX, doorWorldY);
+        const doorWorldX = structure.doorX * tileSize;
+        const doorWorldY = structure.doorY * tileSize;
         
-        if (dist <= 50) {
-          if (insideHouse === structure) {
-            // Exit house
+        if (insideHouse === structure) {
+          // Player is inside - check if near interior door to exit
+          const interiorDoorX = structure.x * tileSize + (structure.width * tileSize) / 2;
+          const interiorDoorY = (structure.y + structure.height - 1) * tileSize;
+          const distToInteriorDoor = distance(player.x, player.y, interiorDoorX, interiorDoorY);
+          
+          if (distToInteriorDoor <= 50) {
+            // Exit house - teleport to exterior door
+            player.x = doorWorldX;
+            player.y = doorWorldY + 30;
             insideHouse = null;
+            playerEnteredHouseViaInteraction = false;
             addNotification(hud, 'Sortie de la maison', { color: '#aaaaaa' });
-          } else {
-            // Enter house
-            insideHouse = structure;
-            addNotification(hud, 'Entré dans la maison', { color: '#aaaaaa' });
+            playUIClick();
+            return;
           }
-          playUIClick();
-          return;
+        } else {
+          // Player is outside - check if near door to enter
+          const dist = distance(player.x, player.y, doorWorldX, doorWorldY);
+          
+          if (dist <= 50) {
+            // Enter house - teleport inside near interior door
+            const interiorX = structure.x * tileSize + (structure.width * tileSize) / 2;
+            const interiorY = (structure.y + structure.height - 2) * tileSize;
+            player.x = interiorX;
+            player.y = interiorY;
+            insideHouse = structure;
+            playerEnteredHouseViaInteraction = true;
+            addNotification(hud, 'Entré dans la maison', { color: '#aaaaaa' });
+            playUIClick();
+            return;
+          }
         }
       }
     }
@@ -1095,6 +1210,9 @@ function updatePlaying(dt) {
   // Spawn enemies based on player distance from village
   updateEnemySpawning(dt);
   
+  // Update animals behavior
+  updateAnimals(dt);
+  
   // Update enemies using AI system
   for (const enemy of enemies) {
     // Check if enemy should stop chasing (leash distance)
@@ -1395,6 +1513,178 @@ function updateNPCs(dt) {
 }
 
 /**
+ * Update animals behavior (passive and aggressive)
+ */
+function updateAnimals(dt) {
+  if (!openWorld?.decorations) return;
+  
+  const FLEE_DISTANCE = 100;
+  const AGGRESSIVE_DETECT_DISTANCE = 150;
+  const AGGRESSIVE_ATTACK_DISTANCE = 40;
+  
+  for (const deco of openWorld.decorations) {
+    if (!deco.isAnimal) continue;
+    
+    const distToPlayer = distance(deco.x, deco.y, player.x, player.y);
+    
+    // Initialize animal state if needed
+    if (deco.animalState === undefined) {
+      deco.animalState = 'idle';
+      deco.originalX = deco.x;
+      deco.originalY = deco.y;
+      deco.stateTimer = 1000 + Math.random() * 2000;
+      deco.targetX = deco.x;
+      deco.targetY = deco.y;
+    }
+    
+    // Passive animals flee from player
+    if (deco.passive) {
+      if (distToPlayer < FLEE_DISTANCE && deco.animalState !== 'fleeing') {
+        deco.animalState = 'fleeing';
+        // Flee away from player
+        const angleAway = Math.atan2(deco.y - player.y, deco.x - player.x);
+        const fleeDist = 100 + Math.random() * 50;
+        deco.targetX = deco.x + Math.cos(angleAway) * fleeDist;
+        deco.targetY = deco.y + Math.sin(angleAway) * fleeDist;
+      }
+      
+      if (deco.animalState === 'fleeing') {
+        const dx = deco.targetX - deco.x;
+        const dy = deco.targetY - deco.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 5) {
+          const speed = (deco.moveSpeed || 2) * 50;
+          deco.x += (dx / dist) * speed * dt / 1000;
+          deco.y += (dy / dist) * speed * dt / 1000;
+        } else {
+          // Return to wandering after fleeing
+          if (distToPlayer > FLEE_DISTANCE * 1.5) {
+            deco.animalState = 'idle';
+            deco.stateTimer = 1000 + Math.random() * 2000;
+          }
+        }
+      } else if (deco.animalState === 'idle') {
+        deco.stateTimer -= dt;
+        
+        if (deco.stateTimer <= 0) {
+          // Random wander
+          deco.animalState = 'wandering';
+          const angle = Math.random() * Math.PI * 2;
+          const wanderDist = 30 + Math.random() * 50;
+          deco.targetX = deco.originalX + Math.cos(angle) * wanderDist;
+          deco.targetY = deco.originalY + Math.sin(angle) * wanderDist;
+        }
+      } else if (deco.animalState === 'wandering') {
+        const dx = deco.targetX - deco.x;
+        const dy = deco.targetY - deco.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 5) {
+          const speed = (deco.moveSpeed || 1) * 20;
+          deco.x += (dx / dist) * speed * dt / 1000;
+          deco.y += (dy / dist) * speed * dt / 1000;
+        } else {
+          deco.animalState = 'idle';
+          deco.stateTimer = 2000 + Math.random() * 3000;
+        }
+      }
+    }
+    
+    // Aggressive animals attack player
+    if (deco.aggressive) {
+      if (distToPlayer < AGGRESSIVE_DETECT_DISTANCE && deco.animalState !== 'chasing' && deco.animalState !== 'attacking') {
+        deco.animalState = 'chasing';
+      }
+      
+      if (deco.animalState === 'chasing') {
+        if (distToPlayer > AGGRESSIVE_DETECT_DISTANCE * 1.5) {
+          // Return to patrol
+          deco.animalState = 'returning';
+        } else if (distToPlayer < AGGRESSIVE_ATTACK_DISTANCE) {
+          // Attack!
+          deco.animalState = 'attacking';
+          deco.attackTimer = 0;
+        } else {
+          // Chase player
+          const dx = player.x - deco.x;
+          const dy = player.y - deco.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          const speed = (deco.moveSpeed || 2) * 40;
+          deco.x += (dx / dist) * speed * dt / 1000;
+          deco.y += (dy / dist) * speed * dt / 1000;
+        }
+      } else if (deco.animalState === 'attacking') {
+        deco.attackTimer = (deco.attackTimer || 0) + dt;
+        
+        if (deco.attackTimer >= 1000) {
+          // Deal damage
+          if (distToPlayer < AGGRESSIVE_ATTACK_DISTANCE * 1.5) {
+            player.health -= deco.damage || 5;
+            addDamageNumber(player.x, player.y, deco.damage || 5, false);
+            
+            // Knockback player
+            const angle = Math.atan2(player.y - deco.y, player.x - deco.x);
+            player.x += Math.cos(angle) * 20;
+            player.y += Math.sin(angle) * 20;
+          }
+          
+          deco.attackTimer = 0;
+          
+          // Check if should keep attacking or return to chase
+          if (distToPlayer > AGGRESSIVE_ATTACK_DISTANCE) {
+            deco.animalState = 'chasing';
+          }
+        }
+      } else if (deco.animalState === 'returning') {
+        const dx = deco.originalX - deco.x;
+        const dy = deco.originalY - deco.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 10) {
+          const speed = (deco.moveSpeed || 2) * 30;
+          deco.x += (dx / dist) * speed * dt / 1000;
+          deco.y += (dy / dist) * speed * dt / 1000;
+        } else {
+          deco.animalState = 'idle';
+          deco.stateTimer = 2000 + Math.random() * 2000;
+        }
+        
+        // Re-aggro if player gets close again
+        if (distToPlayer < AGGRESSIVE_DETECT_DISTANCE * 0.8) {
+          deco.animalState = 'chasing';
+        }
+      } else if (deco.animalState === 'idle') {
+        deco.stateTimer -= dt;
+        
+        if (deco.stateTimer <= 0) {
+          // Random patrol
+          deco.animalState = 'wandering';
+          const angle = Math.random() * Math.PI * 2;
+          const wanderDist = 40 + Math.random() * 60;
+          deco.targetX = deco.originalX + Math.cos(angle) * wanderDist;
+          deco.targetY = deco.originalY + Math.sin(angle) * wanderDist;
+        }
+      } else if (deco.animalState === 'wandering') {
+        const dx = deco.targetX - deco.x;
+        const dy = deco.targetY - deco.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 5) {
+          const speed = (deco.moveSpeed || 1.5) * 25;
+          deco.x += (dx / dist) * speed * dt / 1000;
+          deco.y += (dy / dist) * speed * dt / 1000;
+        } else {
+          deco.animalState = 'idle';
+          deco.stateTimer = 1500 + Math.random() * 2500;
+        }
+      }
+    }
+  }
+}
+
+/**
  * Update interaction highlights
  */
 function updateInteractionHighlights() {
@@ -1590,26 +1880,27 @@ function checkStructureCollision(oldX, oldY, newX, newY) {
     const sw = structure.width * tileSize;
     const sh = structure.height * tileSize;
     
-    // Check if there's a door and player is near it (can enter through door)
-    if (structure.doorX && structure.doorY) {
-      const doorX = structure.doorX * tileSize;
-      const doorY = structure.doorY * tileSize;
-      const doorDist = distance(newX, newY, doorX, doorY);
+    // If player is inside this house (via proper interaction), allow movement inside
+    if (insideHouse === structure && playerEnteredHouseViaInteraction) {
+      // Allow movement inside the house, but block leaving through walls
+      const margin = 15;
       
-      // Player can pass through door area
-      if (doorDist < 25) {
-        continue;
-      }
+      // Block if trying to leave through walls (not door)
+      if (newX - playerRadius < sx + margin) result.x = false;
+      if (newX + playerRadius > sx + sw - margin) result.x = false;
+      if (newY - playerRadius < sy + margin) result.y = false;
+      // Don't block bottom wall - that's where the door is
+      
+      continue;
     }
     
-    // Collision box for structure walls (exclude door)
-    // Check X movement
+    // If player is NOT inside via interaction, block entry entirely
+    // Collision box for entire structure including door
     if (newX + playerRadius > sx && newX - playerRadius < sx + sw &&
         oldY + playerRadius > sy && oldY - playerRadius < sy + sh) {
       result.x = false;
     }
     
-    // Check Y movement
     if (oldX + playerRadius > sx && oldX - playerRadius < sx + sw &&
         newY + playerRadius > sy && newY - playerRadius < sy + sh) {
       result.y = false;
@@ -1622,33 +1913,37 @@ function checkStructureCollision(oldX, oldY, newX, newY) {
 /**
  * Check if player is currently inside a house
  * Updates insideHouse state for interior rendering
+ * Now only updates if player entered via interaction
  */
 function checkPlayerInsideHouse() {
+  // Don't auto-detect house entry anymore - only via E interaction
+  // This function now just validates the state
   if (!openWorld?.structures) {
     insideHouse = null;
+    playerEnteredHouseViaInteraction = false;
     return;
   }
   
-  const tileSize = openWorld.tileSize || 16;
-  
-  for (const structure of openWorld.structures) {
-    // Only check houses/buildings
-    if (structure.type === 'fountain' || structure.type === 'well') continue;
+  // If player is supposed to be inside, verify they're still in bounds
+  if (insideHouse && playerEnteredHouseViaInteraction) {
+    const tileSize = openWorld.tileSize || 16;
+    const structure = insideHouse;
     
     const sx = structure.x * tileSize;
     const sy = structure.y * tileSize;
     const sw = structure.width * tileSize;
     const sh = structure.height * tileSize;
     
-    // Check if player is inside the house bounds
-    if (player.x > sx && player.x < sx + sw &&
-        player.y > sy && player.y < sy + sh) {
-      insideHouse = structure;
+    // Check if player is still inside the house bounds
+    if (player.x >= sx && player.x <= sx + sw &&
+        player.y >= sy && player.y <= sy + sh) {
+      // Still inside, keep state
       return;
     }
+    // Player left the bounds somehow, reset state
+    insideHouse = null;
+    playerEnteredHouseViaInteraction = false;
   }
-  
-  insideHouse = null;
 }
 
 /**
@@ -2798,6 +3093,7 @@ function renderDecoration(ctx, deco, zoneType, time) {
   const y = deco.y;
   
   switch (deco.type) {
+    // Trees
     case ENTITY_TYPES.TREE_OAK:
     case ENTITY_TYPES.TREE_PINE:
     case ENTITY_TYPES.TREE_WILLOW:
@@ -2808,22 +3104,132 @@ function renderDecoration(ctx, deco, zoneType, time) {
     case ENTITY_TYPES.TREE_CORRUPTED:
       renderDeadTree(ctx, x, y, deco.type, zoneType, time);
       break;
+    case ENTITY_TYPES.FALLEN_LOG:
+      renderFallenLog(ctx, x, y, zoneType);
+      break;
+    case ENTITY_TYPES.STUMP:
+      renderStump(ctx, x, y, zoneType);
+      break;
+    
+    // Bushes and vegetation
     case ENTITY_TYPES.BUSH:
     case ENTITY_TYPES.BUSH_BERRY:
     case ENTITY_TYPES.BUSH_THORNS:
       renderBush(ctx, x, y, zoneType, deco.type);
       break;
+    case ENTITY_TYPES.FERN:
+      renderFern(ctx, x, y, zoneType, time);
+      break;
+    case ENTITY_TYPES.TALL_GRASS_PATCH:
+      renderTallGrass(ctx, x, y, zoneType, time);
+      break;
+    case ENTITY_TYPES.FLOWER_BED:
+      renderFlowerBed(ctx, x, y, zoneType, time);
+      break;
+    
+    // Rocks
     case ENTITY_TYPES.ROCK:
     case ENTITY_TYPES.ROCK_LARGE:
+    case ENTITY_TYPES.ROCK_MOSS:
+    case ENTITY_TYPES.ROCK_PILE:
       renderRock(ctx, x, y, deco.type, zoneType);
       break;
+    case ENTITY_TYPES.BOULDER:
+      renderBoulder(ctx, x, y, zoneType);
+      break;
+    
+    // Terrain features
+    case ENTITY_TYPES.MOUNTAIN:
+    case ENTITY_TYPES.MOUNTAIN_SMALL:
+      renderMountain(ctx, x, y, deco.type);
+      break;
+    case ENTITY_TYPES.HILL:
+      renderHill(ctx, x, y, zoneType);
+      break;
+    case ENTITY_TYPES.CAVE_ENTRANCE:
+      renderCaveEntrance(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.POND:
+      renderPond(ctx, x, y, zoneType, time);
+      break;
+    case ENTITY_TYPES.FISHING_SPOT:
+      renderFishingSpot(ctx, x, y, time);
+      break;
+    
+    // Mushrooms
     case ENTITY_TYPES.MUSHROOM:
     case ENTITY_TYPES.MUSHROOM_GLOWING:
+    case ENTITY_TYPES.MUSHROOM_CLUSTER:
       renderMushroom(ctx, x, y, deco.type, zoneType, time);
       break;
+    
+    // Village props
     case ENTITY_TYPES.LAMP_POST:
       renderLampPost(ctx, x, y, time);
       break;
+    case ENTITY_TYPES.BARREL:
+      renderBarrel(ctx, x, y);
+      break;
+    case ENTITY_TYPES.CRATE:
+      renderCrate(ctx, x, y);
+      break;
+    case ENTITY_TYPES.HAY_BALE:
+      renderHayBale(ctx, x, y);
+      break;
+    case ENTITY_TYPES.BENCH:
+      renderBench(ctx, x, y);
+      break;
+    case ENTITY_TYPES.WHEELBARROW:
+      renderWheelbarrow(ctx, x, y);
+      break;
+    case ENTITY_TYPES.SCARECROW:
+      renderScarecrow(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.CAMPFIRE:
+      renderCampfire(ctx, x, y, time);
+      break;
+    
+    // Animals - Passive
+    case ENTITY_TYPES.ANIMAL_RABBIT:
+      renderAnimalRabbit(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_DEER:
+      renderAnimalDeer(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_SQUIRREL:
+      renderAnimalSquirrel(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_FOX:
+      renderAnimalFox(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_FROG:
+      renderAnimalFrog(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_BIRD:
+      renderAnimalBird(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_BUTTERFLY:
+      renderAnimalButterfly(ctx, x, y, deco, time);
+      break;
+    
+    // Animals - Aggressive
+    case ENTITY_TYPES.ANIMAL_WOLF:
+      renderAnimalWolf(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_BOAR:
+      renderAnimalBoar(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_BEAR:
+      renderAnimalBear(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_SNAKE:
+      renderAnimalSnake(ctx, x, y, deco, time);
+      break;
+    case ENTITY_TYPES.ANIMAL_BAT:
+      renderAnimalBat(ctx, x, y, deco, time);
+      break;
+    
+    // Corrupted
     case ENTITY_TYPES.CORRUPTION_CRYSTAL:
       renderCorruptionCrystal(ctx, x, y, time);
       break;
@@ -2839,6 +3245,14 @@ function renderDecoration(ctx, deco, zoneType, time) {
     case ENTITY_TYPES.SKULL_PILE:
       renderSkullPile(ctx, x, y, zoneType);
       break;
+    case ENTITY_TYPES.DEAD_ANIMAL:
+      renderDeadAnimal(ctx, x, y, zoneType);
+      break;
+    case ENTITY_TYPES.CORRUPTED_POOL:
+      renderCorruptedPool(ctx, x, y, time);
+      break;
+    
+    // Ambient effects
     case ENTITY_TYPES.FIREFLY_ZONE:
       renderFireflies(ctx, x, y, time);
       break;
@@ -2848,6 +3262,13 @@ function renderDecoration(ctx, deco, zoneType, time) {
     case ENTITY_TYPES.SPORE_ZONE:
       renderSpores(ctx, x, y, time);
       break;
+    case ENTITY_TYPES.LEAF_FALL_ZONE:
+      renderLeafFall(ctx, x, y, time);
+      break;
+    case ENTITY_TYPES.BIRD_FLOCK:
+      renderBirdFlock(ctx, x, y, time);
+      break;
+    
     default:
       // Default decoration
       ctx.fillStyle = '#888888';
@@ -3061,7 +3482,11 @@ function renderBush(ctx, x, y, zoneType, bushType = ENTITY_TYPES.BUSH) {
  */
 function renderRock(ctx, x, y, rockType, zoneType) {
   const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
-  const size = rockType === ENTITY_TYPES.ROCK_LARGE ? 1.5 : 1;
+  const isLarge = rockType === ENTITY_TYPES.ROCK_LARGE;
+  const isMoss = rockType === ENTITY_TYPES.ROCK_MOSS;
+  const isPile = rockType === ENTITY_TYPES.ROCK_PILE;
+  
+  const size = isLarge ? 1.5 : 1;
   
   // Shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
@@ -3069,9 +3494,34 @@ function renderRock(ctx, x, y, rockType, zoneType) {
   ctx.ellipse(x, y + 5 * size, 15 * size, 6 * size, 0, 0, Math.PI * 2);
   ctx.fill();
   
-  const rockColor = isCorrupted ? '#4a3a4a' : '#666666';
-  const rockDark = isCorrupted ? '#3a2a3a' : '#555555';
-  const rockLight = isCorrupted ? '#5a4a5a' : '#888888';
+  const rockColor = isCorrupted ? '#4a3a4a' : (isMoss ? '#5a6a5a' : '#666666');
+  const rockDark = isCorrupted ? '#3a2a3a' : (isMoss ? '#4a5a4a' : '#555555');
+  const rockLight = isCorrupted ? '#5a4a5a' : (isMoss ? '#6a7a6a' : '#888888');
+  
+  if (isPile) {
+    // Render pile of smaller rocks
+    const rocks = [
+      { dx: -8, dy: 2, r: 8 },
+      { dx: 5, dy: 3, r: 7 },
+      { dx: -2, dy: -2, r: 10 },
+      { dx: 8, dy: -1, r: 6 },
+      { dx: -5, dy: -5, r: 5 },
+    ];
+    
+    for (const rock of rocks) {
+      ctx.fillStyle = rockColor;
+      ctx.beginPath();
+      ctx.arc(x + rock.dx, y + rock.dy, rock.r, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Highlight
+      ctx.fillStyle = rockLight;
+      ctx.beginPath();
+      ctx.arc(x + rock.dx - rock.r * 0.2, y + rock.dy - rock.r * 0.3, rock.r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return;
+  }
   
   // Main rock shape
   ctx.fillStyle = rockColor;
@@ -3103,8 +3553,19 @@ function renderRock(ctx, x, y, rockType, zoneType) {
   ctx.closePath();
   ctx.fill();
   
-  // Corruption crystals on rocks
-  if (isCorrupted && rockType === ENTITY_TYPES.ROCK_LARGE) {
+  // Moss on rocks
+  if (isMoss) {
+    ctx.fillStyle = '#4a8a3a';
+    ctx.beginPath();
+    ctx.ellipse(x - 2 * size, y - 5 * size, 8 * size, 4 * size, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + 5 * size, y - 12 * size, 5 * size, 3 * size, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Corruption crystals on large rocks
+  if (isCorrupted && isLarge) {
     ctx.fillStyle = '#aa66cc';
     ctx.beginPath();
     ctx.moveTo(x, y - 20 * size);
@@ -3120,9 +3581,46 @@ function renderRock(ctx, x, y, rockType, zoneType) {
  */
 function renderMushroom(ctx, x, y, type, zoneType, time) {
   const isGlowing = type === ENTITY_TYPES.MUSHROOM_GLOWING;
+  const isCluster = type === ENTITY_TYPES.MUSHROOM_CLUSTER;
   const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
   const dayNight = getDayNightLighting();
   const nightBoost = dayNight.isNight ? 2.0 : 1.0;
+  
+  if (isCluster) {
+    // Render multiple small mushrooms
+    const positions = [
+      { dx: -8, dy: 0, scale: 0.6 },
+      { dx: 0, dy: 2, scale: 1.0 },
+      { dx: 8, dy: -1, scale: 0.7 },
+      { dx: -4, dy: 4, scale: 0.5 },
+      { dx: 5, dy: 5, scale: 0.4 },
+    ];
+    
+    for (const pos of positions) {
+      const mx = x + pos.dx;
+      const my = y + pos.dy;
+      const scale = pos.scale;
+      
+      // Stem
+      ctx.fillStyle = isCorrupted ? '#8a7a9a' : '#e8e0d0';
+      ctx.fillRect(mx - 2 * scale, my - 6 * scale, 4 * scale, 8 * scale);
+      
+      // Cap
+      ctx.fillStyle = isCorrupted ? '#8844aa' : '#cc4444';
+      ctx.beginPath();
+      ctx.ellipse(mx, my - 7 * scale, 6 * scale, 4 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Spots
+      if (scale > 0.5) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(mx - 2 * scale, my - 8 * scale, 1 * scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    return;
+  }
   
   // Stem
   ctx.fillStyle = isCorrupted ? '#8a7a9a' : '#e8e0d0';
@@ -3135,6 +3633,15 @@ function renderMushroom(ctx, x, y, type, zoneType, time) {
     capColor = isCorrupted 
       ? `rgba(180, 100, 220, ${Math.min(1, pulse)})` 
       : `rgba(100, 200, 255, ${Math.min(1, pulse)})`;
+    
+    // Glow effect
+    const glowGradient = ctx.createRadialGradient(x, y - 10, 0, x, y - 10, 25);
+    glowGradient.addColorStop(0, isCorrupted ? `rgba(180, 100, 220, ${pulse * 0.3})` : `rgba(100, 200, 255, ${pulse * 0.3})`);
+    glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.arc(x, y - 10, 25, 0, Math.PI * 2);
+    ctx.fill();
   }
   
   ctx.fillStyle = capColor;
@@ -3708,9 +4215,1650 @@ function renderSpores(ctx, x, y, time) {
   }
 }
 
+// ============== NEW RENDER FUNCTIONS ==============
+
 /**
- * Adjust color brightness
+ * Render fallen log
  */
+function renderFallenLog(ctx, x, y, zoneType) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5, 35, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Log body
+  ctx.fillStyle = isCorrupted ? '#3a2a3a' : '#6b4423';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 35, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Bark detail
+  ctx.fillStyle = isCorrupted ? '#2a1a2a' : '#5a3318';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 2, 32, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // End ring
+  ctx.strokeStyle = isCorrupted ? '#4a3a4a' : '#8b6433';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x - 30, y, 5, 10, 0.2, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Moss on log
+  if (!isCorrupted) {
+    ctx.fillStyle = '#4a7a3a';
+    ctx.beginPath();
+    ctx.ellipse(x + 10, y - 5, 12, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render tree stump
+ */
+function renderStump(ctx, x, y, zoneType) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 3, 18, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Stump body
+  ctx.fillStyle = isCorrupted ? '#3a2a3a' : '#6b4423';
+  ctx.fillRect(x - 12, y - 15, 24, 18);
+  
+  // Top (cut surface)
+  ctx.fillStyle = isCorrupted ? '#5a4a5a' : '#c9a87c';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 15, 14, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Rings
+  ctx.strokeStyle = isCorrupted ? '#4a3a4a' : '#a08060';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 15, 10, 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(x, y - 15, 6, 2.5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+/**
+ * Render fern plant
+ */
+function renderFern(ctx, x, y, zoneType, time) {
+  const sway = Math.sin(time * 0.002 + x * 0.01) * 3;
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED;
+  const color = isCorrupted ? '#5a4a6a' : '#3a8a3a';
+  
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  
+  // Draw fern fronds
+  for (let i = 0; i < 5; i++) {
+    const angle = -Math.PI / 2 + (i - 2) * 0.4;
+    const length = 20 + Math.random() * 5;
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(
+      x + Math.cos(angle) * length * 0.5 + sway,
+      y + Math.sin(angle) * length * 0.5,
+      x + Math.cos(angle) * length + sway,
+      y + Math.sin(angle) * length
+    );
+    ctx.stroke();
+    
+    // Small leaves on frond
+    ctx.lineWidth = 1;
+    for (let j = 0.3; j < 1; j += 0.2) {
+      const fx = x + Math.cos(angle) * length * j + sway * j;
+      const fy = y + Math.sin(angle) * length * j;
+      
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx + 5, fy - 3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx - 5, fy - 3);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 2;
+  }
+}
+
+/**
+ * Render tall grass patch
+ */
+function renderTallGrass(ctx, x, y, zoneType, time) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  const baseColor = isCorrupted ? '#4a5a4a' : '#5a9a4a';
+  const tipColor = isCorrupted ? '#6a7a6a' : '#8aca6a';
+  
+  for (let i = 0; i < 12; i++) {
+    const gx = x + (i - 6) * 4 + Math.sin(i * 1.5) * 3;
+    const sway = Math.sin(time * 0.003 + i * 0.5 + x * 0.01) * 4;
+    const height = 15 + Math.sin(i * 2) * 8;
+    
+    ctx.strokeStyle = i % 2 === 0 ? baseColor : tipColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(gx, y);
+    ctx.quadraticCurveTo(gx + sway * 0.5, y - height * 0.5, gx + sway, y - height);
+    ctx.stroke();
+  }
+}
+
+/**
+ * Render flower bed
+ */
+function renderFlowerBed(ctx, x, y, zoneType, time) {
+  // Ground patch
+  ctx.fillStyle = '#4a6a3a';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 20, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Flowers
+  const colors = ['#ff6b6b', '#feca57', '#ff9ff3', '#54a0ff', '#fff'];
+  
+  for (let i = 0; i < 8; i++) {
+    const fx = x + Math.cos(i * 0.8) * 12 + Math.sin(i * 2) * 5;
+    const fy = y + Math.sin(i * 0.8) * 5 - 5;
+    const color = colors[i % colors.length];
+    const sway = Math.sin(time * 0.002 + i) * 2;
+    
+    // Stem
+    ctx.strokeStyle = '#3a7a3a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy + 8);
+    ctx.lineTo(fx + sway, fy);
+    ctx.stroke();
+    
+    // Flower
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(fx + sway, fy, 3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Center
+    ctx.fillStyle = '#ffff00';
+    ctx.beginPath();
+    ctx.arc(fx + sway, fy, 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render boulder (large rock)
+ */
+function renderBoulder(ctx, x, y, zoneType) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 8, 30, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  const baseColor = isCorrupted ? '#4a3a4a' : '#5a5a5a';
+  const darkColor = isCorrupted ? '#3a2a3a' : '#3a3a3a';
+  const lightColor = isCorrupted ? '#6a5a6a' : '#7a7a7a';
+  
+  // Main boulder shape
+  ctx.fillStyle = baseColor;
+  ctx.beginPath();
+  ctx.moveTo(x - 25, y + 5);
+  ctx.lineTo(x - 20, y - 20);
+  ctx.lineTo(x - 5, y - 30);
+  ctx.lineTo(x + 15, y - 25);
+  ctx.lineTo(x + 25, y - 10);
+  ctx.lineTo(x + 20, y + 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Dark side
+  ctx.fillStyle = darkColor;
+  ctx.beginPath();
+  ctx.moveTo(x - 25, y + 5);
+  ctx.lineTo(x - 20, y - 20);
+  ctx.lineTo(x - 10, y - 15);
+  ctx.lineTo(x - 15, y + 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Highlight
+  ctx.fillStyle = lightColor;
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 30);
+  ctx.lineTo(x + 5, y - 28);
+  ctx.lineTo(x, y - 22);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Moss
+  if (!isCorrupted) {
+    ctx.fillStyle = '#5a8a4a';
+    ctx.beginPath();
+    ctx.ellipse(x + 5, y - 5, 8, 4, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render mountain
+ */
+function renderMountain(ctx, x, y, type) {
+  const isSmall = type === ENTITY_TYPES.MOUNTAIN_SMALL;
+  const scale = isSmall ? 0.6 : 1;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 10 * scale, 80 * scale, 20 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Back mountain layer (darker)
+  ctx.fillStyle = '#4a4a5a';
+  ctx.beginPath();
+  ctx.moveTo(x - 70 * scale, y);
+  ctx.lineTo(x - 30 * scale, y - 90 * scale);
+  ctx.lineTo(x + 20 * scale, y - 60 * scale);
+  ctx.lineTo(x + 60 * scale, y);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Main mountain
+  ctx.fillStyle = '#6a6a7a';
+  ctx.beginPath();
+  ctx.moveTo(x - 80 * scale, y);
+  ctx.lineTo(x - 20 * scale, y - 100 * scale);
+  ctx.lineTo(x + 50 * scale, y - 70 * scale);
+  ctx.lineTo(x + 80 * scale, y);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Light side
+  ctx.fillStyle = '#8a8a9a';
+  ctx.beginPath();
+  ctx.moveTo(x - 20 * scale, y - 100 * scale);
+  ctx.lineTo(x + 50 * scale, y - 70 * scale);
+  ctx.lineTo(x + 30 * scale, y - 40 * scale);
+  ctx.lineTo(x, y - 60 * scale);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Snow cap
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(x - 20 * scale, y - 100 * scale);
+  ctx.lineTo(x - 10 * scale, y - 85 * scale);
+  ctx.lineTo(x - 25 * scale, y - 82 * scale);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.moveTo(x + 50 * scale, y - 70 * scale);
+  ctx.lineTo(x + 45 * scale, y - 58 * scale);
+  ctx.lineTo(x + 55 * scale, y - 60 * scale);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * Render hill
+ */
+function renderHill(ctx, x, y, zoneType) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  
+  // Hill shape
+  const gradient = ctx.createRadialGradient(x, y - 20, 0, x, y + 30, 60);
+  
+  if (isCorrupted) {
+    gradient.addColorStop(0, '#4a4a5a');
+    gradient.addColorStop(1, '#3a3a4a');
+  } else {
+    gradient.addColorStop(0, '#6a9a5a');
+    gradient.addColorStop(1, '#4a7a3a');
+  }
+  
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.ellipse(x, y, 50, 30, 0, Math.PI, 0);
+  ctx.fill();
+  
+  // Grass details on hill
+  if (!isCorrupted) {
+    ctx.strokeStyle = '#5a8a4a';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 10; i++) {
+      const gx = x - 40 + i * 8;
+      const gy = y - Math.sin((i / 10) * Math.PI) * 25;
+      ctx.beginPath();
+      ctx.moveTo(gx, gy);
+      ctx.lineTo(gx + 2, gy - 5);
+      ctx.stroke();
+    }
+  }
+}
+
+/**
+ * Render cave entrance
+ */
+function renderCaveEntrance(ctx, x, y, time) {
+  // Rock formation around cave
+  ctx.fillStyle = '#5a5a6a';
+  ctx.beginPath();
+  ctx.moveTo(x - 40, y + 10);
+  ctx.lineTo(x - 35, y - 40);
+  ctx.lineTo(x - 15, y - 55);
+  ctx.lineTo(x + 15, y - 55);
+  ctx.lineTo(x + 35, y - 40);
+  ctx.lineTo(x + 40, y + 10);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Cave opening (dark)
+  const gradient = ctx.createRadialGradient(x, y - 15, 5, x, y - 15, 30);
+  gradient.addColorStop(0, '#000000');
+  gradient.addColorStop(0.7, '#1a1a2a');
+  gradient.addColorStop(1, '#2a2a3a');
+  
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 10, 25, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Inner glow (mysterious)
+  const pulse = 0.3 + Math.sin(time * 0.002) * 0.1;
+  ctx.fillStyle = `rgba(100, 150, 200, ${pulse})`;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 12, 10, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Rock details
+  ctx.fillStyle = '#4a4a5a';
+  ctx.beginPath();
+  ctx.arc(x - 30, y - 20, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 28, y - 25, 10, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Render pond
+ */
+function renderPond(ctx, x, y, zoneType, time) {
+  const isCorrupted = zoneType === ZONE_TYPES.CORRUPTED || zoneType === ZONE_TYPES.CORRUPTED_CORE;
+  
+  // Bank/shore
+  ctx.fillStyle = isCorrupted ? '#3a3a3a' : '#8b7355';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 50, 30, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Water surface
+  const waterColor = isCorrupted ? '#3a4a5a' : '#4a8aaa';
+  ctx.fillStyle = waterColor;
+  ctx.beginPath();
+  ctx.ellipse(x, y, 45, 26, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Water ripples
+  const ripple = (time * 0.001) % 1;
+  ctx.strokeStyle = isCorrupted ? 'rgba(100, 100, 120, 0.3)' : 'rgba(150, 200, 230, 0.4)';
+  ctx.lineWidth = 1;
+  
+  ctx.beginPath();
+  ctx.ellipse(x - 10, y - 5, 8 + ripple * 10, 4 + ripple * 5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.ellipse(x + 15, y + 5, 6 + ripple * 8, 3 + ripple * 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Lily pads (if not corrupted)
+  if (!isCorrupted) {
+    ctx.fillStyle = '#3a7a3a';
+    ctx.beginPath();
+    ctx.ellipse(x - 20, y - 8, 8, 5, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + 25, y + 3, 6, 4, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Little flower on lily pad
+    ctx.fillStyle = '#ff88aa';
+    ctx.beginPath();
+    ctx.arc(x - 20, y - 10, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Render fishing spot
+ */
+function renderFishingSpot(ctx, x, y, time) {
+  // Bobber
+  const bob = Math.sin(time * 0.005) * 3;
+  
+  // Line
+  ctx.strokeStyle = '#888888';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 20);
+  ctx.lineTo(x, y + bob);
+  ctx.stroke();
+  
+  // Bobber
+  ctx.fillStyle = '#ff4444';
+  ctx.beginPath();
+  ctx.arc(x, y + bob, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x, y + bob - 2, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ripples
+  const ripple = (time * 0.002) % 1;
+  ctx.strokeStyle = `rgba(150, 200, 230, ${0.5 - ripple * 0.5})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(x, y + bob + 2, 5 + ripple * 10, 2 + ripple * 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+/**
+ * Render village props
+ */
+function renderBarrel(ctx, x, y) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 12, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Barrel body
+  ctx.fillStyle = '#8b6433';
+  ctx.fillRect(x - 10, y - 20, 20, 22);
+  
+  // Top
+  ctx.fillStyle = '#9b7443';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 20, 10, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Metal bands
+  ctx.strokeStyle = '#444444';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 15, 10, 3, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(x, y - 5, 10, 3, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function renderCrate(ctx, x, y) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.fillRect(x - 10, y + 2, 22, 6);
+  
+  // Crate body
+  ctx.fillStyle = '#a08050';
+  ctx.fillRect(x - 12, y - 18, 24, 20);
+  
+  // Top
+  ctx.fillStyle = '#b09060';
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y - 18);
+  ctx.lineTo(x - 8, y - 24);
+  ctx.lineTo(x + 16, y - 24);
+  ctx.lineTo(x + 12, y - 18);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Planks
+  ctx.strokeStyle = '#806030';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 18);
+  ctx.lineTo(x, y + 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y - 8);
+  ctx.lineTo(x + 12, y - 8);
+  ctx.stroke();
+}
+
+function renderHayBale(ctx, x, y) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 3, 18, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Hay bale (cylindrical)
+  ctx.fillStyle = '#d4a846';
+  ctx.fillRect(x - 15, y - 15, 30, 18);
+  
+  // End cap
+  ctx.fillStyle = '#c49836';
+  ctx.beginPath();
+  ctx.ellipse(x + 15, y - 6, 6, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Hay texture lines
+  ctx.strokeStyle = '#b48826';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x - 15, y - 12 + i * 3);
+    ctx.lineTo(x + 15, y - 12 + i * 3);
+    ctx.stroke();
+  }
+}
+
+function renderBench(ctx, x, y) {
+  // Legs
+  ctx.fillStyle = '#5a4020';
+  ctx.fillRect(x - 18, y - 8, 4, 12);
+  ctx.fillRect(x + 14, y - 8, 4, 12);
+  
+  // Seat
+  ctx.fillStyle = '#8b6433';
+  ctx.fillRect(x - 22, y - 12, 44, 6);
+  
+  // Back support
+  ctx.fillRect(x - 20, y - 25, 40, 4);
+  
+  // Back slats
+  ctx.fillRect(x - 18, y - 25, 3, 15);
+  ctx.fillRect(x + 15, y - 25, 3, 15);
+}
+
+function renderWheelbarrow(ctx, x, y) {
+  // Wheel
+  ctx.fillStyle = '#444444';
+  ctx.beginPath();
+  ctx.arc(x - 15, y + 2, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#666666';
+  ctx.beginPath();
+  ctx.arc(x - 15, y + 2, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Body
+  ctx.fillStyle = '#888888';
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y - 5);
+  ctx.lineTo(x + 20, y - 15);
+  ctx.lineTo(x + 20, y + 5);
+  ctx.lineTo(x - 10, y + 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Handles
+  ctx.strokeStyle = '#6b4423';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y - 10);
+  ctx.lineTo(x + 35, y - 5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y);
+  ctx.lineTo(x + 35, y - 5);
+  ctx.stroke();
+}
+
+function renderScarecrow(ctx, x, y, time) {
+  const sway = Math.sin(time * 0.002) * 3;
+  
+  // Post
+  ctx.fillStyle = '#6b4423';
+  ctx.fillRect(x - 3, y - 50, 6, 55);
+  
+  // Cross bar
+  ctx.fillRect(x - 25 + sway, y - 45, 50, 4);
+  
+  // Head (sack)
+  ctx.fillStyle = '#c9a87c';
+  ctx.beginPath();
+  ctx.arc(x, y - 58, 12, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Hat
+  ctx.fillStyle = '#4a3a2a';
+  ctx.fillRect(x - 15, y - 72, 30, 5);
+  ctx.fillRect(x - 8, y - 82, 16, 12);
+  
+  // Face
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath();
+  ctx.arc(x - 4, y - 60, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 4, y - 60, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Stitched mouth
+  ctx.strokeStyle = '#2a1a0a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 52);
+  ctx.lineTo(x + 5, y - 52);
+  ctx.stroke();
+  
+  // Hanging cloth/sleeves
+  ctx.fillStyle = '#7a6a5a';
+  ctx.beginPath();
+  ctx.moveTo(x - 25 + sway, y - 43);
+  ctx.lineTo(x - 28 + sway * 1.5, y - 25);
+  ctx.lineTo(x - 20 + sway, y - 25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 25 + sway, y - 43);
+  ctx.lineTo(x + 28 + sway * 1.5, y - 25);
+  ctx.lineTo(x + 20 + sway, y - 25);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function renderCampfire(ctx, x, y, time) {
+  // Light glow
+  const pulse = 0.6 + Math.sin(time * 0.01) * 0.2;
+  const gradient = ctx.createRadialGradient(x, y - 15, 0, x, y - 15, 60);
+  gradient.addColorStop(0, `rgba(255, 150, 50, ${pulse * 0.4})`);
+  gradient.addColorStop(0.5, `rgba(255, 100, 30, ${pulse * 0.2})`);
+  gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y - 15, 60, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Stones circle
+  ctx.fillStyle = '#555555';
+  for (let i = 0; i < 8; i++) {
+    const angle = i * Math.PI / 4;
+    const sx = x + Math.cos(angle) * 15;
+    const sy = y + Math.sin(angle) * 8;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 5, 3, angle, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Logs
+  ctx.fillStyle = '#4a3020';
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(0.3);
+  ctx.fillRect(-12, -3, 24, 6);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-0.3);
+  ctx.fillRect(-12, -3, 24, 6);
+  ctx.restore();
+  
+  // Fire flames
+  const flicker = Math.sin(time * 0.02) * 2;
+  
+  // Outer flame
+  ctx.fillStyle = '#ff6622';
+  ctx.beginPath();
+  ctx.moveTo(x - 8, y - 5);
+  ctx.quadraticCurveTo(x - 10 + flicker, y - 25, x, y - 35 - flicker);
+  ctx.quadraticCurveTo(x + 10 - flicker, y - 25, x + 8, y - 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Inner flame
+  ctx.fillStyle = '#ffaa44';
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 5);
+  ctx.quadraticCurveTo(x - 6 - flicker, y - 18, x, y - 25 + flicker);
+  ctx.quadraticCurveTo(x + 6 + flicker, y - 18, x + 5, y - 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Core
+  ctx.fillStyle = '#ffee88';
+  ctx.beginPath();
+  ctx.moveTo(x - 2, y - 5);
+  ctx.quadraticCurveTo(x + flicker * 0.5, y - 12, x, y - 15 - flicker * 0.5);
+  ctx.quadraticCurveTo(x - flicker * 0.5, y - 12, x + 2, y - 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Sparks
+  for (let i = 0; i < 5; i++) {
+    const sparkPhase = (time * 0.003 + i * 0.7) % 2;
+    const sparkY = y - 30 - sparkPhase * 20;
+    const sparkX = x + Math.sin(time * 0.005 + i * 2) * 8;
+    const sparkAlpha = 1 - sparkPhase / 2;
+    
+    if (sparkAlpha > 0) {
+      ctx.fillStyle = `rgba(255, 200, 100, ${sparkAlpha})`;
+      ctx.beginPath();
+      ctx.arc(sparkX, sparkY, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+// ============== ANIMAL RENDER FUNCTIONS ==============
+
+function renderAnimalRabbit(ctx, x, y, deco, time) {
+  const hop = Math.abs(Math.sin(time * 0.005 + x * 0.01)) * 3;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 10, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Body
+  ctx.fillStyle = '#c9b896';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 5 - hop, 10, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(x + 8, y - 10 - hop, 6, 5, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ears
+  ctx.beginPath();
+  ctx.ellipse(x + 6, y - 20 - hop, 2, 6, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + 10, y - 19 - hop, 2, 5, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Inner ear
+  ctx.fillStyle = '#e8c8b8';
+  ctx.beginPath();
+  ctx.ellipse(x + 6, y - 19 - hop, 1, 4, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye
+  ctx.fillStyle = '#222222';
+  ctx.beginPath();
+  ctx.arc(x + 11, y - 10 - hop, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tail (cotton ball)
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x - 10, y - 5 - hop, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalDeer(ctx, x, y, deco, time) {
+  const walk = Math.sin(time * 0.003 + x * 0.01) * 2;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 3, 20, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Legs
+  ctx.fillStyle = '#8b6914';
+  ctx.fillRect(x - 12, y - 10, 4, 15);
+  ctx.fillRect(x + 8, y - 10, 4, 15);
+  ctx.fillRect(x - 6, y - 8, 4, 13);
+  ctx.fillRect(x + 2, y - 8, 4, 13);
+  
+  // Body
+  ctx.fillStyle = '#a07828';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 18, 18, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Neck
+  ctx.fillRect(x + 12, y - 35, 8, 20);
+  
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(x + 18, y - 40, 8, 6, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ears
+  ctx.beginPath();
+  ctx.ellipse(x + 14, y - 48, 3, 5, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + 22, y - 47, 3, 5, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Antlers
+  ctx.strokeStyle = '#6b5010';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 15, y - 48);
+  ctx.lineTo(x + 10, y - 60);
+  ctx.lineTo(x + 5, y - 55);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + 21, y - 47);
+  ctx.lineTo(x + 28, y - 58);
+  ctx.lineTo(x + 33, y - 53);
+  ctx.stroke();
+  
+  // White belly
+  ctx.fillStyle = '#d4c4a4';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 15, 12, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye
+  ctx.fillStyle = '#222222';
+  ctx.beginPath();
+  ctx.arc(x + 22, y - 40, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // White tail spot
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(x - 18, y - 18, 4, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalSquirrel(ctx, x, y, deco, time) {
+  const twitch = Math.sin(time * 0.01 + x) * 2;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 1, 8, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tail (fluffy)
+  ctx.fillStyle = '#8b6633';
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 5);
+  ctx.quadraticCurveTo(x - 15 + twitch, y - 20, x - 5, y - 25);
+  ctx.quadraticCurveTo(x + 5 + twitch, y - 15, x - 2, y - 8);
+  ctx.fill();
+  
+  // Body
+  ctx.fillStyle = '#a07838';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 5, 6, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(x + 5, y - 10, 5, 4, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ears
+  ctx.beginPath();
+  ctx.ellipse(x + 3, y - 15, 2, 3, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + 7, y - 14, 2, 3, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 8, y - 10, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // White belly
+  ctx.fillStyle = '#e8d8c8';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 4, 4, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalFox(ctx, x, y, deco, time) {
+  const earTwitch = Math.sin(time * 0.008 + x) * 0.2;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 15, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tail
+  ctx.fillStyle = '#d47020';
+  ctx.beginPath();
+  ctx.moveTo(x - 15, y - 8);
+  ctx.quadraticCurveTo(x - 30, y - 15, x - 25, y - 25);
+  ctx.quadraticCurveTo(x - 20, y - 20, x - 15, y - 12);
+  ctx.fill();
+  
+  // Tail tip (white)
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(x - 25, y - 24, 4, 3, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Legs
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(x - 8, y - 5, 3, 8);
+  ctx.fillRect(x + 5, y - 5, 3, 8);
+  
+  // Body
+  ctx.fillStyle = '#d47020';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 10, 14, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(x + 12, y - 12, 8, 6, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Snout
+  ctx.beginPath();
+  ctx.moveTo(x + 18, y - 12);
+  ctx.lineTo(x + 25, y - 10);
+  ctx.lineTo(x + 18, y - 8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Nose
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 24, y - 10, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ears
+  ctx.fillStyle = '#d47020';
+  ctx.beginPath();
+  ctx.moveTo(x + 8, y - 16);
+  ctx.lineTo(x + 5, y - 26 + earTwitch * 5);
+  ctx.lineTo(x + 12, y - 18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 14, y - 16);
+  ctx.lineTo(x + 18, y - 25 - earTwitch * 5);
+  ctx.lineTo(x + 20, y - 17);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Inner ears (dark)
+  ctx.fillStyle = '#8a4010';
+  ctx.beginPath();
+  ctx.moveTo(x + 8, y - 17);
+  ctx.lineTo(x + 7, y - 22);
+  ctx.lineTo(x + 11, y - 18);
+  ctx.closePath();
+  ctx.fill();
+  
+  // White chest
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(x + 5, y - 8, 5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes
+  ctx.fillStyle = '#ffaa00';
+  ctx.beginPath();
+  ctx.arc(x + 15, y - 14, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 15, y - 14, 1, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalFrog(ctx, x, y, deco, time) {
+  const breathe = Math.sin(time * 0.005) * 1;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 1, 8, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Back legs
+  ctx.fillStyle = '#4a8a3a';
+  ctx.beginPath();
+  ctx.ellipse(x - 6, y - 2, 5, 3, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + 6, y - 2, 5, 3, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Body
+  ctx.fillStyle = '#5a9a4a';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 5 - breathe, 8, 5 + breathe, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes (bulging)
+  ctx.fillStyle = '#6aaa5a';
+  ctx.beginPath();
+  ctx.arc(x - 4, y - 10, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 4, y - 10, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye whites
+  ctx.fillStyle = '#ffff88';
+  ctx.beginPath();
+  ctx.arc(x - 4, y - 10, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 4, y - 10, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Pupils
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x - 4, y - 10, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 4, y - 10, 1, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalBird(ctx, x, y, deco, time) {
+  const wingFlap = Math.sin(time * 0.02) * 0.5;
+  const bobY = Math.sin(time * 0.01 + x * 0.1) * 3;
+  
+  // Body
+  ctx.fillStyle = '#4466aa';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 8 + bobY, 6, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Wing
+  ctx.fillStyle = '#3355aa';
+  ctx.beginPath();
+  ctx.ellipse(x - 2, y - 10 + bobY, 5, 3 + wingFlap * 3, wingFlap, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head
+  ctx.fillStyle = '#4466aa';
+  ctx.beginPath();
+  ctx.arc(x + 5, y - 12 + bobY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Beak
+  ctx.fillStyle = '#ffaa00';
+  ctx.beginPath();
+  ctx.moveTo(x + 8, y - 12 + bobY);
+  ctx.lineTo(x + 13, y - 11 + bobY);
+  ctx.lineTo(x + 8, y - 10 + bobY);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Eye
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 6, y - 13 + bobY, 1, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tail
+  ctx.fillStyle = '#3355aa';
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 8 + bobY);
+  ctx.lineTo(x - 12, y - 6 + bobY);
+  ctx.lineTo(x - 12, y - 10 + bobY);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function renderAnimalButterfly(ctx, x, y, deco, time) {
+  const flutter = Math.sin(time * 0.03) * 0.8;
+  const bobY = Math.sin(time * 0.008 + x * 0.1) * 5;
+  const bobX = Math.cos(time * 0.006 + y * 0.1) * 3;
+  
+  const bx = x + bobX;
+  const by = y + bobY;
+  
+  // Wings
+  const colors = ['#ff6b9d', '#feca57', '#54a0ff', '#ff9ff3'];
+  const wingColor = colors[Math.floor((x + y) % colors.length)];
+  
+  ctx.fillStyle = wingColor;
+  
+  // Left wing
+  ctx.beginPath();
+  ctx.ellipse(bx - 5, by - 3, 6, 4, -flutter - 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Right wing
+  ctx.beginPath();
+  ctx.ellipse(bx + 5, by - 3, 6, 4, flutter + 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Lower wings
+  ctx.beginPath();
+  ctx.ellipse(bx - 4, by + 1, 4, 3, -flutter - 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(bx + 4, by + 1, 4, 3, flutter + 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Wing patterns
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.arc(bx - 5, by - 3, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(bx + 5, by - 3, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Body
+  ctx.fillStyle = '#333333';
+  ctx.beginPath();
+  ctx.ellipse(bx, by, 2, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Antennae
+  ctx.strokeStyle = '#333333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(bx - 1, by - 5);
+  ctx.quadraticCurveTo(bx - 3, by - 10, bx - 2, by - 12);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bx + 1, by - 5);
+  ctx.quadraticCurveTo(bx + 3, by - 10, bx + 2, by - 12);
+  ctx.stroke();
+}
+
+// ============== AGGRESSIVE ANIMAL RENDER FUNCTIONS ==============
+
+function renderAnimalWolf(ctx, x, y, deco, time) {
+  const breathe = Math.sin(time * 0.004) * 1;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 3, 18, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tail
+  ctx.fillStyle = '#5a5a6a';
+  ctx.beginPath();
+  ctx.moveTo(x - 18, y - 10);
+  ctx.quadraticCurveTo(x - 28, y - 20, x - 25, y - 25);
+  ctx.quadraticCurveTo(x - 22, y - 18, x - 18, y - 15);
+  ctx.fill();
+  
+  // Legs
+  ctx.fillStyle = '#4a4a5a';
+  ctx.fillRect(x - 12, y - 8, 4, 12);
+  ctx.fillRect(x + 8, y - 8, 4, 12);
+  
+  // Body
+  ctx.fillStyle = '#6a6a7a';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 12 - breathe, 16, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head
+  ctx.fillStyle = '#5a5a6a';
+  ctx.beginPath();
+  ctx.ellipse(x + 14, y - 15, 10, 7, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Snout
+  ctx.beginPath();
+  ctx.moveTo(x + 22, y - 15);
+  ctx.lineTo(x + 32, y - 12);
+  ctx.lineTo(x + 22, y - 10);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Nose
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 31, y - 12, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ears
+  ctx.fillStyle = '#5a5a6a';
+  ctx.beginPath();
+  ctx.moveTo(x + 10, y - 20);
+  ctx.lineTo(x + 6, y - 30);
+  ctx.lineTo(x + 14, y - 22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 18, y - 20);
+  ctx.lineTo(x + 22, y - 28);
+  ctx.lineTo(x + 24, y - 20);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Eyes (menacing yellow)
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath();
+  ctx.arc(x + 18, y - 17, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 18, y - 17, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Chest fur (lighter)
+  ctx.fillStyle = '#8a8a9a';
+  ctx.beginPath();
+  ctx.ellipse(x + 8, y - 10, 6, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalBoar(ctx, x, y, deco, time) {
+  const snort = Math.sin(time * 0.006) * 2;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 3, 20, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Legs
+  ctx.fillStyle = '#3a2a1a';
+  ctx.fillRect(x - 14, y - 6, 5, 10);
+  ctx.fillRect(x + 9, y - 6, 5, 10);
+  
+  // Body (massive)
+  ctx.fillStyle = '#5a4a3a';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 12, 20, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Bristly back
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    const bx = x - 15 + i * 4;
+    ctx.beginPath();
+    ctx.moveTo(bx, y - 22);
+    ctx.lineTo(bx + 1, y - 28);
+    ctx.stroke();
+  }
+  
+  // Head
+  ctx.fillStyle = '#4a3a2a';
+  ctx.beginPath();
+  ctx.ellipse(x + 18, y - 10, 12, 10, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Snout
+  ctx.fillStyle = '#6a5a4a';
+  ctx.beginPath();
+  ctx.ellipse(x + 28 + snort, y - 6, 6, 5, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Nostrils
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath();
+  ctx.arc(x + 30 + snort, y - 7, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 30 + snort, y - 4, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tusks
+  ctx.fillStyle = '#f0e8d8';
+  ctx.beginPath();
+  ctx.moveTo(x + 26, y - 3);
+  ctx.lineTo(x + 32, y - 8);
+  ctx.lineTo(x + 28, y - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 26, y);
+  ctx.lineTo(x + 30, y + 4);
+  ctx.lineTo(x + 28, y + 1);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Ears
+  ctx.fillStyle = '#4a3a2a';
+  ctx.beginPath();
+  ctx.ellipse(x + 12, y - 18, 4, 6, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + 20, y - 17, 4, 5, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes (angry red)
+  ctx.fillStyle = '#cc3333';
+  ctx.beginPath();
+  ctx.arc(x + 22, y - 12, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 22, y - 12, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalBear(ctx, x, y, deco, time) {
+  const breathe = Math.sin(time * 0.003) * 2;
+  
+  // Shadow (large)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 5, 30, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Legs (thick)
+  ctx.fillStyle = '#4a3a2a';
+  ctx.fillRect(x - 22, y - 10, 8, 18);
+  ctx.fillRect(x + 14, y - 10, 8, 18);
+  
+  // Body (massive)
+  ctx.fillStyle = '#5a4a3a';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 18 - breathe, 28, 22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(x + 22, y - 25, 14, 12, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Snout
+  ctx.fillStyle = '#7a6a5a';
+  ctx.beginPath();
+  ctx.ellipse(x + 34, y - 22, 8, 6, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Nose
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(x + 40, y - 22, 4, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ears
+  ctx.fillStyle = '#5a4a3a';
+  ctx.beginPath();
+  ctx.arc(x + 14, y - 35, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 30, y - 34, 6, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Inner ears
+  ctx.fillStyle = '#4a3a2a';
+  ctx.beginPath();
+  ctx.arc(x + 14, y - 35, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 30, y - 34, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.arc(x + 26, y - 27, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye shine
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x + 27, y - 28, 1, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderAnimalSnake(ctx, x, y, deco, time) {
+  const slither = Math.sin(time * 0.005 + x * 0.1);
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 15, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Body segments
+  ctx.strokeStyle = '#4a6a3a';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  
+  ctx.beginPath();
+  ctx.moveTo(x - 20, y);
+  ctx.quadraticCurveTo(x - 10, y + slither * 5, x, y);
+  ctx.quadraticCurveTo(x + 10, y - slither * 5, x + 15, y);
+  ctx.stroke();
+  
+  // Pattern
+  ctx.strokeStyle = '#3a5a2a';
+  ctx.lineWidth = 4;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x - 18, y);
+  ctx.quadraticCurveTo(x - 10, y + slither * 5, x, y);
+  ctx.quadraticCurveTo(x + 10, y - slither * 5, x + 13, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Head
+  ctx.fillStyle = '#4a6a3a';
+  ctx.beginPath();
+  ctx.ellipse(x + 18, y, 6, 4, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath();
+  ctx.arc(x + 20, y - 2, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.ellipse(x + 20, y - 2, 0.8, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Forked tongue
+  ctx.strokeStyle = '#cc3333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x + 23, y);
+  ctx.lineTo(x + 28, y - 1);
+  ctx.moveTo(x + 23, y);
+  ctx.lineTo(x + 28, y + 1);
+  ctx.stroke();
+}
+
+function renderAnimalBat(ctx, x, y, deco, time) {
+  const wingFlap = Math.sin(time * 0.03) * 0.7;
+  const bobY = Math.sin(time * 0.01 + x * 0.1) * 4;
+  
+  const by = y + bobY;
+  
+  // Wings
+  ctx.fillStyle = '#3a2a4a';
+  
+  // Left wing
+  ctx.beginPath();
+  ctx.moveTo(x - 3, by - 5);
+  ctx.quadraticCurveTo(x - 20, by - 15 - wingFlap * 15, x - 25, by - 5);
+  ctx.quadraticCurveTo(x - 15, by, x - 3, by - 3);
+  ctx.fill();
+  
+  // Right wing
+  ctx.beginPath();
+  ctx.moveTo(x + 3, by - 5);
+  ctx.quadraticCurveTo(x + 20, by - 15 + wingFlap * 15, x + 25, by - 5);
+  ctx.quadraticCurveTo(x + 15, by, x + 3, by - 3);
+  ctx.fill();
+  
+  // Wing membrane lines
+  ctx.strokeStyle = '#2a1a3a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x - 3, by - 4);
+  ctx.lineTo(x - 18, by - 12 - wingFlap * 10);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + 3, by - 4);
+  ctx.lineTo(x + 18, by - 12 + wingFlap * 10);
+  ctx.stroke();
+  
+  // Body
+  ctx.fillStyle = '#4a3a5a';
+  ctx.beginPath();
+  ctx.ellipse(x, by - 5, 5, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head
+  ctx.beginPath();
+  ctx.arc(x, by - 12, 5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Ears
+  ctx.beginPath();
+  ctx.moveTo(x - 3, by - 15);
+  ctx.lineTo(x - 5, by - 22);
+  ctx.lineTo(x - 1, by - 16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 3, by - 15);
+  ctx.lineTo(x + 5, by - 22);
+  ctx.lineTo(x + 1, by - 16);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Eyes (red, glowing)
+  ctx.fillStyle = '#ff3333';
+  ctx.beginPath();
+  ctx.arc(x - 2, by - 13, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 2, by - 13, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ============== CORRUPTED DECORATION RENDER FUNCTIONS ==============
+
+function renderDeadAnimal(ctx, x, y, zoneType) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 15, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Body (on side)
+  ctx.fillStyle = '#5a5a5a';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 3, 12, 6, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Legs (stiff)
+  ctx.fillRect(x - 8, y - 8, 3, 8);
+  ctx.fillRect(x + 3, y - 6, 3, 6);
+  
+  // Corruption spreading
+  ctx.fillStyle = 'rgba(100, 40, 120, 0.5)';
+  ctx.beginPath();
+  ctx.ellipse(x + 5, y, 8, 4, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function renderCorruptedPool(ctx, x, y, time) {
+  const pulse = 0.7 + Math.sin(time * 0.003) * 0.2;
+  
+  // Outer glow
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, 35);
+  gradient.addColorStop(0, `rgba(120, 50, 150, ${pulse * 0.5})`);
+  gradient.addColorStop(0.7, `rgba(80, 30, 100, ${pulse * 0.3})`);
+  gradient.addColorStop(1, 'rgba(40, 10, 60, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.ellipse(x, y, 35, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Pool surface
+  ctx.fillStyle = '#3a1a4a';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 25, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Bubbles
+  const bubblePhase = (time * 0.002) % 1;
+  ctx.fillStyle = `rgba(160, 80, 200, ${0.7 - bubblePhase * 0.7})`;
+  ctx.beginPath();
+  ctx.arc(x - 8 + Math.sin(time * 0.003) * 3, y - 5 - bubblePhase * 15, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 10, y - 2 - ((bubblePhase + 0.5) % 1) * 15, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ============== AMBIENT EFFECT RENDER FUNCTIONS ==============
+
+function renderLeafFall(ctx, x, y, time) {
+  const leafColors = ['#8b4513', '#d2691e', '#cd853f', '#daa520', '#b8860b'];
+  
+  for (let i = 0; i < 8; i++) {
+    const phase = (time * 0.0005 + i * 0.4) % 2;
+    const fallY = phase * 60;
+    const swayX = Math.sin(time * 0.002 + i * 1.5) * 15;
+    const rotation = time * 0.003 + i;
+    
+    const lx = x + swayX + (i - 4) * 15;
+    const ly = y - 30 + fallY;
+    
+    const alpha = phase < 1.5 ? 0.8 : 0.8 - (phase - 1.5) * 1.6;
+    if (alpha <= 0) continue;
+    
+    ctx.save();
+    ctx.translate(lx, ly);
+    ctx.rotate(rotation);
+    
+    ctx.fillStyle = leafColors[i % leafColors.length];
+    ctx.globalAlpha = alpha;
+    
+    // Leaf shape
+    ctx.beginPath();
+    ctx.moveTo(0, -5);
+    ctx.quadraticCurveTo(4, -2, 3, 3);
+    ctx.quadraticCurveTo(0, 5, -3, 3);
+    ctx.quadraticCurveTo(-4, -2, 0, -5);
+    ctx.fill();
+    
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
+function renderBirdFlock(ctx, x, y, time) {
+  const flockX = x + Math.sin(time * 0.0003) * 100;
+  const flockY = y + Math.cos(time * 0.0002) * 30;
+  
+  ctx.fillStyle = '#333333';
+  
+  for (let i = 0; i < 6; i++) {
+    const bx = flockX + Math.sin(i * 1.2) * 30;
+    const by = flockY + Math.cos(i * 1.5) * 15;
+    const wing = Math.sin(time * 0.02 + i * 0.5) * 0.3;
+    
+    // Simple bird silhouette
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.quadraticCurveTo(bx - 5, by - 3 - wing * 5, bx - 8, by);
+    ctx.quadraticCurveTo(bx - 5, by + 3 + wing * 5, bx, by);
+    ctx.quadraticCurveTo(bx + 5, by - 3 + wing * 5, bx + 8, by);
+    ctx.quadraticCurveTo(bx + 5, by + 3 - wing * 5, bx, by);
+    ctx.fill();
+  }
+}
 function adjustColorBrightness(hexColor, factor) {
   if (typeof hexColor !== 'string') return hexColor;
   
