@@ -559,6 +559,334 @@
     .status-dot.warning { background: var(--accent-yellow); }
     .status-dot.danger { background: var(--accent-red); }
     
+    /* Email compose modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(5px);
+    }
+    
+    .modal-overlay.visible { display: flex; }
+    
+    .modal-content {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .modal-header h3 {
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+    }
+    
+    .modal-close:hover { color: var(--text-primary); }
+    
+    .modal-body {
+      padding: 20px;
+    }
+    
+    .modal-body label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    
+    .modal-body input, .modal-body textarea {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      font-family: inherit;
+    }
+    
+    .modal-body input:focus, .modal-body textarea:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+    
+    .modal-body textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+    
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    
+    .modal-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .modal-btn.primary {
+      background: var(--accent-blue);
+      color: white;
+    }
+    
+    .modal-btn.primary:hover { background: #2563eb; }
+    
+    .modal-btn.secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    
+    .modal-btn.secondary:hover { background: rgba(255,255,255,0.1); }
+    
+    /* Sequence diagram panel */
+    .sequence-diagram-btn {
+      position: fixed;
+      bottom: 50px;
+      right: 20px;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+      color: white;
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 90;
+      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+      transition: all 0.2s;
+    }
+    
+    .sequence-diagram-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(139, 92, 246, 0.5);
+    }
+    
+    .sequence-panel {
+      position: fixed;
+      top: 60px;
+      right: -450px;
+      width: 440px;
+      height: calc(100vh - 100px);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px 0 0 12px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.3s ease;
+      box-shadow: -5px 0 30px rgba(0,0,0,0.3);
+    }
+    
+    .sequence-panel.visible { right: 0; }
+    
+    .sequence-panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .sequence-panel-header h3 {
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .sequence-panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+    }
+    
+    .sequence-canvas-container {
+      min-height: 100%;
+      padding: 20px;
+    }
+    
+    .sequence-actors {
+      display: flex;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: var(--bg-secondary);
+      padding: 10px 0;
+      z-index: 1;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .sequence-actor {
+      text-align: center;
+      flex: 1;
+      max-width: 100px;
+    }
+    
+    .sequence-actor-box {
+      background: var(--bg-card);
+      border: 2px solid var(--accent-blue);
+      padding: 8px 4px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .sequence-lifeline {
+      width: 2px;
+      background: var(--border);
+      margin: 0 auto;
+      height: 30px;
+    }
+    
+    .sequence-messages {
+      position: relative;
+      padding: 0 10px;
+    }
+    
+    .sequence-message {
+      display: flex;
+      align-items: center;
+      margin: 8px 0;
+      position: relative;
+    }
+    
+    .sequence-message-arrow {
+      flex: 1;
+      height: 2px;
+      background: var(--accent-cyan);
+      position: relative;
+    }
+    
+    .sequence-message-arrow::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: -4px;
+      border: 5px solid transparent;
+      border-left-color: var(--accent-cyan);
+    }
+    
+    .sequence-message-arrow.reverse {
+      background: var(--accent-green);
+    }
+    
+    .sequence-message-arrow.reverse::after {
+      left: 0;
+      right: auto;
+      border-left-color: transparent;
+      border-right-color: var(--accent-green);
+    }
+    
+    .sequence-message-arrow.attack {
+      background: var(--accent-red);
+    }
+    
+    .sequence-message-arrow.attack::after {
+      border-left-color: var(--accent-red);
+    }
+    
+    .sequence-message-label {
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.65rem;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    
+    .sequence-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+    
+    .sequence-empty-icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+    
+    .sequence-panel-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+    }
+    
+    .sequence-panel-footer button {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+    
+    .sequence-panel-footer button:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    
+    .sequence-panel-footer button.primary {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+    }
+    
     .tutorial-panel {
       position: absolute;
       top: 50%;
@@ -1248,7 +1576,57 @@
       <div class="status-item"><span>Nœuds: <span id="nodeCount">0</span></span></div>
       <div class="status-item"><span>Connexions: <span id="connectionCount">0</span></span></div>
       <div class="status-item"><span>Paquets: <span id="packetCount">0</span></span></div>
+      <div class="status-item"><span>Messages: <span id="messageCount">0</span></span></div>
       <div class="status-item" id="attackStatus" style="display:none"><span class="status-dot danger"></span><span style="color:var(--accent-red)">Attaque en cours</span></div>
+    </div>
+    
+    <!-- Email compose modal -->
+    <div class="modal-overlay" id="emailModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>✉️ Composer un email</h3>
+          <button class="modal-close" onclick="closeEmailModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label>De:</label>
+          <input type="text" id="emailFrom" placeholder="expediteur@entreprise.com">
+          <label>À:</label>
+          <input type="text" id="emailTo" placeholder="destinataire@entreprise.com">
+          <label>Objet:</label>
+          <input type="text" id="emailSubject" placeholder="Objet du message">
+          <label>Message:</label>
+          <textarea id="emailBody" placeholder="Écrivez votre message ici..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="modal-btn secondary" onclick="fillDefaultEmail()">📝 Défaut</button>
+          <button class="modal-btn secondary" onclick="closeEmailModal()">Annuler</button>
+          <button class="modal-btn primary" onclick="sendComposedEmail()">📤 Envoyer</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Sequence diagram button -->
+    <button class="sequence-diagram-btn" onclick="toggleSequencePanel()">
+      <span>📊</span> Diagramme de séquence
+    </button>
+    
+    <!-- Sequence diagram panel -->
+    <div class="sequence-panel" id="sequencePanel">
+      <div class="sequence-panel-header">
+        <h3>📊 Diagramme de séquence</h3>
+        <button class="modal-close" onclick="toggleSequencePanel()">&times;</button>
+      </div>
+      <div class="sequence-panel-content" id="sequencePanelContent">
+        <div class="sequence-empty">
+          <div class="sequence-empty-icon">📨</div>
+          <p>Aucun message échangé</p>
+          <p style="font-size:0.75rem;margin-top:8px;">Effectuez des actions (Ping, Email, HTTP...) pour voir les échanges</p>
+        </div>
+      </div>
+      <div class="sequence-panel-footer">
+        <button onclick="clearSequenceMessages()">🗑️ Effacer</button>
+        <button onclick="exportSequenceDiagram()" class="primary">📥 Exporter</button>
+      </div>
     </div>
     
     <div class="tutorial-panel" id="tutorialPanel">
@@ -1347,11 +1725,20 @@
       xss: { color: '#ea580c', label: 'XSS' },
       zeroday: { color: '#4c1d95', label: '0-Day' },
       credstuffing: { color: '#9f1239', label: 'Creds' },
-      malware: { color: '#450a0a', label: 'Malware' }
+      malware: { color: '#450a0a', label: 'Malware' },
+      httpResponse: { color: '#60a5fa', label: 'HTTP Resp' },
+      httpsResponse: { color: '#3b82f6', label: 'HTTPS Resp' },
+      sshResponse: { color: '#a3e635', label: 'SSH OK' },
+      emailDelivered: { color: '#a78bfa', label: 'Delivered' }
     };
     
     let logs = [];
     let animationStarted = false;
+    
+    // Sequence diagram messages
+    let sequenceMessages = [];
+    let emailPendingSource = null;
+    let emailPendingTarget = null;
     
     function init() {
       console.log('Init starting...');
@@ -1916,19 +2303,87 @@
     function handlePacketArrival(packet) {
       const { type, target, source } = packet;
       switch (type) {
-        case 'ping': createPacket(target, source, 'pong', { sentAt: packet.timestamp }); addLog('info', 'Ping reçu par ' + target.name); break;
-        case 'pong': addLog('success', 'Pong de ' + source.name + ' (' + (Date.now() - (packet.data.sentAt || packet.timestamp)) + 'ms)'); break;
-        case 'http': case 'https': addLog('success', type.toUpperCase() + ' reçu de ' + target.name); break;
-        case 'email': addLog('success', ' Email délivré à ' + target.name); showEmailPreview(packet, false); break;
-        case 'emailIntercepted': addLog('danger', ' Email compromis délivré à ' + target.name); break;
-        case 'ddos': target.attacked = true; setTimeout(() => target.attacked = false, 500); break;
-        case 'dns': if (activeAttacks.dnsspoof) { const att = nodes.find(n => n.type === 'attacker'); addLog('danger', ' DNS falsifié: ' + packet.data.domain + '  ' + (att?.ip || '10.0.0.1')); } else { createPacket(target, source, 'dnsResponse', { domain: packet.data.domain, ip: target.ip }); addLog('info', 'DNS: ' + packet.data.domain + '  ' + target.ip); } break;
-        case 'dnsResponse': addLog('success', 'DNS Response: ' + packet.data.domain + ' = ' + packet.data.ip); break;
-        case 'ssh': addLog(activeDefenses['2fa'] ? 'success' : 'info', (activeDefenses['2fa'] ? ' SSH sécurisé (2FA) à ' : ' SSH à ') + target.name); break;
-        case 'syn': if (!activeDefenses.firewall) createPacket(target, source, 'synack'); break;
-        case 'synack': createPacket(packet.target, packet.source, 'ack'); break;
-        case 'ack': addLog('info', 'TCP établi avec ' + source.name); break;
-        case 'phishing': addLog(activeDefenses['2fa'] ? 'success' : 'danger', activeDefenses['2fa'] ? ' Phishing bloqué (2FA) sur ' + target.name : ' Credentials volés sur ' + target.name + '!'); break;
+        case 'ping': 
+          addSequenceMessage(target, source, 'ICMP Echo Reply', 'response');
+          createPacket(target, source, 'pong', { sentAt: packet.timestamp }); 
+          addLog('info', 'Ping reçu par ' + target.name); 
+          break;
+        case 'pong': 
+          addLog('success', '✓ Pong de ' + source.name + ' (' + (Date.now() - (packet.data.sentAt || packet.timestamp)) + 'ms)'); 
+          break;
+        case 'http': 
+          addSequenceMessage(target, source, 'HTTP 200 OK', 'response');
+          createPacket(target, source, 'httpResponse', { content: 'HTML page' }); 
+          addLog('info', 'HTTP reçu par ' + target.name); 
+          break;
+        case 'https': 
+          addSequenceMessage(target, source, 'HTTPS 200 OK', 'response');
+          createPacket(target, source, 'httpsResponse', { content: 'Encrypted page' }); 
+          addLog('info', 'HTTPS reçu par ' + target.name); 
+          break;
+        case 'httpResponse': case 'httpsResponse':
+          addLog('success', '✓ Réponse ' + (type === 'httpsResponse' ? 'HTTPS' : 'HTTP') + ' reçue de ' + source.name);
+          break;
+        case 'email': case 'encrypted':
+          // Check if this is being routed via server
+          if (packet.data.viaServer && packet.data.finalDest) {
+            addSequenceMessage(target, packet.data.finalDest, 'SMTP Forward', 'request');
+            createPacket(target, packet.data.finalDest, type, { 
+              ...packet.data, 
+              viaServer: false 
+            });
+            addLog('info', '📨 ' + target.name + ' transmet email à ' + packet.data.finalDest.name);
+          } else {
+            addSequenceMessage(target, source, 'Delivery Confirmation', 'response');
+            addLog('success', '✉️ Email délivré à ' + target.name); 
+            showEmailPreview(packet, false);
+          }
+          break;
+        case 'emailIntercepted': 
+          addLog('danger', '⚠️ Email compromis délivré à ' + target.name); 
+          break;
+        case 'ddos': 
+          target.attacked = true; 
+          setTimeout(() => target.attacked = false, 500); 
+          break;
+        case 'dns': 
+          if (activeAttacks.dnsspoof) { 
+            const att = nodes.find(n => n.type === 'attacker'); 
+            addSequenceMessage(target, source, 'DNS SPOOFED: ' + (att?.ip || '10.0.0.1'), 'attack');
+            addLog('danger', '⚠️ DNS falsifié: ' + packet.data.domain + ' → ' + (att?.ip || '10.0.0.1')); 
+          } else { 
+            addSequenceMessage(target, source, 'DNS Response: ' + target.ip, 'response');
+            createPacket(target, source, 'dnsResponse', { domain: packet.data.domain, ip: target.ip }); 
+            addLog('info', 'DNS: ' + packet.data.domain + ' → ' + target.ip); 
+          } 
+          break;
+        case 'dnsResponse': 
+          addLog('success', '✓ DNS Response: ' + packet.data.domain + ' = ' + packet.data.ip); 
+          break;
+        case 'ssh': 
+          addSequenceMessage(target, source, 'SSH Session Established', 'response');
+          createPacket(target, source, 'sshResponse', { authenticated: activeDefenses['2fa'] });
+          addLog(activeDefenses['2fa'] ? 'success' : 'info', (activeDefenses['2fa'] ? '🔐 SSH sécurisé (2FA) à ' : '🔌 SSH à ') + target.name); 
+          break;
+        case 'sshResponse':
+          addLog('success', '✓ Session SSH établie avec ' + source.name + (packet.data.authenticated ? ' (2FA)' : ''));
+          break;
+        case 'syn': 
+          if (!activeDefenses.firewall) {
+            addSequenceMessage(target, source, 'SYN-ACK', 'response');
+            createPacket(target, source, 'synack');
+          }
+          break;
+        case 'synack': 
+          addSequenceMessage(packet.target, packet.source, 'ACK', 'response');
+          createPacket(packet.target, packet.source, 'ack'); 
+          break;
+        case 'ack': 
+          addLog('info', 'TCP établi avec ' + source.name); 
+          break;
+        case 'phishing': 
+          addLog(activeDefenses['2fa'] ? 'success' : 'danger', activeDefenses['2fa'] ? '🛡️ Phishing bloqué (2FA) sur ' + target.name : '⚠️ Credentials volés sur ' + target.name + '!'); 
+          break;
       }
     }
     
@@ -2308,14 +2763,57 @@
       cancelActionMode();
       
       switch(mode) {
-        case 'ping': createPacket(src, tgt, 'ping', { sentAt: Date.now() }); addLog('info', '📡 Ping ' + src.ip + ' → ' + tgt.ip); showToast('Ping envoyé vers ' + tgt.name, 'info'); break;
-        case 'http': createPacket(src, tgt, activeDefenses.encryption ? 'https' : 'http'); addLog('info', '🌐 ' + (activeDefenses.encryption ? 'HTTPS' : 'HTTP') + ' GET → ' + tgt.ip); break;
-        case 'email': createPacket(src, tgt, activeDefenses.encryption ? 'encrypted' : 'email', { from: 'alice@company.com', to: 'bob@company.com', subject: 'Données confidentielles', body: 'Mot de passe: Sup3rS3cr3t!\nPIN: 4521', encrypted: activeDefenses.encryption }); addLog('info', activeDefenses.encryption ? '🔒 Email chiffré envoyé' : '✉️ Email envoyé'); if (!activeDefenses.encryption && activeAttacks.mitm) showToast('MITM actif - email sera intercepté!', 'warning'); break;
-        case 'ssh': createPacket(src, tgt, 'ssh'); addLog('info', '🔌 SSH ' + src.ip + ' → ' + tgt.ip + ':22'); break;
-        case 'dns': createPacket(src, tgt, 'dns', { domain: 'www.banque-secure.com' }); addLog('info', '📖 DNS Query: www.banque-secure.com'); break;
+        case 'ping': 
+          addSequenceMessage(src, tgt, 'ICMP Echo Request', 'request');
+          createPacket(src, tgt, 'ping', { sentAt: Date.now() }); 
+          addLog('info', '📡 Ping ' + src.ip + ' → ' + tgt.ip); 
+          showToast('Ping envoyé vers ' + tgt.name, 'info'); 
+          break;
+        case 'http': 
+          addSequenceMessage(src, tgt, 'HTTP GET /', 'request');
+          createPacket(src, tgt, activeDefenses.encryption ? 'https' : 'http', { needsResponse: true }); 
+          addLog('info', '🌐 ' + (activeDefenses.encryption ? 'HTTPS' : 'HTTP') + ' GET → ' + tgt.ip); 
+          break;
+        case 'sendemail':
+        case 'email': 
+          openEmailModal(src, tgt);
+          break;
+        case 'ssh': 
+          addSequenceMessage(src, tgt, 'SSH Connect :22', 'request');
+          createPacket(src, tgt, 'ssh', { needsResponse: true }); 
+          addLog('info', '🔌 SSH ' + src.ip + ' → ' + tgt.ip + ':22'); 
+          break;
+        case 'dns': 
+          // Find DNS server and route through it
+          const dnsServer = nodes.find(n => n.type === 'dns');
+          const domain = 'www.banque-secure.com';
+          if (dnsServer && dnsServer !== src) {
+            addSequenceMessage(src, dnsServer, 'DNS Query: ' + domain, 'request');
+            createPacket(src, dnsServer, 'dns', { domain: domain, originalSrc: src, finalTarget: tgt });
+            addLog('info', '📖 DNS Query: ' + domain + ' via ' + dnsServer.name);
+          } else {
+            addSequenceMessage(src, tgt, 'DNS Query: ' + domain, 'request');
+            createPacket(src, tgt, 'dns', { domain: domain }); 
+            addLog('info', '📖 DNS Query: ' + domain);
+          }
+          break;
         case 'traceroute': 
-          const path = findPath(src, tgt); addLog('info', '🗺️ Traceroute vers ' + tgt.ip);
-          let total = 0; path.forEach((n, i) => { const lat = Math.floor(Math.random() * 30) + 5; total += lat; setTimeout(() => { addLog('info', '  ' + (i+1) + '. ' + n.ip + ' (' + n.name + ') - ' + lat + 'ms'); n.traced = true; setTimeout(() => n.traced = false, 500); if (i === path.length - 1) { addLog('success', 'Terminé - ' + path.length + ' hops, ' + total + 'ms'); showToast('Traceroute terminé: ' + path.length + ' hops', 'success'); } }, i * 400); });
+          const path = findPath(src, tgt); 
+          addLog('info', '🗺️ Traceroute vers ' + tgt.ip);
+          let total = 0; 
+          path.forEach((n, i) => { 
+            const lat = Math.floor(Math.random() * 30) + 5; 
+            total += lat; 
+            setTimeout(() => { 
+              addLog('info', '  ' + (i+1) + '. ' + n.ip + ' (' + n.name + ') - ' + lat + 'ms'); 
+              n.traced = true; 
+              setTimeout(() => n.traced = false, 500); 
+              if (i === path.length - 1) { 
+                addLog('success', 'Terminé - ' + path.length + ' hops, ' + total + 'ms'); 
+                showToast('Traceroute terminé: ' + path.length + ' hops', 'success'); 
+              } 
+            }, i * 400); 
+          });
           break;
         case 'ddos':
           activeAttacks.ddos = true; document.querySelector('[data-attack="ddos"]').classList.add('active'); document.getElementById('attackStatus').style.display = 'flex';
@@ -2469,7 +2967,39 @@
       }
     }
     
-    function drawGrid() { ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1; for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); } for (let y = 0; y < canvas.height; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); } }
+    function drawGrid() { 
+      // Calculate visible world coordinates based on viewport
+      const gridSize = 40;
+      const worldLeft = -viewportX / zoomLevel;
+      const worldTop = -viewportY / zoomLevel;
+      const worldRight = worldLeft + canvas.width / zoomLevel;
+      const worldBottom = worldTop + canvas.height / zoomLevel;
+      
+      // Extend grid bounds far beyond visible area
+      const gridExtend = 5000;
+      const startX = Math.floor((worldLeft - gridExtend) / gridSize) * gridSize;
+      const endX = Math.ceil((worldRight + gridExtend) / gridSize) * gridSize;
+      const startY = Math.floor((worldTop - gridExtend) / gridSize) * gridSize;
+      const endY = Math.ceil((worldBottom + gridExtend) / gridSize) * gridSize;
+      
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)'; 
+      ctx.lineWidth = 1 / zoomLevel;
+      
+      // Draw vertical lines
+      for (let x = startX; x <= endX; x += gridSize) { 
+        ctx.beginPath(); 
+        ctx.moveTo(x, startY); 
+        ctx.lineTo(x, endY); 
+        ctx.stroke(); 
+      } 
+      // Draw horizontal lines
+      for (let y = startY; y <= endY; y += gridSize) { 
+        ctx.beginPath(); 
+        ctx.moveTo(startX, y); 
+        ctx.lineTo(endX, y); 
+        ctx.stroke(); 
+      } 
+    }
     
     function drawConnections() {
       connections.forEach(c => {
@@ -2639,8 +3169,6 @@
       document.getElementById('canvasContainer').appendChild(p);
       setTimeout(() => p.remove(), 5000);
     }
-    
-    function updateStatusBar() { document.getElementById('nodeCount').textContent = nodes.length; document.getElementById('connectionCount').textContent = connections.length; document.getElementById('packetCount').textContent = packetCounter; }
     
     function addLog(type, msg) {
       const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -3012,6 +3540,187 @@
     function loadDemoNetwork() { loadScenario('mitm'); closeTutorial(); }
     function closeTutorial() { document.getElementById('tutorialPanel').classList.remove('visible'); try { localStorage.setItem('networkSimTutorialSeen', 'true'); } catch(e) {} }
     
+    // ============ EMAIL MODAL FUNCTIONS ============
+    function openEmailModal(source, target) {
+      emailPendingSource = source;
+      emailPendingTarget = target;
+      document.getElementById('emailFrom').value = source.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '@entreprise.com';
+      document.getElementById('emailTo').value = target.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '@entreprise.com';
+      document.getElementById('emailSubject').value = '';
+      document.getElementById('emailBody').value = '';
+      document.getElementById('emailModal').classList.add('visible');
+    }
+    
+    function closeEmailModal() {
+      document.getElementById('emailModal').classList.remove('visible');
+      emailPendingSource = null;
+      emailPendingTarget = null;
+    }
+    
+    function fillDefaultEmail() {
+      document.getElementById('emailSubject').value = 'Données confidentielles';
+      document.getElementById('emailBody').value = 'Bonjour,\n\nVoici les informations demandées:\nMot de passe: Sup3rS3cr3t!\nCode PIN: 4521\n\nCordialement';
+    }
+    
+    function sendComposedEmail() {
+      if (!emailPendingSource || !emailPendingTarget) return;
+      
+      const from = document.getElementById('emailFrom').value || 'user@mail.com';
+      const to = document.getElementById('emailTo').value || 'dest@mail.com';
+      const subject = document.getElementById('emailSubject').value || 'Sans objet';
+      const body = document.getElementById('emailBody').value || '(Message vide)';
+      
+      const src = emailPendingSource;
+      const tgt = emailPendingTarget;
+      closeEmailModal();
+      
+      // Find a mail server in the network
+      const mailServer = nodes.find(n => n.type === 'server');
+      
+      if (mailServer && mailServer !== src && mailServer !== tgt) {
+        // Route through mail server
+        addSequenceMessage(src, mailServer, 'SMTP: ' + subject, 'request');
+        createPacket(src, mailServer, activeDefenses.encryption ? 'encrypted' : 'email', { 
+          from, to, subject, body, 
+          encrypted: activeDefenses.encryption,
+          finalDest: tgt,
+          viaServer: true
+        });
+        addLog('info', '✉️ Email envoyé via ' + mailServer.name);
+      } else {
+        // Direct email
+        addSequenceMessage(src, tgt, 'SMTP: ' + subject, 'request');
+        createPacket(src, tgt, activeDefenses.encryption ? 'encrypted' : 'email', { 
+          from, to, subject, body, 
+          encrypted: activeDefenses.encryption 
+        });
+        addLog('info', activeDefenses.encryption ? '🔒 Email chiffré envoyé' : '✉️ Email envoyé');
+      }
+      
+      if (!activeDefenses.encryption && activeAttacks.mitm) {
+        showToast('MITM actif - email sera intercepté!', 'warning');
+      }
+    }
+    
+    // ============ SEQUENCE DIAGRAM FUNCTIONS ============
+    function addSequenceMessage(from, to, label, type = 'request') {
+      sequenceMessages.push({
+        from: from.name,
+        fromIp: from.ip,
+        to: to.name,
+        toIp: to.ip,
+        label: label,
+        type: type, // request, response, attack
+        timestamp: Date.now()
+      });
+      updateSequenceDiagram();
+      updateStatusBar();
+    }
+    
+    function toggleSequencePanel() {
+      const panel = document.getElementById('sequencePanel');
+      panel.classList.toggle('visible');
+    }
+    
+    function updateSequenceDiagram() {
+      const content = document.getElementById('sequencePanelContent');
+      
+      if (sequenceMessages.length === 0) {
+        content.innerHTML = `
+          <div class="sequence-empty">
+            <div class="sequence-empty-icon">📨</div>
+            <p>Aucun message échangé</p>
+            <p style="font-size:0.75rem;margin-top:8px;">Effectuez des actions (Ping, Email, HTTP...) pour voir les échanges</p>
+          </div>`;
+        return;
+      }
+      
+      // Get unique actors
+      const actors = new Set();
+      sequenceMessages.forEach(m => {
+        actors.add(m.from);
+        actors.add(m.to);
+      });
+      const actorList = Array.from(actors);
+      
+      // Build HTML
+      let html = '<div class="sequence-canvas-container">';
+      
+      // Actors header
+      html += '<div class="sequence-actors">';
+      actorList.forEach(actor => {
+        html += `<div class="sequence-actor">
+          <div class="sequence-actor-box">${actor}</div>
+          <div class="sequence-lifeline"></div>
+        </div>`;
+      });
+      html += '</div>';
+      
+      // Messages
+      html += '<div class="sequence-messages">';
+      sequenceMessages.forEach((msg, i) => {
+        const fromIdx = actorList.indexOf(msg.from);
+        const toIdx = actorList.indexOf(msg.to);
+        const isReverse = toIdx < fromIdx;
+        const isAttack = msg.type === 'attack';
+        
+        const leftPct = Math.min(fromIdx, toIdx) / actorList.length * 100 + (100 / actorList.length / 2);
+        const rightPct = 100 - (Math.max(fromIdx, toIdx) + 1) / actorList.length * 100 + (100 / actorList.length / 2);
+        
+        const arrowClass = isAttack ? 'attack' : (msg.type === 'response' ? 'reverse' : '');
+        
+        html += `<div class="sequence-message" style="margin-left: ${leftPct}%; margin-right: ${rightPct}%;">
+          <div class="sequence-message-label">${msg.label}</div>
+          <div class="sequence-message-arrow ${arrowClass}" style="${isReverse ? 'transform: scaleX(-1);' : ''}"></div>
+        </div>`;
+      });
+      html += '</div></div>';
+      
+      content.innerHTML = html;
+      content.scrollTop = content.scrollHeight;
+    }
+    
+    function clearSequenceMessages() {
+      sequenceMessages = [];
+      updateSequenceDiagram();
+      updateStatusBar();
+      showToast('Diagramme effacé', 'info');
+    }
+    
+    function exportSequenceDiagram() {
+      if (sequenceMessages.length === 0) {
+        showToast('Aucun message à exporter', 'warning');
+        return;
+      }
+      
+      let text = '=== DIAGRAMME DE SÉQUENCE ===\n';
+      text += 'Généré le: ' + new Date().toLocaleString('fr-FR') + '\n\n';
+      
+      sequenceMessages.forEach((msg, i) => {
+        const arrow = msg.type === 'response' ? '<--' : '-->';
+        const prefix = msg.type === 'attack' ? '[ATTACK] ' : '';
+        text += `${i + 1}. ${prefix}${msg.from} ${arrow} ${msg.to}: ${msg.label}\n`;
+      });
+      
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sequence-diagram-' + new Date().toISOString().slice(0,10) + '.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Diagramme exporté', 'success');
+    }
+    
+    // Update status bar with message count
+    function updateStatusBar() { 
+      document.getElementById('nodeCount').textContent = nodes.length; 
+      document.getElementById('connectionCount').textContent = connections.length; 
+      document.getElementById('packetCount').textContent = packetCounter;
+      const msgCount = document.getElementById('messageCount');
+      if (msgCount) msgCount.textContent = sequenceMessages.length;
+    }
+
     window.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
