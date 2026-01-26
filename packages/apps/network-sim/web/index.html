@@ -206,12 +206,35 @@
       flex: 1;
       position: relative;
       overflow: hidden;
+      min-height: 400px;
     }
     
     #networkCanvas {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
       display: block;
+      background: #0a0e17;
+    }
+    
+    .cable-mode-indicator {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: var(--accent-cyan);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: none;
+      z-index: 50;
+    }
+    
+    .cable-mode-indicator.visible {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     
     .info-panel {
@@ -634,6 +657,13 @@
         </div>
         
         <div class="sidebar-section">
+          <h3>Outils</h3>
+          <div class="attack-buttons">
+            <button class="defense-btn" id="cableModeBtn" style="border-color: var(--accent-cyan)"><span class="icon">&#128279;</span><div><div>Mode Câble</div><small style="color:var(--text-secondary);font-size:0.7rem">Cliquez sur 2 équipements pour les relier</small></div></button>
+          </div>
+        </div>
+        
+        <div class="sidebar-section">
           <h3>Attaques</h3>
           <div class="attack-buttons">
             <button class="attack-btn" data-attack="ddos"><span class="icon">&#128165;</span><div><div>DDoS Attack</div><small style="color:var(--text-secondary);font-size:0.7rem">Déni de service distribué</small></div></button>
@@ -673,7 +703,8 @@
       </aside>
       
       <div class="canvas-container" id="canvasContainer">
-        <canvas id="networkCanvas"></canvas>
+        <canvas id="networkCanvas" width="800" height="600"></canvas>
+        <div class="cable-mode-indicator" id="cableModeIndicator">&#128279; Mode Câble actif - Cliquez sur un équipement</div>
         <div class="info-panel" id="infoPanel">
           <div class="info-panel-header">
             <h3 id="infoPanelTitle">Informations</h3>
@@ -762,6 +793,8 @@
     
     let activeAttacks = { ddos: false, mitm: false, portscan: false, dnsspoof: false, arp: false, bruteforce: false, synflood: false, phishing: false };
     let activeDefenses = { firewall: false, ids: false, encryption: false, vpn: false, ratelimit: false, '2fa': false };
+    let cableMode = false;
+    let cableFirstNode = null;
     
     const nodeTypes = {
       computer: { icon: '\u{1F4BB}', label: 'PC', color: '#3b82f6', ports: [22, 80, 443, 3389] },
@@ -806,14 +839,20 @@
       if (!localStorage.getItem('networkSimTutorialSeen')) {
         document.getElementById('tutorialPanel').classList.add('visible');
       }
+      // Forcer le redimensionnement après un court délai pour s'assurer que le layout est prêt
+      setTimeout(() => {
+        resizeCanvas();
+      }, 50);
       animate();
       addLog('info', 'Simulateur réseau initialisé');
     }
     
     function resizeCanvas() {
-      const container = canvas.parentElement;
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      const container = document.getElementById('canvasContainer');
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width || 800;
+      canvas.height = rect.height || 600;
+      console.log('Canvas resized:', canvas.width, canvas.height);
     }
     
     function setupTabs() {
@@ -856,6 +895,27 @@
     function onMouseDown(e) {
       const pos = getMousePos(e);
       const node = getNodeAtPosition(pos);
+      
+      // Mode câble
+      if (cableMode && e.button === 0) {
+        if (node) {
+          if (cableFirstNode === null) {
+            cableFirstNode = node;
+            connectingFrom = node;
+            document.getElementById('cableModeIndicator').textContent = '\u{1F517} Cliquez sur le second équipement pour créer le câble';
+            addLog('info', 'Câble depuis ' + node.name + '...');
+          } else if (cableFirstNode !== node) {
+            createConnection(cableFirstNode, node);
+            cableFirstNode = null;
+            connectingFrom = null;
+            document.getElementById('cableModeIndicator').textContent = '\u{1F517} Mode Câble actif - Cliquez sur un équipement';
+          }
+          selectedNode = node;
+          showNodeInfo(node);
+        }
+        return;
+      }
+      
       if (e.button === 0 && node) {
         if (e.shiftKey) {
           if (connectingFrom && connectingFrom !== node) { createConnection(connectingFrom, node); connectingFrom = null; }
@@ -869,6 +929,16 @@
       } else { selectedNode = null; connectingFrom = null; closeInfoPanel(); }
     }
     
+    function toggleCableMode() {
+      cableMode = !cableMode;
+      cableFirstNode = null;
+      connectingFrom = null;
+      document.getElementById('cableModeBtn').classList.toggle('active', cableMode);
+      document.getElementById('cableModeIndicator').classList.toggle('visible', cableMode);
+      document.getElementById('cableModeIndicator').textContent = '\u{1F517} Mode Câble actif - Cliquez sur un équipement';
+      addLog('info', cableMode ? '\u{1F517} Mode câble activé' : 'Mode câble désactivé');
+    }
+    
     function onMouseMove(e) {
       const pos = getMousePos(e);
       if (draggedNode) { draggedNode.x = pos.x - dragOffset.x; draggedNode.y = pos.y - dragOffset.y; }
@@ -880,12 +950,16 @@
       if (hoveredNode) updateTooltipPosition(e);
     }
     
-    function getMousePos(e) { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+    function getMousePos(e) { 
+      const rect = canvas.getBoundingClientRect(); 
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top }; 
+    }
     function getNodeAtPosition(pos) { for (let i = nodes.length - 1; i >= 0; i--) { if (Math.sqrt((pos.x - nodes[i].x) ** 2 + (pos.y - nodes[i].y) ** 2) <= nodes[i].radius) return nodes[i]; } return null; }
     
     function createNode(type, x, y) {
       const config = nodeTypes[type];
       const node = { id: Date.now() + Math.random(), type, x, y, radius: 35, name: config.label + '-' + (nodes.filter(n => n.type === type).length + 1), ip: '192.168.' + Math.floor(Math.random() * 255) + '.' + (Math.floor(Math.random() * 254) + 1), mac: Array(6).fill().map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase()).join(':'), ports: [...config.ports], attacked: false, intercepting: false, traced: false, config };
+      console.log('Node created:', node.name, 'at', x, y, 'canvas:', canvas.width, canvas.height);
       nodes.push(node);
       updateStatusBar();
       addLog('success', node.name + ' ajouté (' + node.ip + ')');
@@ -1153,17 +1227,22 @@
     function drawNodes() {
       nodes.forEach(node => {
         const cfg = node.config;
-        if (node.attacked) { ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 20, 0, Math.PI * 2); const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 20); g.addColorStop(0, 'rgba(239,68,68,0.6)'); g.addColorStop(1, 'rgba(239,68,68,0)'); ctx.fillStyle = g; ctx.fill(); }
-        if (node.traced) { ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 15, 0, Math.PI * 2); const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 15); g.addColorStop(0, 'rgba(34,197,94,0.6)'); g.addColorStop(1, 'rgba(34,197,94,0)'); ctx.fillStyle = g; ctx.fill(); }
-        if (node.intercepting) { ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 18, 0, Math.PI * 2); const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 18); g.addColorStop(0, 'rgba(168,85,247,0.6)'); g.addColorStop(1, 'rgba(168,85,247,0)'); ctx.fillStyle = g; ctx.fill(); const p = Math.sin(Date.now() / 200) * 0.3 + 0.7; ctx.beginPath(); ctx.arc(node.x, node.y, node.radius + 25, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(168,85,247,' + p * 0.5 + ')'; ctx.lineWidth = 2; ctx.stroke(); }
-        ctx.beginPath(); ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        const bg = ctx.createRadialGradient(node.x - 10, node.y - 10, 0, node.x, node.y, node.radius); bg.addColorStop(0, 'rgba(30,35,50,0.95)'); bg.addColorStop(1, 'rgba(15,20,30,0.95)'); ctx.fillStyle = bg; ctx.fill();
-        ctx.strokeStyle = node === selectedNode ? '#3b82f6' : (node === connectingFrom ? '#22c55e' : cfg.color);
-        ctx.lineWidth = (node === selectedNode || node === connectingFrom) ? 3 : 2; ctx.stroke();
-        ctx.font = '24px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffffff'; ctx.fillText(cfg.icon, node.x, node.y);
-        ctx.font = 'bold 11px system-ui'; ctx.fillStyle = '#e5e7eb'; ctx.fillText(node.name, node.x, node.y + node.radius + 14);
-        ctx.font = '9px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillText(node.ip, node.x, node.y + node.radius + 26);
-        if (node.type === 'firewall' && activeDefenses.firewall) { ctx.font = '12px Arial'; ctx.fillText('', node.x + node.radius - 5, node.y - node.radius + 5); }
+        // Debug: draw a bright red circle first
+        ctx.beginPath(); 
+        ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff0000'; 
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3; 
+        ctx.stroke();
+        
+        // Draw label
+        ctx.font = 'bold 14px system-ui'; 
+        ctx.fillStyle = '#ffffff'; 
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(node.name, node.x, node.y);
+        ctx.fillText(node.ip, node.x, node.y + node.radius + 20);
       });
     }
     
@@ -1245,6 +1324,7 @@
       document.querySelector('[data-action="http"]').addEventListener('click', sendHTTP);
       document.querySelector('[data-action="dns"]').addEventListener('click', sendDNS);
       document.querySelector('[data-action="ssh"]').addEventListener('click', sendSSH);
+      document.getElementById('cableModeBtn').addEventListener('click', toggleCableMode);
     }
     
     function loadScenario(scenario) {
