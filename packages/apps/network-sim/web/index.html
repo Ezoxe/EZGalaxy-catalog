@@ -610,13 +610,275 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
-    
+
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-5px); }
-      75% { transform: translateX(5px); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+      20%, 40%, 60%, 80% { transform: translateX(8px); }
     }
-    
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+
+    @keyframes scaleIn {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes ringExpand {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+
+    @keyframes particleMove {
+      0% { transform: translate(0, 0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+    }
+
+    .toast-container {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: rgba(15, 20, 32, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 280px;
+      max-width: 400px;
+      backdrop-filter: blur(10px);
+      animation: slideIn 0.3s ease-out;
+      pointer-events: auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .toast.removing {
+      animation: slideOut 0.3s ease-in forwards;
+    }
+
+    .toast-icon {
+      font-size: 1.5rem;
+    }
+
+    .toast-content {
+      flex: 1;
+    }
+
+    .toast-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 2px;
+    }
+
+    .toast-message {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .toast.success { border-color: var(--accent-green); }
+    .toast.success .toast-icon { color: var(--accent-green); }
+    .toast.error { border-color: var(--accent-red); }
+    .toast.error .toast-icon { color: var(--accent-red); }
+    .toast.warning { border-color: var(--accent-yellow); }
+    .toast.warning .toast-icon { color: var(--accent-yellow); }
+    .toast.info { border-color: var(--accent-blue); }
+    .toast.info .toast-icon { color: var(--accent-blue); }
+
+    .action-mode-indicator {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(139, 92, 246, 0.9));
+      color: white;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: none;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+      backdrop-filter: blur(10px);
+    }
+
+    .action-mode-indicator.visible {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .action-mode-indicator .cancel-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      margin-left: 10px;
+    }
+
+    .action-mode-indicator .cancel-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .progress-bar-container {
+      position: absolute;
+      background: rgba(15, 20, 32, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      min-width: 120px;
+      z-index: 60;
+    }
+
+    .progress-bar-label {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-bar-percent {
+      font-size: 0.7rem;
+      color: var(--text-primary);
+      text-align: right;
+      margin-top: 2px;
+    }
+
+    .node-shaking {
+      animation: shake 0.5s ease-in-out;
+    }
+
+    .defense-activating {
+      animation: scaleIn 0.4s ease-out;
+    }
+
+    .ring-effect {
+      position: absolute;
+      border-radius: 50%;
+      border: 3px solid;
+      pointer-events: none;
+      animation: ringExpand 0.6s ease-out forwards;
+    }
+
+    .particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: particleMove 0.8s ease-out forwards;
+    }
+
+    .detail-popup {
+      position: absolute;
+      background: rgba(15, 20, 32, 0.98);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      width: 320px;
+      z-index: 150;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .detail-popup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .detail-popup-header h3 {
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .detail-popup-close {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    .detail-popup-content {
+      font-size: 0.85rem;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .detail-row:last-child { border-bottom: none; }
+
+    .detail-label { color: var(--text-secondary); }
+    .detail-value { font-weight: 500; }
+
+    .detail-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      margin-top: 12px;
+    }
+
+    .detail-status.blocked {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--accent-red);
+    }
+
+    .detail-status.intercepted {
+      background: rgba(168, 85, 247, 0.2);
+      color: var(--accent-purple);
+    }
+
+    .detail-status.success {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--accent-green);
+    }
+
     @media (max-width: 900px) {
       .sidebar { width: 220px; }
       .info-panel { width: 280px; }
@@ -652,6 +914,21 @@
             <div class="palette-item" draggable="true" data-type="dns"><span class="icon">&#128214;</span>DNS</div>
             <div class="palette-item" draggable="true" data-type="attacker"><span class="icon">&#128100;</span>Attaquant</div>
             <div class="palette-item" draggable="true" data-type="mitm"><span class="icon">&#128373;</span>MITM</div>
+            <div class="palette-item" draggable="true" data-type="internet"><span class="icon">&#127760;</span>Internet</div>
+            <div class="palette-item" draggable="true" data-type="cloud"><span class="icon">&#9729;</span>Cloud</div>
+            <div class="palette-item" draggable="true" data-type="enterprise"><span class="icon">&#127970;</span>Entreprise</div>
+            <div class="palette-item" draggable="true" data-type="phone"><span class="icon">&#128241;</span>Téléphone</div>
+            <div class="palette-item" draggable="true" data-type="iot"><span class="icon">&#128223;</span>IoT</div>
+            <div class="palette-item" draggable="true" data-type="printer"><span class="icon">&#128424;</span>Imprimante</div>
+            <div class="palette-item" draggable="true" data-type="database"><span class="icon">&#128451;</span>Database</div>
+            <div class="palette-item" draggable="true" data-type="loadbalancer"><span class="icon">&#9878;</span>Load Balancer</div>
+            <div class="palette-item" draggable="true" data-type="vpngateway"><span class="icon">&#128272;</span>VPN Gateway</div>
+          </div>
+        </div>
+            <div class="palette-item" draggable="true" data-type="firewall"><span class="icon">&#128737;</span>Firewall</div>
+            <div class="palette-item" draggable="true" data-type="dns"><span class="icon">&#128214;</span>DNS</div>
+            <div class="palette-item" draggable="true" data-type="attacker"><span class="icon">&#128100;</span>Attaquant</div>
+            <div class="palette-item" draggable="true" data-type="mitm"><span class="icon">&#128373;</span>MITM</div>
           </div>
         </div>
         
@@ -673,6 +950,11 @@
             <button class="attack-btn" data-attack="bruteforce"><span class="icon">&#128275;</span><div><div>Brute Force</div><small style="color:var(--text-secondary);font-size:0.7rem">Attaque par force brute</small></div></button>
             <button class="attack-btn" data-attack="synflood"><span class="icon">&#127754;</span><div><div>SYN Flood</div><small style="color:var(--text-secondary);font-size:0.7rem">Inondation TCP SYN</small></div></button>
             <button class="attack-btn" data-attack="phishing"><span class="icon">&#127907;</span><div><div>Phishing</div><small style="color:var(--text-secondary);font-size:0.7rem">Hameçonnage par email</small></div></button>
+            <button class="attack-btn" data-attack="ransomware"><span class="icon">&#128128;</span><div><div>Ransomware</div><small style="color:var(--text-secondary);font-size:0.7rem">Chiffrement malveillant</small></div></button>
+            <button class="attack-btn" data-attack="sqli"><span class="icon">&#128137;</span><div><div>SQL Injection</div><small style="color:var(--text-secondary);font-size:0.7rem">Injection base de données</small></div></button>
+            <button class="attack-btn" data-attack="xss"><span class="icon">&#128220;</span><div><div>XSS Attack</div><small style="color:var(--text-secondary);font-size:0.7rem">Cross-Site Scripting</small></div></button>
+            <button class="attack-btn" data-attack="zeroday"><span class="icon">&#127919;</span><div><div>Zero-Day</div><small style="color:var(--text-secondary);font-size:0.7rem">Exploit non patché</small></div></button>
+            <button class="attack-btn" data-attack="credstuffing"><span class="icon">&#128273;</span><div><div>Credential Stuffing</div><small style="color:var(--text-secondary);font-size:0.7rem">Réutilisation identifiants</small></div></button>
           </div>
         </div>
         
@@ -685,6 +967,10 @@
             <button class="defense-btn" data-defense="vpn"><span class="icon">&#128274;</span><div><div>Activer VPN</div><small style="color:var(--text-secondary);font-size:0.7rem">Tunnel chiffré</small></div></button>
             <button class="defense-btn" data-defense="ratelimit"><span class="icon">&#9201;</span><div><div>Rate Limiting</div><small style="color:var(--text-secondary);font-size:0.7rem">Limiter les requêtes</small></div></button>
             <button class="defense-btn" data-defense="2fa"><span class="icon">&#128241;</span><div><div>2FA</div><small style="color:var(--text-secondary);font-size:0.7rem">Double authentification</small></div></button>
+            <button class="defense-btn" data-defense="antimalware"><span class="icon">&#128022;</span><div><div>Anti-Malware</div><small style="color:var(--text-secondary);font-size:0.7rem">Protection ransomware</small></div></button>
+            <button class="defense-btn" data-defense="waf"><span class="icon">&#128736;</span><div><div>WAF</div><small style="color:var(--text-secondary);font-size:0.7rem">Firewall applicatif Web</small></div></button>
+            <button class="defense-btn" data-defense="patchmgmt"><span class="icon">&#128230;</span><div><div>Patch Management</div><small style="color:var(--text-secondary);font-size:0.7rem">Mises à jour sécurité</small></div></button>
+            <button class="defense-btn" data-defense="accountlockout"><span class="icon">&#128274;</span><div><div>Account Lockout</div><small style="color:var(--text-secondary);font-size:0.7rem">Verrouillage compte</small></div></button>
           </div>
         </div>
         
@@ -704,6 +990,12 @@
       <div class="canvas-container" id="canvasContainer">
         <canvas id="networkCanvas" width="800" height="600"></canvas>
         <div class="cable-mode-indicator" id="cableModeIndicator">&#128279; Mode Câble actif - Cliquez sur un équipement</div>
+        <div class="action-mode-indicator" id="actionModeIndicator">
+          <span id="actionModeIcon">&#127919;</span>
+          <span id="actionModeText">Sélectionnez l'émetteur</span>
+          <button class="cancel-btn" onclick="cancelActionMode()">Annuler (Esc)</button>
+        </div>
+        <div class="toast-container" id="toastContainer"></div>
         <div class="info-panel" id="infoPanel">
           <div class="info-panel-header">
             <h3 id="infoPanelTitle">Informations</h3>
@@ -747,6 +1039,9 @@
           <div class="scenario-card" onclick="loadScenario('secure')"><h4>&#128272; Réseau sécurisé</h4><p>Architecture avec firewall, IDS et chiffrement TLS.</p><span class="scenario-tag defense">Défense</span></div>
           <div class="scenario-card" onclick="loadScenario('enterprise')"><h4>&#127970; Réseau d entreprise</h4><p>DMZ, serveurs multiples, segmentation réseau.</p><span class="scenario-tag">Avancé</span></div>
           <div class="scenario-card" onclick="loadScenario('dnsspoof')"><h4>&#127917; DNS Spoofing</h4><p>Attaque de falsification DNS.</p><span class="scenario-tag attack">Attaque</span></div>
+          <div class="scenario-card" onclick="loadScenario('datacenter')"><h4>&#9729; Datacenter Cloud</h4><p>Infrastructure cloud avec load balancer et bases de données.</p><span class="scenario-tag">Avancé</span></div>
+          <div class="scenario-card" onclick="loadScenario('iot-network')"><h4>&#128223; Réseau IoT</h4><p>Objets connectés vulnérables: caméras, capteurs, etc.</p><span class="scenario-tag attack">Vulnérable</span></div>
+          <div class="scenario-card" onclick="loadScenario('pentest')"><h4>&#127919; Pentest Complet</h4><p>Test d'intrusion sur une infrastructure d'entreprise.</p><span class="scenario-tag attack">Expert</span></div>
         </div>
       </div>
     </div>
@@ -792,8 +1087,23 @@
     let packetCounter = 0;
     let currentTab = 'simulation';
     
-    let activeAttacks = { ddos: false, mitm: false, portscan: false, dnsspoof: false, arp: false, bruteforce: false, synflood: false, phishing: false };
-    let activeDefenses = { firewall: false, ids: false, encryption: false, vpn: false, ratelimit: false, '2fa': false };
+    // Viewport for panning and zooming
+    let viewportX = 0;
+    let viewportY = 0;
+    let zoomLevel = 1;
+    let isPanning = false;
+    let panStartX = 0;
+    let panStartY = 0;
+    let panStartViewportX = 0;
+    let panStartViewportY = 0;
+    
+    // Action mode for sender->destination system
+    let actionMode = null; // null, 'ping', 'http', 'email', 'ssh', 'dns', 'traceroute', attack types...
+    let actionSource = null;
+    let actionTarget = null;
+    
+    let activeAttacks = { ddos: false, mitm: false, portscan: false, dnsspoof: false, arp: false, bruteforce: false, synflood: false, phishing: false, ransomware: false, sqli: false, xss: false, zeroday: false, credstuffing: false };
+    let activeDefenses = { firewall: false, ids: false, encryption: false, vpn: false, ratelimit: false, '2fa': false, antimalware: false, waf: false, patchmgmt: false, accountlockout: false };
     let cableMode = false;
     let cableFirstNode = null;
     
@@ -805,7 +1115,16 @@
       firewall: { icon: '\u{1F6E1}', label: 'Firewall', color: '#a855f7', ports: [443] },
       dns: { icon: '\u{1F4D6}', label: 'DNS', color: '#f97316', ports: [53] },
       attacker: { icon: '\u{1F464}', label: 'Attaquant', color: '#ef4444', ports: [] },
-      mitm: { icon: '\u{1F575}', label: 'MITM', color: '#dc2626', ports: [] }
+      mitm: { icon: '\u{1F575}', label: 'MITM', color: '#dc2626', ports: [] },
+      internet: { icon: '\u{1F310}', label: 'Internet', color: '#64748b', ports: [80, 443] },
+      cloud: { icon: '\u2601', label: 'Cloud', color: '#38bdf8', ports: [443, 8443] },
+      enterprise: { icon: '\u{1F3E2}', label: 'Entreprise', color: '#f59e0b', ports: [80, 443, 25] },
+      phone: { icon: '\u{1F4F1}', label: 'Téléphone', color: '#ec4899', ports: [443, 5060] },
+      iot: { icon: '\u{1F4DF}', label: 'IoT', color: '#84cc16', ports: [80, 8080, 1883] },
+      printer: { icon: '\u{1F5A8}', label: 'Imprimante', color: '#94a3b8', ports: [9100, 631] },
+      database: { icon: '\u{1F5C3}', label: 'Database', color: '#1e40af', ports: [3306, 5432, 1433] },
+      loadbalancer: { icon: '\u2696', label: 'Load Balancer', color: '#7c3aed', ports: [80, 443] },
+      vpngateway: { icon: '\u{1F510}', label: 'VPN Gateway', color: '#15803d', ports: [443, 1194, 500] }
     };
     
     const packetTypes = {
@@ -825,7 +1144,13 @@
       ack: { color: '#06b6d4', label: 'ACK' },
       encrypted: { color: '#22d3ee', label: 'TLS' },
       ssh: { color: '#84cc16', label: 'SSH' },
-      phishing: { color: '#f43f5e', label: 'Phishing' }
+      phishing: { color: '#f43f5e', label: 'Phishing' },
+      ransomware: { color: '#7f1d1d', label: 'Ransom' },
+      sqli: { color: '#dc2626', label: 'SQLi' },
+      xss: { color: '#ea580c', label: 'XSS' },
+      zeroday: { color: '#4c1d95', label: '0-Day' },
+      credstuffing: { color: '#9f1239', label: 'Creds' },
+      malware: { color: '#450a0a', label: 'Malware' }
     };
     
     let logs = [];
@@ -920,14 +1245,70 @@
     function setupCanvasEvents() {
       canvas.addEventListener('mousedown', onMouseDown);
       canvas.addEventListener('mousemove', onMouseMove);
-      canvas.addEventListener('mouseup', () => draggedNode = null);
+      canvas.addEventListener('mouseup', onMouseUp);
       canvas.addEventListener('dblclick', e => { const node = getNodeAtPosition(getMousePos(e)); if (node) showNodeInfo(node); });
       canvas.addEventListener('contextmenu', e => { e.preventDefault(); const node = getNodeAtPosition(getMousePos(e)); if (node) deleteNode(node); });
+      
+      // Zoom with mouse wheel
+      canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Calculate world position before zoom
+        const worldX = (mouseX - viewportX) / zoomLevel;
+        const worldY = (mouseY - viewportY) / zoomLevel;
+        
+        // Adjust zoom level
+        const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(0.5, Math.min(2.0, zoomLevel * zoomDelta));
+        
+        // Adjust viewport to zoom centered on mouse
+        if (newZoom !== zoomLevel) {
+          viewportX = mouseX - worldX * newZoom;
+          viewportY = mouseY - worldY * newZoom;
+          zoomLevel = newZoom;
+        }
+      }, { passive: false });
+      
+      // Escape key to cancel action mode
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          cancelActionMode();
+        }
+      });
+    }
+    
+    function onMouseUp(e) {
+      draggedNode = null;
+      if (e.button === 1) {
+        isPanning = false;
+        canvas.style.cursor = 'default';
+      }
     }
     
     function onMouseDown(e) {
       const pos = getMousePos(e);
       const node = getNodeAtPosition(pos);
+      
+      // Middle mouse button for panning
+      if (e.button === 1) {
+        e.preventDefault();
+        isPanning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        panStartViewportX = viewportX;
+        panStartViewportY = viewportY;
+        canvas.style.cursor = 'grabbing';
+        return;
+      }
+      
+      // Action mode (sender -> destination)
+      if (actionMode && e.button === 0 && node) {
+        handleActionModeClick(node);
+        return;
+      }
       
       // Mode câble
       if (cableMode && e.button === 0) {
@@ -978,6 +1359,13 @@
     }
     
     function onMouseMove(e) {
+      // Handle panning
+      if (isPanning) {
+        viewportX = panStartViewportX + (e.clientX - panStartX);
+        viewportY = panStartViewportY + (e.clientY - panStartY);
+        return;
+      }
+      
       const pos = getMousePos(e);
       if (draggedNode) { draggedNode.x = pos.x - dragOffset.x; draggedNode.y = pos.y - dragOffset.y; }
       const node = getNodeAtPosition(pos);
@@ -992,9 +1380,12 @@
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
+      // Convert screen coords to world coords accounting for viewport transform
+      const screenX = (e.clientX - rect.left) * scaleX;
+      const screenY = (e.clientY - rect.top) * scaleY;
       return { 
-        x: (e.clientX - rect.left) * scaleX, 
-        y: (e.clientY - rect.top) * scaleY 
+        x: (screenX - viewportX) / zoomLevel, 
+        y: (screenY - viewportY) / zoomLevel 
       }; 
     }
     function getNodeAtPosition(pos) { for (let i = nodes.length - 1; i >= 0; i--) { if (Math.sqrt((pos.x - nodes[i].x) ** 2 + (pos.y - nodes[i].y) ** 2) <= nodes[i].radius) return nodes[i]; } return null; }
@@ -1144,10 +1535,26 @@
           el = document.getElementById('node-' + node.id);
         }
         if (el) {
-          el.style.left = (node.x * scaleX - 35) + 'px';
-          el.style.top = (node.y * scaleY - 35) + 'px';
-          el.style.borderColor = node === selectedNode ? '#3b82f6' : node.config.color;
-          if (node.attacked) el.style.boxShadow = '0 0 20px rgba(239,68,68,0.7)';
+          // Apply viewport transform to node positions
+          const screenX = (node.x * zoomLevel + viewportX) * scaleX;
+          const screenY = (node.y * zoomLevel + viewportY) * scaleY;
+          const nodeSize = 70 * zoomLevel;
+          
+          el.style.left = (screenX - nodeSize/2) + 'px';
+          el.style.top = (screenY - nodeSize/2) + 'px';
+          el.style.width = nodeSize + 'px';
+          el.style.height = nodeSize + 'px';
+          el.style.transform = 'scale(' + zoomLevel + ')';
+          el.style.transformOrigin = 'center center';
+          el.style.borderColor = node === selectedNode ? '#3b82f6' : 
+                                  node === actionSource ? '#22d3ee' : node.config.color;
+          if (node.attacked) {
+            el.style.boxShadow = '0 0 20px rgba(239,68,68,0.7)';
+            if (!el.classList.contains('node-shaking')) {
+              el.classList.add('node-shaking');
+              setTimeout(() => el.classList.remove('node-shaking'), 500);
+            }
+          }
           else if (node.intercepting) el.style.boxShadow = '0 0 20px rgba(168,85,247,0.7)';
           else el.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
         }
@@ -1262,47 +1669,21 @@
     
     function startDDoSAttack() {
       if (!activeAttacks.ddos) {
-        const attacker = nodes.find(n => n.type === 'attacker'), target = nodes.find(n => n.type === 'server');
-        if (!attacker || !target) { addLog('warning', 'DDoS nécessite Attaquant + Serveur'); return; }
-        activeAttacks.ddos = true;
-        document.querySelector('[data-attack="ddos"]').classList.add('active');
-        document.getElementById('attackStatus').style.display = 'flex';
-        addLog('attack', ' DDoS lancé: ' + attacker.name + '  ' + target.name);
-        activeAttacks.ddosInterval = setInterval(() => { if (activeAttacks.ddos) { for (let i = 0; i < 5; i++) createPacket(attacker, target, 'ddos'); target.attacked = true; } }, 200);
+        startActionMode('ddos', '💥', 'DDoS Attack');
       } else stopDDoSAttack();
     }
-    function stopDDoSAttack() { activeAttacks.ddos = false; clearInterval(activeAttacks.ddosInterval); document.querySelector('[data-attack="ddos"]').classList.remove('active'); const t = nodes.find(n => n.type === 'server'); if (t) t.attacked = false; checkAttackStatus(); addLog('info', 'DDoS arrêté'); }
+    function stopDDoSAttack() { activeAttacks.ddos = false; clearInterval(activeAttacks.ddosInterval); document.querySelector('[data-attack="ddos"]').classList.remove('active'); nodes.forEach(n => n.attacked = false); checkAttackStatus(); addLog('info', 'DDoS arrêté'); }
     
     function startMITMAttack() {
       if (!activeAttacks.mitm) {
-        const mitmNode = nodes.find(n => n.type === 'mitm');
-        if (!mitmNode) { addLog('warning', 'MITM nécessite un nœud MITM'); return; }
-        activeAttacks.mitm = true; mitmNode.intercepting = true;
-        document.querySelector('[data-attack="mitm"]').classList.add('active');
-        document.getElementById('attackStatus').style.display = 'flex';
-        addLog('attack', ' MITM activé sur ' + mitmNode.name);
-        addLog(activeDefenses.encryption ? 'success' : 'danger', activeDefenses.encryption ? ' TLS protège contre l interception' : ' Communications non chiffrées - vulnérable!');
+        startActionMode('mitm', '🕵️', 'Man-in-the-Middle');
       } else stopMITMAttack();
     }
     function stopMITMAttack() { activeAttacks.mitm = false; const m = nodes.find(n => n.type === 'mitm'); if (m) m.intercepting = false; document.querySelector('[data-attack="mitm"]').classList.remove('active'); checkAttackStatus(); addLog('info', 'MITM arrêté'); }
     
     function startPortScan() {
       if (!activeAttacks.portscan) {
-        const attacker = nodes.find(n => n.type === 'attacker'), target = nodes.find(n => n.type === 'server' || n.type === 'computer');
-        if (!attacker || !target) { addLog('warning', 'Port Scan nécessite Attaquant + cible'); return; }
-        activeAttacks.portscan = true;
-        document.querySelector('[data-attack="portscan"]').classList.add('active');
-        document.getElementById('attackStatus').style.display = 'flex';
-        addLog('attack', ' Scan de ports sur ' + target.name);
-        const ports = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 8080];
-        let i = 0, open = [];
-        activeAttacks.portscanInterval = setInterval(() => {
-          if (activeAttacks.portscan && i < ports.length) {
-            createPacket(attacker, target, 'portscan', { port: ports[i] });
-            if (target.ports.includes(ports[i])) { open.push(ports[i]); addLog('warning', 'Port ' + ports[i] + ' OUVERT'); }
-            i++;
-          } else { stopPortScan(); addLog('info', 'Scan terminé. Ports ouverts: ' + (open.length ? open.join(', ') : 'Aucun')); }
-        }, 300);
+        startActionMode('portscan', '🔍', 'Port Scanning');
       } else stopPortScan();
     }
     function stopPortScan() { activeAttacks.portscan = false; clearInterval(activeAttacks.portscanInterval); document.querySelector('[data-attack="portscan"]').classList.remove('active'); checkAttackStatus(); }
@@ -1310,7 +1691,7 @@
     function startDNSSpoof() {
       if (!activeAttacks.dnsspoof) {
         const attacker = nodes.find(n => n.type === 'attacker');
-        if (!attacker) { addLog('warning', 'DNS Spoofing nécessite Attaquant'); return; }
+        if (!attacker) { showToast('DNS Spoofing nécessite un Attaquant', 'warning'); return; }
         activeAttacks.dnsspoof = true;
         document.querySelector('[data-attack="dnsspoof"]').classList.add('active');
         document.getElementById('attackStatus').style.display = 'flex';
@@ -1391,12 +1772,345 @@
     function toggleRateLimit() { activeDefenses.ratelimit = !activeDefenses.ratelimit; document.querySelector('[data-defense="ratelimit"]').classList.toggle('active', activeDefenses.ratelimit); addLog(activeDefenses.ratelimit ? 'success' : 'warning', activeDefenses.ratelimit ? ' Rate Limiting activé' : ' Rate Limiting désactivé'); }
     function toggle2FA() { activeDefenses['2fa'] = !activeDefenses['2fa']; document.querySelector('[data-defense="2fa"]').classList.toggle('active', activeDefenses['2fa']); addLog(activeDefenses['2fa'] ? 'success' : 'warning', activeDefenses['2fa'] ? ' 2FA activé' : ' 2FA désactivé'); }
     
-    function sendPing() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n !== src && (n.type === 'server' || n.type === 'router')) || nodes[nodes.length - 1]; if (nodes.length < 2) { addLog('warning', 'Ajoutez au moins 2 nœuds'); return; } if (src && tgt) { createPacket(src, tgt, 'ping', { sentAt: Date.now() }); addLog('info', ' Ping ' + src.ip + '  ' + tgt.ip); } }
-    function sendTraceroute() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server') || nodes[nodes.length - 1]; if (nodes.length < 2) { addLog('warning', 'Ajoutez au moins 2 nœuds'); return; } if (src && tgt) { const path = findPath(src, tgt); addLog('info', ' Traceroute vers ' + tgt.ip); let total = 0; path.forEach((n, i) => { const lat = Math.floor(Math.random() * 30) + 5; total += lat; setTimeout(() => { addLog('info', '  ' + (i+1) + '. ' + n.ip + ' (' + n.name + ') - ' + lat + 'ms'); n.traced = true; setTimeout(() => n.traced = false, 500); if (i === path.length - 1) addLog('success', 'Terminé - ' + path.length + ' hops, ' + total + 'ms'); }, i * 400); }); } }
-    function sendEmail() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server') || nodes[nodes.length - 1]; if (!src || !tgt || src === tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, activeDefenses.encryption ? 'encrypted' : 'email', { from: 'alice@company.com', to: 'bob@company.com', subject: 'Données confidentielles', body: 'Mot de passe: Sup3rS3cr3t!\nPIN: 4521', encrypted: activeDefenses.encryption }); addLog('info', activeDefenses.encryption ? ' Email chiffré envoyé' : ' Email envoyé ( non chiffré)'); if (!activeDefenses.encryption && activeAttacks.mitm) addLog('danger', ' MITM actif - email sera intercepté!'); }
-    function sendHTTP() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server') || nodes[nodes.length - 1]; if (!src || !tgt || src === tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, activeDefenses.encryption ? 'https' : 'http'); addLog('info', ' ' + (activeDefenses.encryption ? 'HTTPS' : 'HTTP') + ' GET  ' + tgt.ip); }
-    function sendDNS() { const src = nodes.find(n => n.type === 'computer') || nodes[0], dns = nodes.find(n => n.type === 'dns'); if (!src || !dns) { addLog('warning', 'Ajoutez PC + DNS'); return; } createPacket(src, dns, 'dns', { domain: 'www.banque-secure.com' }); addLog('info', ' DNS Query: www.banque-secure.com'); }
-    function sendSSH() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server'); if (!src || !tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, 'ssh'); addLog('info', ' SSH ' + src.ip + '  ' + tgt.ip + ':22'); }
+    // New attack functions
+    function startRansomware() {
+      if (!activeAttacks.ransomware) {
+        startActionMode('ransomware', '💀', 'Ransomware');
+      } else stopRansomware();
+    }
+    function executeRansomwareAttack(attacker, target) {
+      activeAttacks.ransomware = true;
+      document.querySelector('[data-attack="ransomware"]').classList.add('active');
+      document.getElementById('attackStatus').style.display = 'flex';
+      addLog('attack', '💀 Ransomware lancé vers ' + target.name);
+      showToast('Ransomware en cours de déploiement...', 'error', '💀 Ransomware');
+      
+      let progress = 0;
+      const progressBar = showProgressBar(target, 'Chiffrement', 0);
+      
+      activeAttacks.ransomwareInterval = setInterval(() => {
+        if (activeAttacks.ransomware) {
+          createPacket(attacker, target, 'ransomware');
+          progress += 10;
+          updateProgressBar(progressBar, progress);
+          
+          if (progress >= 100) {
+            if (activeDefenses.antimalware) {
+              showToast('Ransomware bloqué par Anti-Malware!', 'success', '🛡️ Défense');
+              addLog('success', '🛡️ Anti-Malware a bloqué le ransomware!');
+            } else {
+              target.attacked = true;
+              showToast('Fichiers chiffrés! Rançon demandée: 5 BTC', 'error', '💀 Ransomware');
+              addLog('danger', '💀 ' + target.name + ' chiffré! Rançon: 5 BTC');
+              showDetailPopup(target, 'Ransomware', { status: 'Système compromis', details: 'Tous les fichiers ont été chiffrés', ransom: '5 BTC', deadline: '72 heures' }, 'blocked');
+            }
+            stopRansomware();
+            removeProgressBar(progressBar);
+          }
+        }
+      }, 500);
+    }
+    function stopRansomware() { activeAttacks.ransomware = false; clearInterval(activeAttacks.ransomwareInterval); document.querySelector('[data-attack="ransomware"]')?.classList.remove('active'); checkAttackStatus(); }
+    
+    function startSQLInjection() {
+      if (!activeAttacks.sqli) {
+        startActionMode('sqli', '💉', 'SQL Injection');
+      } else stopSQLInjection();
+    }
+    function executeSQLInjection(attacker, target) {
+      activeAttacks.sqli = true;
+      document.querySelector('[data-attack="sqli"]').classList.add('active');
+      document.getElementById('attackStatus').style.display = 'flex';
+      addLog('attack', '💉 SQL Injection sur ' + target.name);
+      showToast('Injection SQL en cours...', 'warning', '💉 SQLi');
+      createPacket(attacker, target, 'sqli');
+      setTimeout(() => {
+        if (activeDefenses.waf) {
+          showToast('Injection SQL bloquée par WAF!', 'success', '🛡️ WAF');
+          addLog('success', '🛡️ WAF a bloqué l\'injection SQL');
+        } else {
+          showToast('Base de données compromise!', 'error', '💉 SQLi');
+          addLog('danger', '💉 SQL Injection réussie sur ' + target.name);
+          showDetailPopup(target, 'SQL Injection', { query: "'; DROP TABLE users; --", tables: 'users, credentials', rows: '45,892 enregistrements volés' }, 'blocked');
+        }
+        stopSQLInjection();
+      }, 2000);
+    }
+    function stopSQLInjection() { activeAttacks.sqli = false; document.querySelector('[data-attack="sqli"]')?.classList.remove('active'); checkAttackStatus(); }
+    
+    function startXSS() {
+      if (!activeAttacks.xss) {
+        startActionMode('xss', '📜', 'XSS Attack');
+      } else stopXSS();
+    }
+    function executeXSS(attacker, target) {
+      activeAttacks.xss = true;
+      document.querySelector('[data-attack="xss"]').classList.add('active');
+      document.getElementById('attackStatus').style.display = 'flex';
+      addLog('attack', '📜 XSS Attack sur ' + target.name);
+      showToast('Script malveillant injecté...', 'warning', '📜 XSS');
+      createPacket(attacker, target, 'xss');
+      setTimeout(() => {
+        if (activeDefenses.waf) {
+          showToast('XSS bloqué par WAF!', 'success', '🛡️ WAF');
+          addLog('success', '🛡️ WAF a bloqué le script XSS');
+        } else {
+          showToast('Cookies de session volés!', 'error', '📜 XSS');
+          addLog('danger', '📜 XSS réussi - cookies volés de ' + target.name);
+        }
+        stopXSS();
+      }, 1500);
+    }
+    function stopXSS() { activeAttacks.xss = false; document.querySelector('[data-attack="xss"]')?.classList.remove('active'); checkAttackStatus(); }
+    
+    function startZeroDay() {
+      if (!activeAttacks.zeroday) {
+        startActionMode('zeroday', '🎯', 'Zero-Day Exploit');
+      } else stopZeroDay();
+    }
+    function executeZeroDay(attacker, target) {
+      activeAttacks.zeroday = true;
+      document.querySelector('[data-attack="zeroday"]').classList.add('active');
+      document.getElementById('attackStatus').style.display = 'flex';
+      addLog('attack', '🎯 Zero-Day exploit sur ' + target.name);
+      showToast('Exploitation de vulnérabilité...', 'error', '🎯 Zero-Day');
+      createPacket(attacker, target, 'zeroday');
+      createParticles(target, 15, '#4c1d95');
+      setTimeout(() => {
+        if (activeDefenses.patchmgmt) {
+          showToast('Système à jour - exploit atténué!', 'success', '🛡️ Patch Mgmt');
+          addLog('success', '🛡️ Patch Management a limité l\'impact');
+        } else {
+          target.attacked = true;
+          showToast('Accès root obtenu!', 'error', '🎯 Zero-Day');
+          addLog('danger', '🎯 Zero-Day réussi - accès root sur ' + target.name);
+        }
+        stopZeroDay();
+      }, 2500);
+    }
+    function stopZeroDay() { activeAttacks.zeroday = false; document.querySelector('[data-attack="zeroday"]')?.classList.remove('active'); checkAttackStatus(); }
+    
+    function startCredentialStuffing() {
+      if (!activeAttacks.credstuffing) {
+        startActionMode('credstuffing', '🔑', 'Credential Stuffing');
+      } else stopCredentialStuffing();
+    }
+    function executeCredentialStuffing(attacker, target) {
+      activeAttacks.credstuffing = true;
+      document.querySelector('[data-attack="credstuffing"]').classList.add('active');
+      document.getElementById('attackStatus').style.display = 'flex';
+      addLog('attack', '🔑 Credential Stuffing sur ' + target.name);
+      showToast('Test de credentials volés...', 'warning', '🔑 Creds');
+      const credentials = ['admin:password123', 'user:123456', 'root:toor', 'admin:admin'];
+      let i = 0, progress = 0;
+      const progressBar = showProgressBar(target, 'Tentatives', 0);
+      activeAttacks.credstuffingInterval = setInterval(() => {
+        if (activeAttacks.credstuffing && i < credentials.length) {
+          createPacket(attacker, target, 'credstuffing');
+          addLog('warning', '🔑 Test: ' + credentials[i]);
+          i++; progress = Math.round((i / credentials.length) * 100);
+          updateProgressBar(progressBar, progress);
+        } else if (i >= credentials.length) {
+          if (activeDefenses.accountlockout) {
+            showToast('Compte verrouillé!', 'success', '🛡️ Lockout');
+            addLog('success', '🛡️ Account Lockout a bloqué l\'attaque');
+          } else if (activeDefenses['2fa']) {
+            showToast('2FA requis', 'success', '🛡️ 2FA');
+            addLog('success', '🛡️ 2FA a bloqué l\'accès');
+          } else {
+            showToast('Accès obtenu!', 'error', '🔑 Creds');
+            addLog('danger', '🔑 Credential Stuffing réussi');
+          }
+          removeProgressBar(progressBar);
+          stopCredentialStuffing();
+        }
+      }, 600);
+    }
+    function stopCredentialStuffing() { activeAttacks.credstuffing = false; clearInterval(activeAttacks.credstuffingInterval); document.querySelector('[data-attack="credstuffing"]')?.classList.remove('active'); checkAttackStatus(); }
+    
+    // New defense functions
+    function toggleAntiMalware() { 
+      activeDefenses.antimalware = !activeDefenses.antimalware; 
+      const btn = document.querySelector('[data-defense="antimalware"]');
+      btn.classList.toggle('active', activeDefenses.antimalware);
+      if (activeDefenses.antimalware) { btn.classList.add('defense-activating'); setTimeout(() => btn.classList.remove('defense-activating'), 400); showToast('Protection anti-malware activée', 'success', '🐛 Anti-Malware'); }
+      addLog(activeDefenses.antimalware ? 'success' : 'warning', activeDefenses.antimalware ? '🐛 Anti-Malware activé' : '⚠️ Anti-Malware désactivé'); 
+    }
+    function toggleWAF() { 
+      activeDefenses.waf = !activeDefenses.waf; 
+      const btn = document.querySelector('[data-defense="waf"]');
+      btn.classList.toggle('active', activeDefenses.waf);
+      if (activeDefenses.waf) { btn.classList.add('defense-activating'); setTimeout(() => btn.classList.remove('defense-activating'), 400); showToast('Web Application Firewall activé', 'success', '🛠️ WAF'); }
+      addLog(activeDefenses.waf ? 'success' : 'warning', activeDefenses.waf ? '🛠️ WAF activé' : '⚠️ WAF désactivé'); 
+    }
+    function togglePatchMgmt() { 
+      activeDefenses.patchmgmt = !activeDefenses.patchmgmt; 
+      const btn = document.querySelector('[data-defense="patchmgmt"]');
+      btn.classList.toggle('active', activeDefenses.patchmgmt);
+      if (activeDefenses.patchmgmt) { btn.classList.add('defense-activating'); setTimeout(() => btn.classList.remove('defense-activating'), 400); showToast('Gestion des correctifs activée', 'success', '📦 Patches'); }
+      addLog(activeDefenses.patchmgmt ? 'success' : 'warning', activeDefenses.patchmgmt ? '📦 Patch Management activé' : '⚠️ Patch Management désactivé'); 
+    }
+    function toggleAccountLockout() { 
+      activeDefenses.accountlockout = !activeDefenses.accountlockout; 
+      const btn = document.querySelector('[data-defense="accountlockout"]');
+      btn.classList.toggle('active', activeDefenses.accountlockout);
+      if (activeDefenses.accountlockout) { btn.classList.add('defense-activating'); setTimeout(() => btn.classList.remove('defense-activating'), 400); showToast('Verrouillage de compte activé', 'success', '🔒 Lockout'); }
+      addLog(activeDefenses.accountlockout ? 'success' : 'warning', activeDefenses.accountlockout ? '🔒 Account Lockout activé' : '⚠️ Account Lockout désactivé'); 
+    }
+    
+    // Toast notification system
+    function showToast(message, type = 'info', title = null) {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+      toast.innerHTML = '<span class="toast-icon">' + (icons[type] || icons.info) + '</span><div class="toast-content">' + (title ? '<div class="toast-title">' + title + '</div>' : '') + '<div class="toast-message">' + message + '</div></div>';
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.add('removing'); setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+    
+    // Progress bar for long attacks
+    function showProgressBar(node, label, percent) {
+      const container = document.getElementById('canvasContainer');
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / canvas.width;
+      const scaleY = rect.height / canvas.height;
+      const pb = document.createElement('div');
+      pb.className = 'progress-bar-container';
+      pb.innerHTML = '<div class="progress-bar-label">' + label + '</div><div class="progress-bar"><div class="progress-bar-fill" style="width: ' + percent + '%"></div></div><div class="progress-bar-percent">' + percent + '%</div>';
+      const screenX = (node.x * zoomLevel + viewportX) * scaleX;
+      const screenY = (node.y * zoomLevel + viewportY) * scaleY;
+      pb.style.left = (screenX - 60) + 'px';
+      pb.style.top = (screenY + 50 * zoomLevel) + 'px';
+      container.appendChild(pb);
+      return pb;
+    }
+    function updateProgressBar(pb, percent) { if (pb) { pb.querySelector('.progress-bar-fill').style.width = percent + '%'; pb.querySelector('.progress-bar-percent').textContent = percent + '%'; } }
+    function removeProgressBar(pb) { if (pb) pb.remove(); }
+    
+    // Detail popup for blocked/intercepted packets
+    function showDetailPopup(node, title, details, status) {
+      document.querySelectorAll('.detail-popup').forEach(el => el.remove());
+      const container = document.getElementById('canvasContainer');
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / canvas.width;
+      const scaleY = rect.height / canvas.height;
+      const popup = document.createElement('div');
+      popup.className = 'detail-popup';
+      let detailsHtml = '';
+      for (const [key, value] of Object.entries(details)) { detailsHtml += '<div class="detail-row"><span class="detail-label">' + key + '</span><span class="detail-value">' + value + '</span></div>'; }
+      const statusClass = status === 'blocked' ? 'blocked' : status === 'intercepted' ? 'intercepted' : 'success';
+      const statusIcon = status === 'blocked' ? '🚫' : status === 'intercepted' ? '👁️' : '✅';
+      const statusText = status === 'blocked' ? 'Bloqué' : status === 'intercepted' ? 'Intercepté' : 'Réussi';
+      popup.innerHTML = '<div class="detail-popup-header"><h3>📋 ' + title + '</h3><button class="detail-popup-close" onclick="this.parentElement.parentElement.remove()">×</button></div><div class="detail-popup-content"><div class="detail-row"><span class="detail-label">Cible</span><span class="detail-value">' + node.name + ' (' + node.ip + ')</span></div>' + detailsHtml + '<div class="detail-status ' + statusClass + '">' + statusIcon + ' ' + statusText + '</div></div>';
+      const screenX = (node.x * zoomLevel + viewportX) * scaleX;
+      const screenY = (node.y * zoomLevel + viewportY) * scaleY;
+      popup.style.left = Math.min(screenX + 60, rect.width - 340) + 'px';
+      popup.style.top = Math.max(20, screenY - 100) + 'px';
+      container.appendChild(popup);
+      setTimeout(() => popup.remove(), 8000);
+    }
+    
+    // Action Mode System (sender -> destination)
+    function startActionMode(mode, icon, label) {
+      actionMode = mode;
+      actionSource = null;
+      actionTarget = null;
+      const indicator = document.getElementById('actionModeIndicator');
+      document.getElementById('actionModeIcon').textContent = icon;
+      document.getElementById('actionModeText').textContent = label + ' - Cliquez sur l\'émetteur';
+      indicator.classList.add('visible');
+      showToast('Sélectionnez l\'équipement source', 'info', label);
+    }
+    
+    function handleActionModeClick(node) {
+      if (!actionSource) {
+        actionSource = node;
+        document.getElementById('actionModeText').textContent = document.getElementById('actionModeText').textContent.replace('l\'émetteur', 'le destinataire');
+        showToast(node.name + ' sélectionné comme source', 'info');
+        const el = document.getElementById('node-' + node.id);
+        if (el) { el.style.borderColor = '#22d3ee'; createRingEffect(node, '#22d3ee'); }
+      } else if (node !== actionSource) {
+        actionTarget = node;
+        executeAction();
+      }
+    }
+    
+    function executeAction() {
+      if (!actionSource || !actionTarget) return;
+      const src = actionSource, tgt = actionTarget, mode = actionMode;
+      cancelActionMode();
+      
+      switch(mode) {
+        case 'ping': createPacket(src, tgt, 'ping', { sentAt: Date.now() }); addLog('info', '📡 Ping ' + src.ip + ' → ' + tgt.ip); showToast('Ping envoyé vers ' + tgt.name, 'info'); break;
+        case 'http': createPacket(src, tgt, activeDefenses.encryption ? 'https' : 'http'); addLog('info', '🌐 ' + (activeDefenses.encryption ? 'HTTPS' : 'HTTP') + ' GET → ' + tgt.ip); break;
+        case 'email': createPacket(src, tgt, activeDefenses.encryption ? 'encrypted' : 'email', { from: 'alice@company.com', to: 'bob@company.com', subject: 'Données confidentielles', body: 'Mot de passe: Sup3rS3cr3t!\nPIN: 4521', encrypted: activeDefenses.encryption }); addLog('info', activeDefenses.encryption ? '🔒 Email chiffré envoyé' : '✉️ Email envoyé'); if (!activeDefenses.encryption && activeAttacks.mitm) showToast('MITM actif - email sera intercepté!', 'warning'); break;
+        case 'ssh': createPacket(src, tgt, 'ssh'); addLog('info', '🔌 SSH ' + src.ip + ' → ' + tgt.ip + ':22'); break;
+        case 'dns': createPacket(src, tgt, 'dns', { domain: 'www.banque-secure.com' }); addLog('info', '📖 DNS Query: www.banque-secure.com'); break;
+        case 'traceroute': 
+          const path = findPath(src, tgt); addLog('info', '🗺️ Traceroute vers ' + tgt.ip);
+          let total = 0; path.forEach((n, i) => { const lat = Math.floor(Math.random() * 30) + 5; total += lat; setTimeout(() => { addLog('info', '  ' + (i+1) + '. ' + n.ip + ' (' + n.name + ') - ' + lat + 'ms'); n.traced = true; setTimeout(() => n.traced = false, 500); if (i === path.length - 1) { addLog('success', 'Terminé - ' + path.length + ' hops, ' + total + 'ms'); showToast('Traceroute terminé: ' + path.length + ' hops', 'success'); } }, i * 400); });
+          break;
+        case 'ddos':
+          activeAttacks.ddos = true; document.querySelector('[data-attack="ddos"]').classList.add('active'); document.getElementById('attackStatus').style.display = 'flex';
+          addLog('attack', '💥 DDoS lancé: ' + src.name + ' → ' + tgt.name); showToast('Attaque DDoS en cours...', 'error', '💥 DDoS');
+          activeAttacks.ddosInterval = setInterval(() => { if (activeAttacks.ddos) { for (let i = 0; i < 5; i++) createPacket(src, tgt, 'ddos'); tgt.attacked = true; createParticles(tgt, 3, '#ef4444'); } }, 200);
+          break;
+        case 'mitm':
+          if (src.type !== 'mitm') { showToast('MITM nécessite un nœud MITM comme source', 'warning'); return; }
+          activeAttacks.mitm = true; src.intercepting = true; document.querySelector('[data-attack="mitm"]').classList.add('active'); document.getElementById('attackStatus').style.display = 'flex';
+          addLog('attack', '🕵️ MITM activé sur ' + src.name); showToast('Interception de trafic activée', 'error', '🕵️ MITM');
+          break;
+        case 'portscan':
+          activeAttacks.portscan = true; document.querySelector('[data-attack="portscan"]').classList.add('active'); document.getElementById('attackStatus').style.display = 'flex';
+          addLog('attack', '🔍 Scan de ports sur ' + tgt.name);
+          const ports = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 8080];
+          let portI = 0, open = [];
+          activeAttacks.portscanInterval = setInterval(() => {
+            if (activeAttacks.portscan && portI < ports.length) { createPacket(src, tgt, 'portscan', { port: ports[portI] }); if (tgt.ports.includes(ports[portI])) { open.push(ports[portI]); addLog('warning', 'Port ' + ports[portI] + ' OUVERT'); } portI++; }
+            else { stopPortScan(); addLog('info', 'Scan terminé. Ports ouverts: ' + (open.length ? open.join(', ') : 'Aucun')); showToast('Scan terminé: ' + open.length + ' ports ouverts', open.length > 0 ? 'warning' : 'success'); }
+          }, 300);
+          break;
+        case 'ransomware': executeRansomwareAttack(src, tgt); break;
+        case 'sqli': executeSQLInjection(src, tgt); break;
+        case 'xss': executeXSS(src, tgt); break;
+        case 'zeroday': executeZeroDay(src, tgt); break;
+        case 'credstuffing': executeCredentialStuffing(src, tgt); break;
+      }
+    }
+    
+    function cancelActionMode() {
+      if (actionSource) { const el = document.getElementById('node-' + actionSource.id); if (el) el.style.borderColor = actionSource.config.color; }
+      actionMode = null; actionSource = null; actionTarget = null;
+      document.getElementById('actionModeIndicator').classList.remove('visible');
+    }
+    
+    function createRingEffect(node, color) {
+      const container = document.getElementById('canvasContainer');
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / canvas.width;
+      const scaleY = rect.height / canvas.height;
+      const ring = document.createElement('div');
+      ring.className = 'ring-effect';
+      ring.style.borderColor = color;
+      const screenX = (node.x * zoomLevel + viewportX) * scaleX;
+      const screenY = (node.y * zoomLevel + viewportY) * scaleY;
+      const size = 70 * zoomLevel;
+      ring.style.left = (screenX - size/2) + 'px';
+      ring.style.top = (screenY - size/2) + 'px';
+      ring.style.width = size + 'px';
+      ring.style.height = size + 'px';
+      container.appendChild(ring);
+      setTimeout(() => ring.remove(), 600);
+    }
+
+    function sendPing() { startActionMode('ping', '📡', 'Ping'); }
+    function sendTraceroute() { startActionMode('traceroute', '🗺️', 'Traceroute'); }
+    function sendEmail() { startActionMode('email', '✉️', 'Email'); }
+    function sendHTTP() { startActionMode('http', '🌐', 'Requête HTTP'); }
+    function sendDNS() { startActionMode('dns', '📖', 'Requête DNS'); }
+    function sendSSH() { startActionMode('ssh', '🔌', 'Connexion SSH'); }
     
     function animate() {
       try {
@@ -1409,13 +2123,25 @@
         ctx.fillStyle = '#0a0e17';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Draw everything
+        // Apply viewport transform for panning and zooming
+        ctx.save();
+        ctx.translate(viewportX, viewportY);
+        ctx.scale(zoomLevel, zoomLevel);
+        
+        // Draw everything in world coordinates
         drawGrid(); 
         drawConnections(); 
         drawConnectingLine(); 
         drawPacketTrails(); 
         drawPackets(); 
         drawNodes();
+        drawParticles();
+        
+        ctx.restore();
+        
+        // Draw UI elements that don't transform (like zoom indicator)
+        drawZoomIndicator();
+        
         updatePackets();
         
         // Update HTML node positions
@@ -1425,6 +2151,57 @@
         console.error('Animate error:', e);
       }
       requestAnimationFrame(animate);
+    }
+    
+    // Particle system for DDoS visual effects
+    let particles = [];
+    
+    function createParticles(targetNode, count, color) {
+      if (zoomLevel < 0.7) count = Math.min(count, 8); // Reduce particles at low zoom
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 50 + Math.random() * 100;
+        particles.push({
+          x: targetNode.x + Math.cos(angle) * distance,
+          y: targetNode.y + Math.sin(angle) * distance,
+          targetX: targetNode.x,
+          targetY: targetNode.y,
+          color: color,
+          life: 1,
+          speed: 0.02 + Math.random() * 0.02
+        });
+      }
+    }
+    
+    function drawParticles() {
+      particles = particles.filter(p => {
+        p.life -= p.speed;
+        if (p.life <= 0) return false;
+        
+        // Move towards target
+        const dx = p.targetX - p.x;
+        const dy = p.targetY - p.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist > 5) {
+          p.x += (dx / dist) * 4;
+          p.y += (dy / dist) * 4;
+        }
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4 * p.life, 0, Math.PI * 2);
+        ctx.fillStyle = p.color + Math.floor(p.life * 255).toString(16).padStart(2, '0');
+        ctx.fill();
+        return true;
+      });
+    }
+    
+    function drawZoomIndicator() {
+      if (zoomLevel !== 1 || viewportX !== 0 || viewportY !== 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '12px system-ui';
+        ctx.textAlign = 'right';
+        ctx.fillText('Zoom: ' + Math.round(zoomLevel * 100) + '% | Molette: zoom, Molette+glisser: déplacer', canvas.width - 20, canvas.height - 20);
+      }
     }
     
     function drawGrid() { ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 1; for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); } for (let y = 0; y < canvas.height; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); } }
@@ -1599,12 +2376,21 @@
       document.querySelector('[data-attack="bruteforce"]').addEventListener('click', startBruteForce);
       document.querySelector('[data-attack="synflood"]').addEventListener('click', startSYNFlood);
       document.querySelector('[data-attack="phishing"]').addEventListener('click', startPhishing);
+      document.querySelector('[data-attack="ransomware"]').addEventListener('click', startRansomware);
+      document.querySelector('[data-attack="sqli"]').addEventListener('click', startSQLInjection);
+      document.querySelector('[data-attack="xss"]').addEventListener('click', startXSS);
+      document.querySelector('[data-attack="zeroday"]').addEventListener('click', startZeroDay);
+      document.querySelector('[data-attack="credstuffing"]').addEventListener('click', startCredentialStuffing);
       document.querySelector('[data-defense="firewall"]').addEventListener('click', toggleFirewall);
       document.querySelector('[data-defense="ids"]').addEventListener('click', toggleIDS);
       document.querySelector('[data-defense="encryption"]').addEventListener('click', toggleEncryption);
       document.querySelector('[data-defense="vpn"]').addEventListener('click', toggleVPN);
       document.querySelector('[data-defense="ratelimit"]').addEventListener('click', toggleRateLimit);
       document.querySelector('[data-defense="2fa"]').addEventListener('click', toggle2FA);
+      document.querySelector('[data-defense="antimalware"]').addEventListener('click', toggleAntiMalware);
+      document.querySelector('[data-defense="waf"]').addEventListener('click', toggleWAF);
+      document.querySelector('[data-defense="patchmgmt"]').addEventListener('click', togglePatchMgmt);
+      document.querySelector('[data-defense="accountlockout"]').addEventListener('click', toggleAccountLockout);
       document.querySelector('[data-action="ping"]').addEventListener('click', sendPing);
       document.querySelector('[data-action="traceroute"]').addEventListener('click', sendTraceroute);
       document.querySelector('[data-action="sendemail"]').addEventListener('click', sendEmail);
@@ -1615,11 +2401,18 @@
     }
     
     function loadScenario(scenario) {
-      nodes = []; connections = []; packets = []; packetCounter = 0;
-      Object.keys(activeAttacks).forEach(k => activeAttacks[k] = false);
+      // Clean up existing HTML node elements
+      document.querySelectorAll('.html-node').forEach(el => el.remove());
+      document.querySelectorAll('.progress-bar-container').forEach(el => el.remove());
+      document.querySelectorAll('.detail-popup').forEach(el => el.remove());
+      
+      nodes = []; connections = []; packets = []; packetCounter = 0; particles = [];
+      viewportX = 0; viewportY = 0; zoomLevel = 1; // Reset viewport
+      Object.keys(activeAttacks).forEach(k => { activeAttacks[k] = false; clearInterval(activeAttacks[k + 'Interval']); });
       Object.keys(activeDefenses).forEach(k => activeDefenses[k] = false);
       document.querySelectorAll('.attack-btn, .defense-btn').forEach(btn => btn.classList.remove('active'));
       document.getElementById('attackStatus').style.display = 'none';
+      cancelActionMode();
       clearLogs();
       
       switch (scenario) {
@@ -1652,6 +2445,43 @@
           createNode('computer', 100, 250); createNode('attacker', 300, 150); createNode('dns', 300, 350); createNode('router', 500, 250); createNode('server', 700, 250);
           setTimeout(() => { createConnection(nodes[0], nodes[3]); createConnection(nodes[1], nodes[3]); createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]); }, 100);
           addLog('success', 'Scénario "DNS Spoofing" chargé'); addLog('info', '1. Requête DNS  2. Activez DNS Spoofing  3. Refaites');
+          break;
+        case 'datacenter':
+          createNode('internet', 100, 250); createNode('loadbalancer', 280, 250); createNode('server', 450, 120); createNode('server', 450, 250); createNode('server', 450, 380); createNode('database', 620, 185); createNode('database', 620, 315); createNode('cloud', 780, 250);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[1], nodes[3]); createConnection(nodes[1], nodes[4]); 
+            createConnection(nodes[2], nodes[5]); createConnection(nodes[3], nodes[5]); createConnection(nodes[3], nodes[6]); createConnection(nodes[4], nodes[6]);
+            createConnection(nodes[5], nodes[7]); createConnection(nodes[6], nodes[7]);
+          }, 100);
+          addLog('success', 'Scénario "Datacenter Cloud" chargé'); 
+          addLog('info', 'Architecture cloud avec load balancing et réplication');
+          showToast('Infrastructure cloud avec haute disponibilité', 'info', '☁️ Datacenter');
+          break;
+        case 'iot-network':
+          createNode('router', 400, 200); createNode('iot', 200, 100); createNode('iot', 600, 100); createNode('iot', 200, 300); createNode('phone', 600, 300); createNode('printer', 400, 380); createNode('attacker', 100, 200);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[0], nodes[2]); createConnection(nodes[0], nodes[3]); 
+            createConnection(nodes[0], nodes[4]); createConnection(nodes[0], nodes[5]); createConnection(nodes[6], nodes[0]);
+          }, 100);
+          addLog('success', 'Scénario "Réseau IoT" chargé'); 
+          addLog('danger', '⚠️ Réseau IoT vulnérable - ports ouverts, pas de chiffrement');
+          showToast('Réseau IoT avec équipements vulnérables', 'warning', '📟 IoT');
+          break;
+        case 'pentest':
+          createNode('attacker', 80, 250); createNode('internet', 200, 250); createNode('firewall', 350, 250); createNode('router', 500, 250);
+          createNode('switch', 650, 150); createNode('switch', 650, 350);
+          createNode('enterprise', 800, 80); createNode('server', 800, 150); createNode('database', 800, 220);
+          createNode('computer', 800, 320); createNode('phone', 800, 390); createNode('vpngateway', 500, 100);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]); 
+            createConnection(nodes[3], nodes[4]); createConnection(nodes[3], nodes[5]); createConnection(nodes[3], nodes[11]);
+            createConnection(nodes[4], nodes[6]); createConnection(nodes[4], nodes[7]); createConnection(nodes[4], nodes[8]);
+            createConnection(nodes[5], nodes[9]); createConnection(nodes[5], nodes[10]);
+            toggleFirewall(); toggleIDS(); toggleEncryption();
+          }, 100);
+          addLog('success', 'Scénario "Pentest Complet" chargé'); 
+          addLog('info', 'Infrastructure d\'entreprise complète - testez toutes les attaques!');
+          showToast('Environnement de test d\'intrusion complet', 'info', '🎯 Pentest');
           break;
       }
       
