@@ -1160,7 +1160,7 @@
         const bg = ctx.createRadialGradient(node.x - 10, node.y - 10, 0, node.x, node.y, node.radius); bg.addColorStop(0, 'rgba(30,35,50,0.95)'); bg.addColorStop(1, 'rgba(15,20,30,0.95)'); ctx.fillStyle = bg; ctx.fill();
         ctx.strokeStyle = node === selectedNode ? '#3b82f6' : (node === connectingFrom ? '#22c55e' : cfg.color);
         ctx.lineWidth = (node === selectedNode || node === connectingFrom) ? 3 : 2; ctx.stroke();
-        ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(cfg.icon, node.x, node.y);
+        ctx.font = '24px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffffff'; ctx.fillText(cfg.icon, node.x, node.y);
         ctx.font = 'bold 11px system-ui'; ctx.fillStyle = '#e5e7eb'; ctx.fillText(node.name, node.x, node.y + node.radius + 14);
         ctx.font = '9px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillText(node.ip, node.x, node.y + node.radius + 26);
         if (node.type === 'firewall' && activeDefenses.firewall) { ctx.font = '12px Arial'; ctx.fillText('', node.x + node.radius - 5, node.y - node.radius + 5); }
