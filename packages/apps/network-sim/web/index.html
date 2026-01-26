@@ -102,7 +102,7 @@
     }
     
     .sidebar-section {
-      padding: 16px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
     }
     
@@ -112,6 +112,159 @@
       letter-spacing: 0.05em;
       color: var(--text-secondary);
       margin-bottom: 12px;
+    }
+    
+    /* Search bar */
+    .search-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      font-size: 0.9rem;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+    
+    .search-input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 10px 32px 10px 36px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .search-input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+    }
+    
+    .search-input::placeholder {
+      color: var(--text-secondary);
+    }
+    
+    .search-clear {
+      position: absolute;
+      right: 8px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    
+    .search-clear:hover {
+      color: var(--text-primary);
+      background: var(--bg-card);
+    }
+    
+    /* Collapsible sections */
+    .sidebar-section.collapsible .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      margin-bottom: 0;
+      padding: 4px 0;
+      user-select: none;
+      transition: color 0.2s;
+    }
+    
+    .sidebar-section.collapsible .section-header:hover {
+      color: var(--text-primary);
+    }
+    
+    .sidebar-section.collapsible .section-content {
+      margin-top: 12px;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, opacity 0.2s;
+    }
+    
+    .sidebar-section.collapsible.collapsed .section-content {
+      max-height: 0 !important;
+      opacity: 0;
+      margin-top: 0;
+    }
+    
+    .sidebar-section.collapsible .collapse-icon {
+      font-size: 0.65rem;
+      transition: transform 0.3s;
+      color: var(--text-secondary);
+    }
+    
+    .sidebar-section.collapsible.collapsed .collapse-icon {
+      transform: rotate(-90deg);
+    }
+    
+    /* Action buttons grid */
+    .action-buttons-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+    
+    .action-btn-small {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 8px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.7rem;
+      transition: all 0.2s;
+    }
+    
+    .action-btn-small span {
+      font-size: 1.1rem;
+    }
+    
+    .action-btn-small:hover {
+      border-color: var(--accent-purple);
+      background: rgba(168, 85, 247, 0.1);
+    }
+    
+    .action-btn-small.active {
+      border-color: var(--accent-purple);
+      background: rgba(168, 85, 247, 0.2);
+    }
+    
+    /* Attack/Defense button small text styling */
+    .attack-btn small, .defense-btn small {
+      color: var(--text-secondary);
+      font-size: 0.7rem;
+    }
+    
+    /* Hidden elements via search */
+    .palette-item.search-hidden,
+    .attack-btn.search-hidden,
+    .defense-btn.search-hidden,
+    .action-btn-small.search-hidden {
+      display: none !important;
+    }
+    
+    .sidebar-section.search-hidden {
+      display: none !important;
+    }
+    
+    .no-results-message {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
     }
     
     .node-palette {
@@ -903,86 +1056,119 @@
     
     <div class="main-layout">
       <aside class="sidebar" id="sidebar">
-        <div class="sidebar-section">
-          <h3>Équipements Réseau</h3>
-          <div class="node-palette">
-            <div class="palette-item" draggable="true" data-type="computer"><span class="icon">&#128187;</span>PC</div>
-            <div class="palette-item" draggable="true" data-type="server"><span class="icon">&#128421;</span>Serveur</div>
-            <div class="palette-item" draggable="true" data-type="router"><span class="icon">&#128225;</span>Routeur</div>
-            <div class="palette-item" draggable="true" data-type="switch"><span class="icon">&#128256;</span>Switch</div>
-            <div class="palette-item" draggable="true" data-type="firewall"><span class="icon">&#128737;</span>Firewall</div>
-            <div class="palette-item" draggable="true" data-type="dns"><span class="icon">&#128214;</span>DNS</div>
-            <div class="palette-item" draggable="true" data-type="attacker"><span class="icon">&#128100;</span>Attaquant</div>
-            <div class="palette-item" draggable="true" data-type="mitm"><span class="icon">&#128373;</span>MITM</div>
-            <div class="palette-item" draggable="true" data-type="internet"><span class="icon">&#127760;</span>Internet</div>
-            <div class="palette-item" draggable="true" data-type="cloud"><span class="icon">&#9729;</span>Cloud</div>
-            <div class="palette-item" draggable="true" data-type="enterprise"><span class="icon">&#127970;</span>Entreprise</div>
-            <div class="palette-item" draggable="true" data-type="phone"><span class="icon">&#128241;</span>Téléphone</div>
-            <div class="palette-item" draggable="true" data-type="iot"><span class="icon">&#128223;</span>IoT</div>
-            <div class="palette-item" draggable="true" data-type="printer"><span class="icon">&#128424;</span>Imprimante</div>
-            <div class="palette-item" draggable="true" data-type="database"><span class="icon">&#128451;</span>Database</div>
-            <div class="palette-item" draggable="true" data-type="loadbalancer"><span class="icon">&#9878;</span>Load Balancer</div>
-            <div class="palette-item" draggable="true" data-type="vpngateway"><span class="icon">&#128272;</span>VPN Gateway</div>
-          </div>
-        </div>
-            <div class="palette-item" draggable="true" data-type="firewall"><span class="icon">&#128737;</span>Firewall</div>
-            <div class="palette-item" draggable="true" data-type="dns"><span class="icon">&#128214;</span>DNS</div>
-            <div class="palette-item" draggable="true" data-type="attacker"><span class="icon">&#128100;</span>Attaquant</div>
-            <div class="palette-item" draggable="true" data-type="mitm"><span class="icon">&#128373;</span>MITM</div>
+        <!-- Barre de recherche -->
+        <div class="sidebar-section" style="padding-bottom: 8px;">
+          <div class="search-container">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="sidebarSearch" class="search-input" placeholder="Rechercher..." oninput="filterSidebar(this.value)">
+            <button class="search-clear" id="searchClear" onclick="clearSearch()" style="display:none;">×</button>
           </div>
         </div>
         
-        <div class="sidebar-section">
-          <h3>Outils</h3>
-          <div class="attack-buttons">
-            <button class="defense-btn" id="cableModeBtn" style="border-color: var(--accent-cyan)"><span class="icon">&#128279;</span><div><div>Mode Câble</div><small style="color:var(--text-secondary);font-size:0.7rem">Cliquez sur 2 équipements pour les relier</small></div></button>
+        <!-- Outils -->
+        <div class="sidebar-section collapsible" data-section="tools">
+          <h3 class="section-header" onclick="toggleSection('tools')">
+            <span>🔧 Outils</span>
+            <span class="collapse-icon">▼</span>
+          </h3>
+          <div class="section-content">
+            <div class="attack-buttons">
+              <button class="defense-btn" id="cableModeBtn" style="border-color: var(--accent-cyan)" data-search="cable connexion relier lien"><span class="icon">&#128279;</span><div><div>Mode Câble</div><small style="color:var(--text-secondary);font-size:0.7rem">Cliquez sur 2 équipements pour les relier</small></div></button>
+            </div>
           </div>
         </div>
         
-        <div class="sidebar-section">
-          <h3>Attaques</h3>
-          <div class="attack-buttons">
-            <button class="attack-btn" data-attack="ddos"><span class="icon">&#128165;</span><div><div>DDoS Attack</div><small style="color:var(--text-secondary);font-size:0.7rem">Déni de service distribué</small></div></button>
-            <button class="attack-btn" data-attack="mitm"><span class="icon">&#128373;</span><div><div>Man-in-the-Middle</div><small style="color:var(--text-secondary);font-size:0.7rem">Interception de données</small></div></button>
-            <button class="attack-btn" data-attack="portscan"><span class="icon">&#128269;</span><div><div>Port Scanning</div><small style="color:var(--text-secondary);font-size:0.7rem">Détection des ports ouverts</small></div></button>
-            <button class="attack-btn" data-attack="dnsspoof"><span class="icon">&#127917;</span><div><div>DNS Spoofing</div><small style="color:var(--text-secondary);font-size:0.7rem">Falsification DNS</small></div></button>
-            <button class="attack-btn" data-attack="arp"><span class="icon">&#128205;</span><div><div>ARP Poisoning</div><small style="color:var(--text-secondary);font-size:0.7rem">Empoisonnement ARP</small></div></button>
-            <button class="attack-btn" data-attack="bruteforce"><span class="icon">&#128275;</span><div><div>Brute Force</div><small style="color:var(--text-secondary);font-size:0.7rem">Attaque par force brute</small></div></button>
-            <button class="attack-btn" data-attack="synflood"><span class="icon">&#127754;</span><div><div>SYN Flood</div><small style="color:var(--text-secondary);font-size:0.7rem">Inondation TCP SYN</small></div></button>
-            <button class="attack-btn" data-attack="phishing"><span class="icon">&#127907;</span><div><div>Phishing</div><small style="color:var(--text-secondary);font-size:0.7rem">Hameçonnage par email</small></div></button>
-            <button class="attack-btn" data-attack="ransomware"><span class="icon">&#128128;</span><div><div>Ransomware</div><small style="color:var(--text-secondary);font-size:0.7rem">Chiffrement malveillant</small></div></button>
-            <button class="attack-btn" data-attack="sqli"><span class="icon">&#128137;</span><div><div>SQL Injection</div><small style="color:var(--text-secondary);font-size:0.7rem">Injection base de données</small></div></button>
-            <button class="attack-btn" data-attack="xss"><span class="icon">&#128220;</span><div><div>XSS Attack</div><small style="color:var(--text-secondary);font-size:0.7rem">Cross-Site Scripting</small></div></button>
-            <button class="attack-btn" data-attack="zeroday"><span class="icon">&#127919;</span><div><div>Zero-Day</div><small style="color:var(--text-secondary);font-size:0.7rem">Exploit non patché</small></div></button>
-            <button class="attack-btn" data-attack="credstuffing"><span class="icon">&#128273;</span><div><div>Credential Stuffing</div><small style="color:var(--text-secondary);font-size:0.7rem">Réutilisation identifiants</small></div></button>
+        <!-- Actions -->
+        <div class="sidebar-section collapsible" data-section="actions">
+          <h3 class="section-header" onclick="toggleSection('actions')">
+            <span>⚡ Actions</span>
+            <span class="collapse-icon">▼</span>
+          </h3>
+          <div class="section-content">
+            <div class="action-buttons-grid">
+              <button class="action-btn-small" data-action="ping" data-search="ping icmp réseau test"><span>📡</span>Ping</button>
+              <button class="action-btn-small" data-action="traceroute" data-search="traceroute route chemin hops"><span>🗺️</span>Traceroute</button>
+              <button class="action-btn-small" data-action="sendemail" data-search="email mail smtp envoyer"><span>✉️</span>Email</button>
+              <button class="action-btn-small" data-action="http" data-search="http https web requête"><span>🌐</span>HTTP</button>
+              <button class="action-btn-small" data-action="dns" data-search="dns domaine résolution"><span>📖</span>DNS</button>
+              <button class="action-btn-small" data-action="ssh" data-search="ssh terminal connexion remote"><span>🔌</span>SSH</button>
+            </div>
           </div>
         </div>
         
-        <div class="sidebar-section">
-          <h3>Défenses</h3>
-          <div class="attack-buttons">
-            <button class="defense-btn" data-defense="firewall"><span class="icon">&#128737;</span><div><div>Activer Firewall</div><small style="color:var(--text-secondary);font-size:0.7rem">Bloquer le trafic malveillant</small></div></button>
-            <button class="defense-btn" data-defense="ids"><span class="icon">&#128065;</span><div><div>Activer IDS/IPS</div><small style="color:var(--text-secondary);font-size:0.7rem">Détection d intrusion</small></div></button>
-            <button class="defense-btn" data-defense="encryption"><span class="icon">&#128272;</span><div><div>Chiffrement TLS</div><small style="color:var(--text-secondary);font-size:0.7rem">Communications sécurisées</small></div></button>
-            <button class="defense-btn" data-defense="vpn"><span class="icon">&#128274;</span><div><div>Activer VPN</div><small style="color:var(--text-secondary);font-size:0.7rem">Tunnel chiffré</small></div></button>
-            <button class="defense-btn" data-defense="ratelimit"><span class="icon">&#9201;</span><div><div>Rate Limiting</div><small style="color:var(--text-secondary);font-size:0.7rem">Limiter les requêtes</small></div></button>
-            <button class="defense-btn" data-defense="2fa"><span class="icon">&#128241;</span><div><div>2FA</div><small style="color:var(--text-secondary);font-size:0.7rem">Double authentification</small></div></button>
-            <button class="defense-btn" data-defense="antimalware"><span class="icon">&#128022;</span><div><div>Anti-Malware</div><small style="color:var(--text-secondary);font-size:0.7rem">Protection ransomware</small></div></button>
-            <button class="defense-btn" data-defense="waf"><span class="icon">&#128736;</span><div><div>WAF</div><small style="color:var(--text-secondary);font-size:0.7rem">Firewall applicatif Web</small></div></button>
-            <button class="defense-btn" data-defense="patchmgmt"><span class="icon">&#128230;</span><div><div>Patch Management</div><small style="color:var(--text-secondary);font-size:0.7rem">Mises à jour sécurité</small></div></button>
-            <button class="defense-btn" data-defense="accountlockout"><span class="icon">&#128274;</span><div><div>Account Lockout</div><small style="color:var(--text-secondary);font-size:0.7rem">Verrouillage compte</small></div></button>
+        <!-- Équipements Réseau -->
+        <div class="sidebar-section collapsible" data-section="equipment">
+          <h3 class="section-header" onclick="toggleSection('equipment')">
+            <span>🖥️ Équipements</span>
+            <span class="collapse-icon">▼</span>
+          </h3>
+          <div class="section-content">
+            <div class="node-palette">
+              <div class="palette-item" draggable="true" data-type="computer" data-search="pc ordinateur computer poste"><span class="icon">&#128187;</span>PC</div>
+              <div class="palette-item" draggable="true" data-type="server" data-search="serveur server hébergement"><span class="icon">&#128421;</span>Serveur</div>
+              <div class="palette-item" draggable="true" data-type="router" data-search="routeur router passerelle gateway"><span class="icon">&#128225;</span>Routeur</div>
+              <div class="palette-item" draggable="true" data-type="switch" data-search="switch commutateur réseau"><span class="icon">&#128256;</span>Switch</div>
+              <div class="palette-item" draggable="true" data-type="firewall" data-search="firewall pare-feu protection sécurité"><span class="icon">&#128737;</span>Firewall</div>
+              <div class="palette-item" draggable="true" data-type="dns" data-search="dns domaine serveur nom"><span class="icon">&#128214;</span>DNS</div>
+              <div class="palette-item" draggable="true" data-type="internet" data-search="internet web wan externe"><span class="icon">&#127760;</span>Internet</div>
+              <div class="palette-item" draggable="true" data-type="cloud" data-search="cloud nuage saas iaas"><span class="icon">&#9729;</span>Cloud</div>
+              <div class="palette-item" draggable="true" data-type="database" data-search="database base données sql"><span class="icon">&#128451;</span>Database</div>
+              <div class="palette-item" draggable="true" data-type="loadbalancer" data-search="load balancer répartition charge"><span class="icon">&#9878;</span>Load Bal.</div>
+              <div class="palette-item" draggable="true" data-type="vpngateway" data-search="vpn gateway tunnel chiffré"><span class="icon">&#128272;</span>VPN</div>
+              <div class="palette-item" draggable="true" data-type="enterprise" data-search="entreprise building bureau"><span class="icon">&#127970;</span>Entreprise</div>
+              <div class="palette-item" draggable="true" data-type="phone" data-search="téléphone mobile smartphone"><span class="icon">&#128241;</span>Téléphone</div>
+              <div class="palette-item" draggable="true" data-type="iot" data-search="iot capteur sensor objets connectés"><span class="icon">&#128223;</span>IoT</div>
+              <div class="palette-item" draggable="true" data-type="printer" data-search="imprimante printer"><span class="icon">&#128424;</span>Imprimante</div>
+              <div class="palette-item" draggable="true" data-type="attacker" data-search="attaquant hacker pirate"><span class="icon">&#128100;</span>Attaquant</div>
+              <div class="palette-item" draggable="true" data-type="mitm" data-search="mitm man middle interception"><span class="icon">&#128373;</span>MITM</div>
+            </div>
           </div>
         </div>
         
-        <div class="sidebar-section">
-          <h3>Actions</h3>
-          <div class="attack-buttons">
-            <button class="defense-btn" data-action="ping"><span class="icon">&#128246;</span><div>Ping</div></button>
-            <button class="defense-btn" data-action="traceroute"><span class="icon">&#128506;</span><div>Traceroute</div></button>
-            <button class="defense-btn" data-action="sendemail"><span class="icon">&#9993;</span><div>Envoyer Email</div></button>
-            <button class="defense-btn" data-action="http"><span class="icon">&#127760;</span><div>Requête HTTP</div></button>
-            <button class="defense-btn" data-action="dns"><span class="icon">&#128214;</span><div>Requête DNS</div></button>
-            <button class="defense-btn" data-action="ssh"><span class="icon">&#128268;</span><div>Connexion SSH</div></button>
+        <!-- Attaques -->
+        <div class="sidebar-section collapsible" data-section="attacks">
+          <h3 class="section-header" onclick="toggleSection('attacks')">
+            <span>💥 Attaques</span>
+            <span class="collapse-icon">▼</span>
+          </h3>
+          <div class="section-content">
+            <div class="attack-buttons">
+              <button class="attack-btn" data-attack="ddos" data-search="ddos déni service distribué flood"><span class="icon">&#128165;</span><div><div>DDoS Attack</div><small>Déni de service distribué</small></div></button>
+              <button class="attack-btn" data-attack="mitm" data-search="mitm man middle interception espion"><span class="icon">&#128373;</span><div><div>Man-in-the-Middle</div><small>Interception de données</small></div></button>
+              <button class="attack-btn" data-attack="portscan" data-search="port scan scanner détection reconnaissance"><span class="icon">&#128269;</span><div><div>Port Scanning</div><small>Détection des ports ouverts</small></div></button>
+              <button class="attack-btn" data-attack="dnsspoof" data-search="dns spoof spoofing falsification"><span class="icon">&#127917;</span><div><div>DNS Spoofing</div><small>Falsification DNS</small></div></button>
+              <button class="attack-btn" data-attack="arp" data-search="arp poisoning empoisonnement cache"><span class="icon">&#128205;</span><div><div>ARP Poisoning</div><small>Empoisonnement ARP</small></div></button>
+              <button class="attack-btn" data-attack="bruteforce" data-search="brute force mot passe password crack"><span class="icon">&#128275;</span><div><div>Brute Force</div><small>Attaque par force brute</small></div></button>
+              <button class="attack-btn" data-attack="synflood" data-search="syn flood tcp inondation"><span class="icon">&#127754;</span><div><div>SYN Flood</div><small>Inondation TCP SYN</small></div></button>
+              <button class="attack-btn" data-attack="phishing" data-search="phishing hameçonnage email fraude"><span class="icon">&#127907;</span><div><div>Phishing</div><small>Hameçonnage par email</small></div></button>
+              <button class="attack-btn" data-attack="ransomware" data-search="ransomware rançon chiffrement cryptolocker"><span class="icon">&#128128;</span><div><div>Ransomware</div><small>Chiffrement malveillant</small></div></button>
+              <button class="attack-btn" data-attack="sqli" data-search="sql injection base données"><span class="icon">&#128137;</span><div><div>SQL Injection</div><small>Injection base de données</small></div></button>
+              <button class="attack-btn" data-attack="xss" data-search="xss cross site scripting script"><span class="icon">&#128220;</span><div><div>XSS Attack</div><small>Cross-Site Scripting</small></div></button>
+              <button class="attack-btn" data-attack="zeroday" data-search="zero day 0day exploit vulnérabilité"><span class="icon">&#127919;</span><div><div>Zero-Day</div><small>Exploit non patché</small></div></button>
+              <button class="attack-btn" data-attack="credstuffing" data-search="credential stuffing identifiants login"><span class="icon">&#128273;</span><div><div>Credential Stuffing</div><small>Réutilisation identifiants</small></div></button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Défenses -->
+        <div class="sidebar-section collapsible" data-section="defenses">
+          <h3 class="section-header" onclick="toggleSection('defenses')">
+            <span>🛡️ Défenses</span>
+            <span class="collapse-icon">▼</span>
+          </h3>
+          <div class="section-content">
+            <div class="attack-buttons">
+              <button class="defense-btn" data-defense="firewall" data-search="firewall pare-feu bloquer filtrer"><span class="icon">&#128737;</span><div><div>Firewall</div><small>Bloquer trafic malveillant</small></div></button>
+              <button class="defense-btn" data-defense="ids" data-search="ids ips intrusion détection"><span class="icon">&#128065;</span><div><div>IDS/IPS</div><small>Détection d'intrusion</small></div></button>
+              <button class="defense-btn" data-defense="encryption" data-search="tls ssl chiffrement encryption https"><span class="icon">&#128272;</span><div><div>Chiffrement TLS</div><small>Communications sécurisées</small></div></button>
+              <button class="defense-btn" data-defense="vpn" data-search="vpn tunnel chiffré remote"><span class="icon">&#128274;</span><div><div>VPN</div><small>Tunnel chiffré</small></div></button>
+              <button class="defense-btn" data-defense="ratelimit" data-search="rate limit limitation requêtes"><span class="icon">&#9201;</span><div><div>Rate Limiting</div><small>Limiter les requêtes</small></div></button>
+              <button class="defense-btn" data-defense="2fa" data-search="2fa mfa authentification double"><span class="icon">&#128241;</span><div><div>2FA</div><small>Double authentification</small></div></button>
+              <button class="defense-btn" data-defense="antimalware" data-search="antimalware antivirus protection malware"><span class="icon">&#128022;</span><div><div>Anti-Malware</div><small>Protection ransomware</small></div></button>
+              <button class="defense-btn" data-defense="waf" data-search="waf web application firewall"><span class="icon">&#128736;</span><div><div>WAF</div><small>Firewall applicatif Web</small></div></button>
+              <button class="defense-btn" data-defense="patchmgmt" data-search="patch management mise jour update"><span class="icon">&#128230;</span><div><div>Patch Management</div><small>Mises à jour sécurité</small></div></button>
+              <button class="defense-btn" data-defense="accountlockout" data-search="account lockout verrouillage compte"><span class="icon">&#128274;</span><div><div>Account Lockout</div><small>Verrouillage compte</small></div></button>
+            </div>
           </div>
         </div>
       </aside>
@@ -2366,6 +2552,79 @@
     
     function clearLogs() { logs = []; document.getElementById('logContent').innerHTML = ''; addLog('info', 'Journal effacé'); }
     function exportLogs() { const t = logs.map(l => '[' + l.time + '] ' + l.type.toUpperCase().padEnd(8) + ' ' + l.message).join('\n'); const b = new Blob([t], { type: 'text/plain' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'network-sim-logs-' + new Date().toISOString().slice(0,10) + '.txt'; a.click(); URL.revokeObjectURL(u); addLog('success', 'Logs exportés'); }
+    
+    // Sidebar search and collapsible sections
+    let collapsedSections = {};
+    
+    function toggleSection(sectionName) {
+      const section = document.querySelector(`.sidebar-section[data-section="${sectionName}"]`);
+      if (!section) return;
+      
+      collapsedSections[sectionName] = !collapsedSections[sectionName];
+      section.classList.toggle('collapsed', collapsedSections[sectionName]);
+    }
+    
+    function filterSidebar(query) {
+      const searchQuery = query.toLowerCase().trim();
+      const clearBtn = document.getElementById('searchClear');
+      clearBtn.style.display = searchQuery ? 'block' : 'none';
+      
+      const sections = document.querySelectorAll('.sidebar-section.collapsible');
+      
+      if (!searchQuery) {
+        // Show all items
+        document.querySelectorAll('.palette-item, .attack-btn, .defense-btn, .action-btn-small').forEach(item => {
+          item.classList.remove('search-hidden');
+        });
+        sections.forEach(section => section.classList.remove('search-hidden'));
+        return;
+      }
+      
+      sections.forEach(section => {
+        let hasVisibleItems = false;
+        
+        // Filter palette items
+        section.querySelectorAll('.palette-item').forEach(item => {
+          const searchData = (item.getAttribute('data-search') || '') + ' ' + item.textContent;
+          const matches = searchData.toLowerCase().includes(searchQuery);
+          item.classList.toggle('search-hidden', !matches);
+          if (matches) hasVisibleItems = true;
+        });
+        
+        // Filter attack/defense buttons
+        section.querySelectorAll('.attack-btn, .defense-btn').forEach(btn => {
+          const searchData = (btn.getAttribute('data-search') || '') + ' ' + btn.textContent;
+          const matches = searchData.toLowerCase().includes(searchQuery);
+          btn.classList.toggle('search-hidden', !matches);
+          if (matches) hasVisibleItems = true;
+        });
+        
+        // Filter action buttons
+        section.querySelectorAll('.action-btn-small').forEach(btn => {
+          const searchData = (btn.getAttribute('data-search') || '') + ' ' + btn.textContent;
+          const matches = searchData.toLowerCase().includes(searchQuery);
+          btn.classList.toggle('search-hidden', !matches);
+          if (matches) hasVisibleItems = true;
+        });
+        
+        // Hide/show entire section based on matching items
+        section.classList.toggle('search-hidden', !hasVisibleItems);
+        
+        // Expand sections with matches
+        if (hasVisibleItems && section.classList.contains('collapsed')) {
+          section.classList.remove('collapsed');
+          const sectionName = section.getAttribute('data-section');
+          if (sectionName) collapsedSections[sectionName] = false;
+        }
+      });
+    }
+    
+    function clearSearch() {
+      const searchInput = document.getElementById('sidebarSearch');
+      searchInput.value = '';
+      filterSidebar('');
+      searchInput.focus();
+    }
     
     function setupButtons() {
       document.querySelector('[data-attack="ddos"]').addEventListener('click', startDDoSAttack);
