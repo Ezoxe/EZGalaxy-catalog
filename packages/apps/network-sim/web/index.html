@@ -970,6 +970,11 @@
       document.getElementById('cableModeIndicator').classList.toggle('visible', cableMode);
       document.getElementById('cableModeIndicator').textContent = '\u{1F517} Mode Câble actif - Cliquez sur un équipement';
       addLog('info', cableMode ? '\u{1F517} Mode câble activé' : 'Mode câble désactivé');
+      
+      // Update cursor for all node elements
+      document.querySelectorAll('.html-node').forEach(el => {
+        el.style.cursor = cableMode ? 'crosshair' : 'move';
+      });
     }
     
     function onMouseMove(e) {
@@ -1034,28 +1039,94 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        cursor: move;
+        cursor: ${cableMode ? 'crosshair' : 'move'};
         z-index: 10;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        transition: transform 0.1s, box-shadow 0.2s;
+        user-select: none;
       `;
       el.innerHTML = `
-        <span style="font-size: 24px; line-height: 1;">${node.config.icon}</span>
-        <span style="font-size: 9px; color: #fff; margin-top: 2px; font-weight: bold;">${node.name}</span>
+        <span style="font-size: 24px; line-height: 1; pointer-events: none;">${node.config.icon}</span>
+        <span style="font-size: 9px; color: #fff; margin-top: 2px; font-weight: bold; pointer-events: none;">${node.name}</span>
       `;
-      el.title = node.name + ' - ' + node.ip;
       
-      // Make draggable
-      el.addEventListener('mousedown', (e) => {
-        if (e.button === 0) {
-          draggedNode = node;
-          dragOffset = { x: e.offsetX - 35, y: e.offsetY - 35 };
-          e.preventDefault();
+      // Click handler - for cable mode or show info
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (cableMode) {
+          if (cableFirstNode === null) {
+            cableFirstNode = node;
+            connectingFrom = node;
+            document.getElementById('cableModeIndicator').textContent = '\u{1F517} Cliquez sur le second \u00e9quipement pour cr\u00e9er le c\u00e2ble';
+            addLog('info', 'C\u00e2ble depuis ' + node.name + '...');
+            el.style.borderColor = '#22c55e';
+          } else if (cableFirstNode !== node) {
+            createConnection(cableFirstNode, node);
+            // Reset first node element border
+            const firstEl = document.getElementById('node-' + cableFirstNode.id);
+            if (firstEl) firstEl.style.borderColor = cableFirstNode.config.color;
+            cableFirstNode = null;
+            connectingFrom = null;
+            document.getElementById('cableModeIndicator').textContent = '\u{1F517} Mode C\u00e2ble actif - Cliquez sur un \u00e9quipement';
+          }
+        } else {
+          selectedNode = node;
+          showNodeInfo(node);
         }
       });
       
-      el.addEventListener('dblclick', () => showNodeInfo(node));
-      el.addEventListener('contextmenu', (e) => { e.preventDefault(); deleteNode(node); });
+      // Mousedown for dragging (only if not cable mode)
+      el.addEventListener('mousedown', (e) => {
+        if (cableMode) return; // Don't drag in cable mode
+        if (e.button === 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const startX = e.clientX;
+          const startY = e.clientY;
+          const startNodeX = node.x;
+          const startNodeY = node.y;
+          
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          
+          function onMouseMove(e) {
+            const dx = (e.clientX - startX) * scaleX;
+            const dy = (e.clientY - startY) * scaleY;
+            node.x = startNodeX + dx;
+            node.y = startNodeY + dy;
+          }
+          
+          function onMouseUp() {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+          }
+          
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        }
+      });
+      
+      // Tooltip on hover
+      el.addEventListener('mouseenter', (e) => {
+        hoveredNode = node;
+        showTooltipAtPosition(node, e.clientX, e.clientY);
+      });
+      
+      el.addEventListener('mousemove', (e) => {
+        updateTooltipAtPosition(e.clientX, e.clientY);
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        hoveredNode = null;
+        hideTooltip();
+      });
+      
+      // Right-click to delete
+      el.addEventListener('contextmenu', (e) => { 
+        e.preventDefault(); 
+        deleteNode(node); 
+      });
       
       container.appendChild(el);
     }
@@ -1449,8 +1520,46 @@
     }
     
     function closeInfoPanel() { document.getElementById('infoPanel').classList.remove('visible'); }
-    function showTooltip(node, e) { const t = document.getElementById('tooltip'); t.querySelector('.tooltip-title').textContent = node.config.icon + ' ' + node.name; t.querySelector('.tooltip-text').textContent = node.config.label + '  ' + node.ip; t.classList.add('visible'); updateTooltipPosition(e); }
-    function updateTooltipPosition(e) { const t = document.getElementById('tooltip'); t.style.left = (e.clientX + 15) + 'px'; t.style.top = (e.clientY + 15) + 'px'; }
+    
+    function showTooltip(node, e) { 
+      showTooltipAtPosition(node, e.clientX, e.clientY);
+    }
+    
+    function showTooltipAtPosition(node, clientX, clientY) {
+      const t = document.getElementById('tooltip'); 
+      t.querySelector('.tooltip-title').textContent = node.config.icon + ' ' + node.name; 
+      t.querySelector('.tooltip-text').textContent = node.config.label + ' - ' + node.ip; 
+      t.classList.add('visible'); 
+      updateTooltipAtPosition(clientX, clientY);
+    }
+    
+    function updateTooltipPosition(e) { 
+      updateTooltipAtPosition(e.clientX, e.clientY);
+    }
+    
+    function updateTooltipAtPosition(clientX, clientY) { 
+      const t = document.getElementById('tooltip');
+      const container = document.getElementById('canvasContainer');
+      const containerRect = container.getBoundingClientRect();
+      
+      // Position relative to container
+      let left = clientX - containerRect.left + 15;
+      let top = clientY - containerRect.top + 15;
+      
+      // Keep tooltip inside container
+      const tooltipWidth = 180;
+      const tooltipHeight = 60;
+      if (left + tooltipWidth > containerRect.width) {
+        left = clientX - containerRect.left - tooltipWidth - 10;
+      }
+      if (top + tooltipHeight > containerRect.height) {
+        top = clientY - containerRect.top - tooltipHeight - 10;
+      }
+      
+      t.style.left = left + 'px'; 
+      t.style.top = top + 'px'; 
+    }
+    
     function hideTooltip() { document.getElementById('tooltip').classList.remove('visible'); }
     
     function showEmailPreview(packet, intercepted) {
