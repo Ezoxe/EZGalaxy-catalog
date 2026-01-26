@@ -829,28 +829,47 @@
     };
     
     let logs = [];
+    let animationStarted = false;
     
     function init() {
-      resizeCanvas();
-      window.addEventListener('resize', resizeCanvas);
-      setupCanvasEvents();
-      setupDragAndDrop();
-      setupButtons();
-      setupTabs();
+      console.log('Init starting...');
       try {
-        if (!localStorage.getItem('networkSimTutorialSeen')) {
-          document.getElementById('tutorialPanel').classList.add('visible');
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        setupCanvasEvents();
+        setupDragAndDrop();
+        setupButtons();
+        setupTabs();
+      } catch (e) {
+        console.error('Setup error:', e);
+      }
+      
+      // Tutorial check with error handling
+      try {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem) {
+          if (!localStorage.getItem('networkSimTutorialSeen')) {
+            document.getElementById('tutorialPanel').classList.add('visible');
+          }
         }
       } catch (e) {
-        // localStorage not available in sandboxed iframe
-        console.warn('localStorage not available:', e.message);
+        console.warn('localStorage not available');
       }
-      // Forcer le redimensionnement après un court délai pour s'assurer que le layout est prêt
-      setTimeout(() => {
-        resizeCanvas();
-      }, 50);
-      animate();
+      
+      // Force resize after layout ready
+      setTimeout(resizeCanvas, 50);
+      setTimeout(resizeCanvas, 200);
+      
+      // Start animation loop
+      console.log('Starting animation...');
+      startAnimation();
       addLog('info', 'Simulateur réseau initialisé');
+    }
+    
+    function startAnimation() {
+      if (animationStarted) return;
+      animationStarted = true;
+      console.log('Animation loop started');
+      animate();
     }
     
     function resizeCanvas() {
@@ -980,12 +999,101 @@
       const node = { id: Date.now() + Math.random(), type, x, y, radius: 35, name: config.label + '-' + (nodes.filter(n => n.type === type).length + 1), ip: '192.168.' + Math.floor(Math.random() * 255) + '.' + (Math.floor(Math.random() * 254) + 1), mac: Array(6).fill().map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase()).join(':'), ports: [...config.ports], attacked: false, intercepting: false, traced: false, config };
       console.log('Node created:', node.name, 'at', x, y, 'canvas:', canvas.width, canvas.height);
       nodes.push(node);
+      
+      // Create HTML fallback element
+      createNodeElement(node);
+      
       updateStatusBar();
       addLog('success', node.name + ' ajouté (' + node.ip + ')');
       return node;
     }
     
+    function createNodeElement(node) {
+      // Remove existing element if any
+      const existing = document.getElementById('node-' + node.id);
+      if (existing) existing.remove();
+      
+      const container = document.getElementById('canvasContainer');
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / canvas.width;
+      const scaleY = rect.height / canvas.height;
+      
+      const el = document.createElement('div');
+      el.id = 'node-' + node.id;
+      el.className = 'html-node';
+      el.style.cssText = `
+        position: absolute;
+        left: ${node.x * scaleX - 35}px;
+        top: ${node.y * scaleY - 35}px;
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #2a3352, #1a1f35);
+        border: 3px solid ${node.config.color};
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: move;
+        z-index: 10;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        transition: transform 0.1s, box-shadow 0.2s;
+      `;
+      el.innerHTML = `
+        <span style="font-size: 24px; line-height: 1;">${node.config.icon}</span>
+        <span style="font-size: 9px; color: #fff; margin-top: 2px; font-weight: bold;">${node.name}</span>
+      `;
+      el.title = node.name + ' - ' + node.ip;
+      
+      // Make draggable
+      el.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+          draggedNode = node;
+          dragOffset = { x: e.offsetX - 35, y: e.offsetY - 35 };
+          e.preventDefault();
+        }
+      });
+      
+      el.addEventListener('dblclick', () => showNodeInfo(node));
+      el.addEventListener('contextmenu', (e) => { e.preventDefault(); deleteNode(node); });
+      
+      container.appendChild(el);
+    }
+    
+    function updateNodeElements() {
+      const container = document.getElementById('canvasContainer');
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / canvas.width;
+      const scaleY = rect.height / canvas.height;
+      
+      nodes.forEach(node => {
+        let el = document.getElementById('node-' + node.id);
+        if (!el) {
+          createNodeElement(node);
+          el = document.getElementById('node-' + node.id);
+        }
+        if (el) {
+          el.style.left = (node.x * scaleX - 35) + 'px';
+          el.style.top = (node.y * scaleY - 35) + 'px';
+          el.style.borderColor = node === selectedNode ? '#3b82f6' : node.config.color;
+          if (node.attacked) el.style.boxShadow = '0 0 20px rgba(239,68,68,0.7)';
+          else if (node.intercepting) el.style.boxShadow = '0 0 20px rgba(168,85,247,0.7)';
+          else el.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+        }
+      });
+      
+      // Remove elements for deleted nodes
+      document.querySelectorAll('.html-node').forEach(el => {
+        const nodeId = parseFloat(el.id.replace('node-', ''));
+        if (!nodes.find(n => n.id === nodeId)) el.remove();
+      });
+    }
+    
     function deleteNode(node) {
+      // Remove HTML element
+      const el = document.getElementById('node-' + node.id);
+      if (el) el.remove();
+      
       connections = connections.filter(c => c.from !== node && c.to !== node);
       packets = packets.filter(p => p.source !== node && p.target !== node);
       nodes = nodes.filter(n => n !== node);
@@ -1220,15 +1328,31 @@
     function sendSSH() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server'); if (!src || !tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, 'ssh'); addLog('info', ' SSH ' + src.ip + '  ' + tgt.ip + ':22'); }
     
     function animate() {
-      if (!ctx) { console.error('No context in animate!'); return; }
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Debug: Always draw a test rectangle
-      ctx.fillStyle = '#ff0000';
-      ctx.fillRect(5, 5, 20, 20);
-      
-      drawGrid(); drawConnections(); drawConnectingLine(); drawPacketTrails(); drawPackets(); drawNodes();
-      updatePackets();
+      try {
+        if (!ctx) { 
+          console.error('No context in animate!'); 
+          return; 
+        }
+        
+        // Clear canvas
+        ctx.fillStyle = '#0a0e17';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw everything
+        drawGrid(); 
+        drawConnections(); 
+        drawConnectingLine(); 
+        drawPacketTrails(); 
+        drawPackets(); 
+        drawNodes();
+        updatePackets();
+        
+        // Update HTML node positions
+        updateNodeElements();
+        
+      } catch (e) {
+        console.error('Animate error:', e);
+      }
       requestAnimationFrame(animate);
     }
     
@@ -1252,66 +1376,51 @@
     function drawNodes() {
       nodes.forEach(node => {
         const cfg = node.config;
+        const x = node.x;
+        const y = node.y;
+        const r = node.radius;
         
-        // Glow effects for special states
-        if (node.attacked) {
+        // Outer glow for special states
+        if (node.attacked || node.traced || node.intercepting) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, node.radius + 20, 0, Math.PI * 2);
-          const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 20);
-          g.addColorStop(0, 'rgba(239,68,68,0.6)');
-          g.addColorStop(1, 'rgba(239,68,68,0)');
-          ctx.fillStyle = g;
-          ctx.fill();
-        }
-        if (node.traced) {
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, node.radius + 15, 0, Math.PI * 2);
-          const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 15);
-          g.addColorStop(0, 'rgba(34,197,94,0.6)');
-          g.addColorStop(1, 'rgba(34,197,94,0)');
-          ctx.fillStyle = g;
-          ctx.fill();
-        }
-        if (node.intercepting) {
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, node.radius + 18, 0, Math.PI * 2);
-          const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 18);
-          g.addColorStop(0, 'rgba(168,85,247,0.6)');
-          g.addColorStop(1, 'rgba(168,85,247,0)');
-          ctx.fillStyle = g;
+          ctx.arc(x, y, r + 15, 0, Math.PI * 2);
+          let glowColor = node.attacked ? 'rgba(239,68,68,0.5)' : 
+                          node.intercepting ? 'rgba(168,85,247,0.5)' : 'rgba(34,197,94,0.5)';
+          ctx.fillStyle = glowColor;
           ctx.fill();
         }
         
-        // Main circle with gradient background
+        // Main circle background
         ctx.beginPath();
-        ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        const bg = ctx.createRadialGradient(node.x - 10, node.y - 10, 0, node.x, node.y, node.radius);
-        bg.addColorStop(0, '#3a4466');
-        bg.addColorStop(1, '#252d44');
-        ctx.fillStyle = bg;
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#1e2433';
         ctx.fill();
         
         // Border
-        ctx.strokeStyle = node === selectedNode ? '#3b82f6' : (node === connectingFrom ? '#22c55e' : cfg.color);
-        ctx.lineWidth = (node === selectedNode || node === connectingFrom) ? 3 : 2;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = node === selectedNode ? '#3b82f6' : 
+                          node === connectingFrom ? '#22c55e' : cfg.color;
         ctx.stroke();
         
-        // Icon (emoji or text symbol)
-        ctx.font = '22px Arial, sans-serif';
+        // Icon text (use simple letter if emoji fails)
+        ctx.font = 'bold 20px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = cfg.color;
-        ctx.fillText(cfg.icon, node.x, node.y);
         
-        // Node name below
-        ctx.font = 'bold 11px system-ui';
-        ctx.fillStyle = '#e5e7eb';
-        ctx.fillText(node.name, node.x, node.y + node.radius + 14);
+        // Try emoji, fallback to first letter of label
+        const icon = cfg.icon || cfg.label.charAt(0);
+        ctx.fillText(icon, x, y);
+        
+        // Node name
+        ctx.font = 'bold 11px Arial';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(node.name, x, y + r + 15);
         
         // IP address
-        ctx.font = '9px system-ui';
+        ctx.font = '9px Arial';
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText(node.ip, node.x, node.y + node.radius + 26);
+        ctx.fillText(node.ip, x, y + r + 27);
       });
     }
     
