@@ -215,6 +215,7 @@
       left: 0;
       display: block;
       background: #0a0e17;
+      z-index: 1;
     }
     
     .cable-mode-indicator {
@@ -778,7 +779,9 @@
 
   <script>
     const canvas = document.getElementById('networkCanvas');
-    const ctx = canvas.getContext('2d');
+    if (!canvas) { console.error('Canvas not found!'); }
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    if (!ctx) { console.error('Could not get 2D context!'); }
     
     let nodes = [];
     let connections = [];
@@ -849,22 +852,23 @@
     
     function resizeCanvas() {
       const container = document.getElementById('canvasContainer');
+      if (!container) { console.error('Container not found!'); return; }
       const rect = container.getBoundingClientRect();
-      canvas.width = rect.width || 800;
-      canvas.height = rect.height || 600;
-      console.log('Canvas resized:', canvas.width, canvas.height, 'Container rect:', rect);
+      console.log('Container rect:', rect.width, 'x', rect.height);
       
-      // Test: draw a visible test pattern
-      ctx.fillStyle = '#ff00ff';
-      ctx.fillRect(10, 10, 100, 100);
-      ctx.fillStyle = '#00ff00';
-      ctx.beginPath();
-      ctx.arc(200, 100, 50, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '20px Arial';
-      ctx.fillText('CANVAS TEST', 50, 200);
-      console.log('Test pattern drawn');
+      // Force minimum dimensions
+      const newWidth = Math.max(rect.width, 800);
+      const newHeight = Math.max(rect.height, 400);
+      
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      
+      // Also set CSS dimensions to match
+      canvas.style.width = newWidth + 'px';
+      canvas.style.height = newHeight + 'px';
+      
+      console.log('Canvas dimensions set to:', canvas.width, 'x', canvas.height);
+      console.log('Canvas element:', canvas, 'Context:', ctx);
     }
     
     function setupTabs() {
@@ -1213,7 +1217,13 @@
     function sendSSH() { const src = nodes.find(n => n.type === 'computer') || nodes[0], tgt = nodes.find(n => n.type === 'server'); if (!src || !tgt) { addLog('warning', 'Ajoutez PC + Serveur'); return; } createPacket(src, tgt, 'ssh'); addLog('info', ' SSH ' + src.ip + '  ' + tgt.ip + ':22'); }
     
     function animate() {
+      if (!ctx) { console.error('No context in animate!'); return; }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Debug: Always draw a test rectangle
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(5, 5, 20, 20);
+      
       drawGrid(); drawConnections(); drawConnectingLine(); drawPacketTrails(); drawPackets(); drawNodes();
       updatePackets();
       requestAnimationFrame(animate);
