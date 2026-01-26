@@ -1730,6 +1730,9 @@
       const scaleX = rect.width / canvas.width;
       const scaleY = rect.height / canvas.height;
       
+      // Base node size in world coordinates
+      const baseNodeSize = 70;
+      
       nodes.forEach(node => {
         let el = document.getElementById('node-' + node.id);
         if (!el) {
@@ -1740,25 +1743,38 @@
           // Apply viewport transform to node positions
           const screenX = (node.x * zoomLevel + viewportX) * scaleX;
           const screenY = (node.y * zoomLevel + viewportY) * scaleY;
-          const nodeSize = 70 * zoomLevel;
+          // Scale the visual size with zoom
+          const visualSize = baseNodeSize * zoomLevel * scaleX;
           
-          el.style.left = (screenX - nodeSize/2) + 'px';
-          el.style.top = (screenY - nodeSize/2) + 'px';
-          el.style.width = nodeSize + 'px';
-          el.style.height = nodeSize + 'px';
-          el.style.transform = 'scale(' + zoomLevel + ')';
-          el.style.transformOrigin = 'center center';
+          el.style.left = (screenX - visualSize/2) + 'px';
+          el.style.top = (screenY - visualSize/2) + 'px';
+          el.style.width = visualSize + 'px';
+          el.style.height = visualSize + 'px';
+          // Remove transform scale - we handle size directly
+          el.style.transform = '';
+          
+          // Scale internal elements (icon and text)
+          const iconSize = Math.max(12, Math.round(24 * zoomLevel));
+          const textSize = Math.max(6, Math.round(9 * zoomLevel));
+          const iconSpan = el.querySelector('span:first-child');
+          const textSpan = el.querySelector('span:last-child');
+          if (iconSpan) iconSpan.style.fontSize = iconSize + 'px';
+          if (textSpan) textSpan.style.fontSize = textSize + 'px';
+          
+          // Scale border width
+          el.style.borderWidth = Math.max(1, Math.round(3 * zoomLevel)) + 'px';
+          
           el.style.borderColor = node === selectedNode ? '#3b82f6' : 
                                   node === actionSource ? '#22d3ee' : node.config.color;
           if (node.attacked) {
-            el.style.boxShadow = '0 0 20px rgba(239,68,68,0.7)';
+            el.style.boxShadow = '0 0 ' + (20 * zoomLevel) + 'px rgba(239,68,68,0.7)';
             if (!el.classList.contains('node-shaking')) {
               el.classList.add('node-shaking');
               setTimeout(() => el.classList.remove('node-shaking'), 500);
             }
           }
-          else if (node.intercepting) el.style.boxShadow = '0 0 20px rgba(168,85,247,0.7)';
-          else el.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+          else if (node.intercepting) el.style.boxShadow = '0 0 ' + (20 * zoomLevel) + 'px rgba(168,85,247,0.7)';
+          else el.style.boxShadow = '0 ' + (4 * zoomLevel) + 'px ' + (15 * zoomLevel) + 'px rgba(0,0,0,0.3)';
         }
       });
       
@@ -1827,25 +1843,72 @@
     function updatePackets() {
       packets = packets.filter(packet => {
         if (packet.blocked && packet.progress > 0.3) {
-          addLog('success', ' ' + (packetTypes[packet.type]?.label || packet.type) + ' bloqué' + (packet.blockedAt ? ' par ' + packet.blockedAt.name : ''));
+          addLog('success', '🛡️ ' + (packetTypes[packet.type]?.label || packet.type) + ' bloqué' + (packet.blockedAt ? ' par ' + packet.blockedAt.name : ''));
           return false;
         }
+        
+        // Add current position to trail
         packet.trail.push({ x: packet.x, y: packet.y });
-        if (packet.trail.length > 25) packet.trail.shift();
+        if (packet.trail.length > 30) packet.trail.shift();
+        
+        // Move along the path with slower speed
         if (packet.currentPathIndex < packet.path.length - 1) {
+          const current = packet.path[packet.currentPathIndex];
           const next = packet.path[packet.currentPathIndex + 1];
-          const dx = next.x - packet.x, dy = next.y - packet.y, dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 5) {
+          const dx = next.x - packet.x;
+          const dy = next.y - packet.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          // Slower movement speed - 1.5 pixels per frame (was 3)
+          const moveSpeed = 1.5;
+          
+          if (dist < moveSpeed + 2) {
+            // Arrived at next node in path
+            packet.x = next.x;
+            packet.y = next.y;
             packet.currentPathIndex++;
+            
+            // Check for MITM interception at this node
             if (packet.willBeIntercepted && next === packet.mitmNode && !packet.intercepted) {
               packet.intercepted = true;
-              if (packet.type === 'email') { packet.type = 'emailIntercepted'; addLog('danger', ' Email intercepté par ' + packet.mitmNode.name + '!'); showEmailPreview(packet, true); }
-              else addLog('danger', ' HTTP intercepté par ' + packet.mitmNode.name + '!');
+              if (packet.type === 'email') { 
+                packet.type = 'emailIntercepted'; 
+                addLog('danger', '👁️ Email intercepté par ' + packet.mitmNode.name + '!'); 
+                showEmailPreview(packet, true); 
+              } else {
+                addLog('danger', '👁️ HTTP intercepté par ' + packet.mitmNode.name + '!');
+              }
             }
-          } else { packet.x += (dx / dist) * 3; packet.y += (dy / dist) * 3; }
+            
+            // Log progress through network for certain packet types
+            if (['ping', 'traceroute', 'http', 'https'].includes(packet.type) && packet.currentPathIndex < packet.path.length - 1) {
+              // Show hop info for traceroute
+              if (packet.type === 'traceroute' || (packet.data && packet.data.showHops)) {
+                addLog('info', '  → Passage par ' + next.name + ' (' + next.ip + ')');
+              }
+            }
+          } else {
+            // Move towards next node
+            packet.x += (dx / dist) * moveSpeed;
+            packet.y += (dy / dist) * moveSpeed;
+          }
         }
-        packet.progress += packet.speed;
-        if (packet.progress >= 1) { handlePacketArrival(packet); return false; }
+        
+        // Check if packet reached final destination
+        const finalNode = packet.path[packet.path.length - 1];
+        const distToFinal = Math.sqrt(Math.pow(packet.x - finalNode.x, 2) + Math.pow(packet.y - finalNode.y, 2));
+        
+        if (distToFinal < 5 && packet.currentPathIndex >= packet.path.length - 1) {
+          handlePacketArrival(packet);
+          return false;
+        }
+        
+        // Timeout failsafe - remove packets after 30 seconds
+        if (Date.now() - packet.timestamp > 30000) {
+          addLog('warning', 'Timeout: ' + (packetTypes[packet.type]?.label || packet.type));
+          return false;
+        }
+        
         return true;
       });
     }
@@ -2336,7 +2399,7 @@
         drawConnectingLine(); 
         drawPacketTrails(); 
         drawPackets(); 
-        drawNodes();
+        // Note: nodes are rendered as HTML elements, not on canvas
         drawParticles();
         
         ctx.restore();
