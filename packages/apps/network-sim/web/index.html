@@ -837,8 +837,13 @@
       setupDragAndDrop();
       setupButtons();
       setupTabs();
-      if (!localStorage.getItem('networkSimTutorialSeen')) {
-        document.getElementById('tutorialPanel').classList.add('visible');
+      try {
+        if (!localStorage.getItem('networkSimTutorialSeen')) {
+          document.getElementById('tutorialPanel').classList.add('visible');
+        }
+      } catch (e) {
+        // localStorage not available in sandboxed iframe
+        console.warn('localStorage not available:', e.message);
       }
       // Forcer le redimensionnement après un court délai pour s'assurer que le layout est prêt
       setTimeout(() => {
@@ -1443,7 +1448,7 @@
     }
     
     function loadDemoNetwork() { loadScenario('mitm'); closeTutorial(); }
-    function closeTutorial() { document.getElementById('tutorialPanel').classList.remove('visible'); localStorage.setItem('networkSimTutorialSeen', 'true'); }
+    function closeTutorial() { document.getElementById('tutorialPanel').classList.remove('visible'); try { localStorage.setItem('networkSimTutorialSeen', 'true'); } catch(e) {} }
     
     window.addEventListener('DOMContentLoaded', init);
   </script>
