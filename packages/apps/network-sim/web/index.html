@@ -741,121 +741,190 @@
     
     .sequence-panel-content {
       flex: 1;
-      overflow-y: auto;
+      overflow: auto;
+      padding: 0;
+      background: var(--bg-primary);
+    }
+    
+    .sequence-diagram {
+      position: relative;
+      min-height: 100%;
       padding: 0;
     }
     
-    .sequence-canvas-container {
-      min-height: 100%;
-      padding: 20px;
-    }
-    
-    .sequence-actors {
+    /* Actor boxes at top */
+    .sequence-header {
       display: flex;
-      justify-content: space-between;
       position: sticky;
       top: 0;
       background: var(--bg-secondary);
-      padding: 10px 0;
-      z-index: 1;
+      z-index: 10;
+      padding: 15px 20px 10px;
       border-bottom: 1px solid var(--border);
     }
     
     .sequence-actor {
-      text-align: center;
       flex: 1;
-      max-width: 100px;
+      text-align: center;
+      position: relative;
     }
     
     .sequence-actor-box {
-      background: var(--bg-card);
+      display: inline-block;
+      background: linear-gradient(135deg, var(--bg-card), rgba(59, 130, 246, 0.1));
       border: 2px solid var(--accent-blue);
-      padding: 8px 4px;
-      border-radius: 6px;
-      font-size: 0.7rem;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.75rem;
       font-weight: 600;
-      margin-bottom: 8px;
+      color: var(--text-primary);
+      min-width: 60px;
+      max-width: 90px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     
-    .sequence-lifeline {
-      width: 2px;
-      background: var(--border);
-      margin: 0 auto;
-      height: 30px;
+    /* Lifelines container */
+    .sequence-body {
+      position: relative;
+      padding: 0 20px 40px;
     }
     
+    /* Vertical lifelines */
+    .sequence-lifelines {
+      position: absolute;
+      top: 0;
+      left: 20px;
+      right: 20px;
+      bottom: 0;
+      display: flex;
+      pointer-events: none;
+    }
+    
+    .sequence-lifeline {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+    }
+    
+    .sequence-lifeline-line {
+      width: 2px;
+      height: 100%;
+      background: repeating-linear-gradient(
+        to bottom,
+        var(--border) 0px,
+        var(--border) 8px,
+        transparent 8px,
+        transparent 16px
+      );
+    }
+    
+    /* Messages */
     .sequence-messages {
       position: relative;
-      padding: 0 10px;
+      z-index: 5;
     }
     
-    .sequence-message {
+    .sequence-message-row {
+      position: relative;
+      height: 50px;
       display: flex;
       align-items: center;
-      margin: 8px 0;
-      position: relative;
     }
     
-    .sequence-message-arrow {
+    .sequence-message-row:hover {
+      background: rgba(255,255,255,0.02);
+    }
+    
+    .sequence-arrow-container {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      height: 2px;
+    }
+    
+    .sequence-arrow-line {
       flex: 1;
       height: 2px;
-      background: var(--accent-cyan);
       position: relative;
     }
     
-    .sequence-message-arrow::after {
-      content: '';
-      position: absolute;
-      right: 0;
-      top: -4px;
-      border: 5px solid transparent;
-      border-left-color: var(--accent-cyan);
+    .sequence-arrow-line.request { background: var(--accent-cyan); }
+    .sequence-arrow-line.response { background: var(--accent-green); }
+    .sequence-arrow-line.attack { background: var(--accent-red); }
+    
+    /* Arrow head */
+    .sequence-arrow-head {
+      width: 0;
+      height: 0;
+      border-style: solid;
     }
     
-    .sequence-message-arrow.reverse {
-      background: var(--accent-green);
+    .sequence-arrow-head.right {
+      border-width: 6px 0 6px 10px;
+      border-color: transparent transparent transparent var(--accent-cyan);
     }
     
-    .sequence-message-arrow.reverse::after {
-      left: 0;
-      right: auto;
-      border-left-color: transparent;
-      border-right-color: var(--accent-green);
+    .sequence-arrow-head.right.response {
+      border-color: transparent transparent transparent var(--accent-green);
     }
     
-    .sequence-message-arrow.attack {
-      background: var(--accent-red);
+    .sequence-arrow-head.right.attack {
+      border-color: transparent transparent transparent var(--accent-red);
     }
     
-    .sequence-message-arrow.attack::after {
-      border-left-color: var(--accent-red);
+    .sequence-arrow-head.left {
+      border-width: 6px 10px 6px 0;
+      border-color: transparent var(--accent-cyan) transparent transparent;
+    }
+    
+    .sequence-arrow-head.left.response {
+      border-color: transparent var(--accent-green) transparent transparent;
+    }
+    
+    .sequence-arrow-head.left.attack {
+      border-color: transparent var(--accent-red) transparent transparent;
     }
     
     .sequence-message-label {
       position: absolute;
-      top: -16px;
+      top: -18px;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       color: var(--text-primary);
       background: var(--bg-secondary);
-      padding: 2px 6px;
+      padding: 2px 8px;
       border-radius: 4px;
       white-space: nowrap;
+      border: 1px solid var(--border);
+    }
+    
+    .sequence-message-label.response {
+      color: var(--accent-green);
+    }
+    
+    .sequence-message-label.attack {
+      color: var(--accent-red);
+    }
+    
+    .sequence-timestamp {
+      position: absolute;
+      left: 5px;
+      font-size: 0.6rem;
+      color: var(--text-secondary);
     }
     
     .sequence-empty {
       text-align: center;
-      padding: 40px 20px;
+      padding: 60px 20px;
       color: var(--text-secondary);
     }
     
     .sequence-empty-icon {
       font-size: 3rem;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       opacity: 0.5;
     }
     
@@ -3642,39 +3711,68 @@
         actors.add(m.to);
       });
       const actorList = Array.from(actors);
+      const actorCount = actorList.length;
       
-      // Build HTML
-      let html = '<div class="sequence-canvas-container">';
+      // Calculate heights
+      const messageRowHeight = 50;
+      const bodyHeight = sequenceMessages.length * messageRowHeight + 40;
       
-      // Actors header
-      html += '<div class="sequence-actors">';
+      // Build HTML - Proper UML Sequence Diagram
+      let html = '<div class="sequence-diagram">';
+      
+      // Header with actor boxes
+      html += '<div class="sequence-header">';
       actorList.forEach(actor => {
         html += `<div class="sequence-actor">
-          <div class="sequence-actor-box">${actor}</div>
-          <div class="sequence-lifeline"></div>
+          <div class="sequence-actor-box" title="${actor}">${actor}</div>
         </div>`;
       });
       html += '</div>';
       
-      // Messages
+      // Body with lifelines and messages
+      html += `<div class="sequence-body" style="height: ${bodyHeight}px;">`;
+      
+      // Vertical lifelines (dashed lines running full height)
+      html += '<div class="sequence-lifelines">';
+      actorList.forEach(actor => {
+        html += `<div class="sequence-lifeline">
+          <div class="sequence-lifeline-line"></div>
+        </div>`;
+      });
+      html += '</div>';
+      
+      // Messages (horizontal arrows between lifelines)
       html += '<div class="sequence-messages">';
       sequenceMessages.forEach((msg, i) => {
         const fromIdx = actorList.indexOf(msg.from);
         const toIdx = actorList.indexOf(msg.to);
-        const isReverse = toIdx < fromIdx;
+        const isLeftToRight = fromIdx < toIdx;
+        const isResponse = msg.type === 'response';
         const isAttack = msg.type === 'attack';
         
-        const leftPct = Math.min(fromIdx, toIdx) / actorList.length * 100 + (100 / actorList.length / 2);
-        const rightPct = 100 - (Math.max(fromIdx, toIdx) + 1) / actorList.length * 100 + (100 / actorList.length / 2);
+        // Calculate positions as percentages
+        const minIdx = Math.min(fromIdx, toIdx);
+        const maxIdx = Math.max(fromIdx, toIdx);
+        const colWidth = 100 / actorCount;
+        const leftPos = minIdx * colWidth + colWidth / 2; // Center of left actor column
+        const rightPos = maxIdx * colWidth + colWidth / 2; // Center of right actor column
+        const arrowWidth = rightPos - leftPos;
         
-        const arrowClass = isAttack ? 'attack' : (msg.type === 'response' ? 'reverse' : '');
+        const arrowType = isAttack ? 'attack' : (isResponse ? 'response' : 'request');
+        const arrowDir = isLeftToRight ? 'right' : 'left';
         
-        html += `<div class="sequence-message" style="margin-left: ${leftPct}%; margin-right: ${rightPct}%;">
-          <div class="sequence-message-label">${msg.label}</div>
-          <div class="sequence-message-arrow ${arrowClass}" style="${isReverse ? 'transform: scaleX(-1);' : ''}"></div>
+        html += `<div class="sequence-message-row">
+          <span class="sequence-timestamp">${i + 1}</span>
+          <div class="sequence-arrow-container" style="left: ${leftPos}%; width: ${arrowWidth}%;">
+            ${!isLeftToRight ? `<div class="sequence-arrow-head left ${arrowType}"></div>` : ''}
+            <div class="sequence-arrow-line ${arrowType}">
+              <div class="sequence-message-label ${arrowType}">${msg.label}</div>
+            </div>
+            ${isLeftToRight ? `<div class="sequence-arrow-head right ${arrowType}"></div>` : ''}
+          </div>
         </div>`;
       });
-      html += '</div></div>';
+      html += '</div></div></div>';
       
       content.innerHTML = html;
       content.scrollTop = content.scrollHeight;
