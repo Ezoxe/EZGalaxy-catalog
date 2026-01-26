@@ -770,14 +770,33 @@
     }
     
     .sequence-actor-box {
-      display: inline-block;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
       background: linear-gradient(135deg, var(--bg-card), rgba(59, 130, 246, 0.1));
       border: 2px solid var(--accent-blue);
       padding: 8px 12px;
       border-radius: 8px;
+      color: var(--text-primary);
+      min-width: 70px;
+      max-width: 100px;
+    }
+    
+    .actor-name {
       font-size: 0.75rem;
       font-weight: 600;
-      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 90px;
+    }
+    
+    .actor-ip {
+      font-size: 0.6rem;
+      color: var(--text-secondary);
+      font-family: 'Monaco', 'Consolas', monospace;
+      margin-top: 2px;
+    }
       min-width: 60px;
       max-width: 90px;
       white-space: nowrap;
@@ -828,13 +847,27 @@
     
     .sequence-message-row {
       position: relative;
-      height: 50px;
+      height: 55px;
       display: flex;
       align-items: center;
     }
     
     .sequence-message-row:hover {
-      background: rgba(255,255,255,0.02);
+      background: rgba(255,255,255,0.03);
+    }
+    
+    .sequence-message-row:hover .sequence-time {
+      opacity: 1;
+    }
+    
+    .sequence-time {
+      position: absolute;
+      left: 28px;
+      font-size: 0.55rem;
+      color: var(--accent-cyan);
+      font-family: 'Monaco', 'Consolas', monospace;
+      opacity: 0.6;
+      transition: opacity 0.2s;
     }
     
     .sequence-arrow-container {
@@ -2374,24 +2407,38 @@
       switch (type) {
         case 'ping': 
           addSequenceMessage(target, source, 'ICMP Echo Reply', 'response');
-          createPacket(target, source, 'pong', { sentAt: packet.timestamp }); 
-          addLog('info', 'Ping reçu par ' + target.name); 
+          // Délai pour visualiser l'aller-retour
+          setTimeout(() => {
+            const returnPacket = createPacket(target, source, 'pong', { sentAt: packet.timestamp, originalSource: source });
+            if (returnPacket) {
+              addLog('info', '← Pong envoyé de ' + target.name + ' vers ' + source.name);
+            }
+          }, 200);
+          addLog('info', '→ Ping reçu par ' + target.name); 
           break;
         case 'pong': 
-          addLog('success', '✓ Pong de ' + source.name + ' (' + (Date.now() - (packet.data.sentAt || packet.timestamp)) + 'ms)'); 
+          addLog('success', '✓ Pong reçu de ' + source.name + ' (' + (Date.now() - (packet.data.sentAt || packet.timestamp)) + 'ms)'); 
+          createRingEffect(target, '#22c55e'); // Effet visuel de réception
           break;
         case 'http': 
           addSequenceMessage(target, source, 'HTTP 200 OK', 'response');
-          createPacket(target, source, 'httpResponse', { content: 'HTML page' }); 
-          addLog('info', 'HTTP reçu par ' + target.name); 
+          setTimeout(() => {
+            const returnPacket = createPacket(target, source, 'httpResponse', { content: 'HTML page' });
+            if (returnPacket) addLog('info', '← HTTP Response envoyée de ' + target.name);
+          }, 200);
+          addLog('info', '→ HTTP reçu par ' + target.name); 
           break;
         case 'https': 
           addSequenceMessage(target, source, 'HTTPS 200 OK', 'response');
-          createPacket(target, source, 'httpsResponse', { content: 'Encrypted page' }); 
-          addLog('info', 'HTTPS reçu par ' + target.name); 
+          setTimeout(() => {
+            const returnPacket = createPacket(target, source, 'httpsResponse', { content: 'Encrypted page' });
+            if (returnPacket) addLog('info', '← HTTPS Response envoyée de ' + target.name);
+          }, 200);
+          addLog('info', '→ HTTPS reçu par ' + target.name); 
           break;
         case 'httpResponse': case 'httpsResponse':
           addLog('success', '✓ Réponse ' + (type === 'httpsResponse' ? 'HTTPS' : 'HTTP') + ' reçue de ' + source.name);
+          createRingEffect(target, '#22c55e');
           break;
         case 'email': case 'encrypted':
           // Check if this is being routed via server
@@ -2422,30 +2469,38 @@
             addLog('danger', '⚠️ DNS falsifié: ' + packet.data.domain + ' → ' + (att?.ip || '10.0.0.1')); 
           } else { 
             addSequenceMessage(target, source, 'DNS Response: ' + target.ip, 'response');
-            createPacket(target, source, 'dnsResponse', { domain: packet.data.domain, ip: target.ip }); 
-            addLog('info', 'DNS: ' + packet.data.domain + ' → ' + target.ip); 
+            setTimeout(() => {
+              const returnPacket = createPacket(target, source, 'dnsResponse', { domain: packet.data.domain, ip: target.ip });
+              if (returnPacket) addLog('info', '← DNS Response envoyée de ' + target.name);
+            }, 200);
+            addLog('info', '→ DNS Query reçue: ' + packet.data.domain); 
           } 
           break;
         case 'dnsResponse': 
-          addLog('success', '✓ DNS Response: ' + packet.data.domain + ' = ' + packet.data.ip); 
+          addLog('success', '✓ DNS Response reçue: ' + packet.data.domain + ' = ' + packet.data.ip);
+          createRingEffect(target, '#22c55e'); 
           break;
         case 'ssh': 
           addSequenceMessage(target, source, 'SSH Session Established', 'response');
-          createPacket(target, source, 'sshResponse', { authenticated: activeDefenses['2fa'] });
-          addLog(activeDefenses['2fa'] ? 'success' : 'info', (activeDefenses['2fa'] ? '🔐 SSH sécurisé (2FA) à ' : '🔌 SSH à ') + target.name); 
+          setTimeout(() => {
+            const returnPacket = createPacket(target, source, 'sshResponse', { authenticated: activeDefenses['2fa'] });
+            if (returnPacket) addLog('info', '← SSH ACK envoyé de ' + target.name);
+          }, 200);
+          addLog(activeDefenses['2fa'] ? 'success' : 'info', '→ ' + (activeDefenses['2fa'] ? '🔐 SSH sécurisé (2FA) à ' : '🔌 SSH à ') + target.name); 
           break;
         case 'sshResponse':
           addLog('success', '✓ Session SSH établie avec ' + source.name + (packet.data.authenticated ? ' (2FA)' : ''));
+          createRingEffect(target, '#22c55e');
           break;
         case 'syn': 
           if (!activeDefenses.firewall) {
             addSequenceMessage(target, source, 'SYN-ACK', 'response');
-            createPacket(target, source, 'synack');
+            setTimeout(() => createPacket(target, source, 'synack'), 150);
           }
           break;
         case 'synack': 
           addSequenceMessage(packet.target, packet.source, 'ACK', 'response');
-          createPacket(packet.target, packet.source, 'ack'); 
+          setTimeout(() => createPacket(packet.target, packet.source, 'ack'), 150); 
           break;
         case 'ack': 
           addLog('info', 'TCP établi avec ' + source.name); 
@@ -3704,27 +3759,34 @@
         return;
       }
       
-      // Get unique actors
-      const actors = new Set();
+      // Get unique actors with their IPs
+      const actorMap = new Map();
       sequenceMessages.forEach(m => {
-        actors.add(m.from);
-        actors.add(m.to);
+        if (!actorMap.has(m.from)) actorMap.set(m.from, m.fromIp);
+        if (!actorMap.has(m.to)) actorMap.set(m.to, m.toIp);
       });
-      const actorList = Array.from(actors);
+      const actorList = Array.from(actorMap.keys());
       const actorCount = actorList.length;
       
       // Calculate heights
-      const messageRowHeight = 50;
+      const messageRowHeight = 55;
       const bodyHeight = sequenceMessages.length * messageRowHeight + 40;
+      
+      // Get first timestamp for relative time
+      const startTime = sequenceMessages[0].timestamp;
       
       // Build HTML - Proper UML Sequence Diagram
       let html = '<div class="sequence-diagram">';
       
-      // Header with actor boxes
+      // Header with actor boxes (name + IP)
       html += '<div class="sequence-header">';
       actorList.forEach(actor => {
+        const ip = actorMap.get(actor);
         html += `<div class="sequence-actor">
-          <div class="sequence-actor-box" title="${actor}">${actor}</div>
+          <div class="sequence-actor-box" title="${actor} (${ip})">
+            <div class="actor-name">${actor}</div>
+            <div class="actor-ip">${ip}</div>
+          </div>
         </div>`;
       });
       html += '</div>';
@@ -3754,15 +3816,22 @@
         const minIdx = Math.min(fromIdx, toIdx);
         const maxIdx = Math.max(fromIdx, toIdx);
         const colWidth = 100 / actorCount;
-        const leftPos = minIdx * colWidth + colWidth / 2; // Center of left actor column
-        const rightPos = maxIdx * colWidth + colWidth / 2; // Center of right actor column
+        const leftPos = minIdx * colWidth + colWidth / 2;
+        const rightPos = maxIdx * colWidth + colWidth / 2;
         const arrowWidth = rightPos - leftPos;
         
         const arrowType = isAttack ? 'attack' : (isResponse ? 'response' : 'request');
-        const arrowDir = isLeftToRight ? 'right' : 'left';
+        
+        // Relative timestamp
+        const relTime = msg.timestamp - startTime;
+        const timeStr = relTime < 1000 ? relTime + 'ms' : (relTime / 1000).toFixed(1) + 's';
+        
+        // Icon based on message type
+        const icon = isAttack ? '⚠️' : (isResponse ? '←' : '→');
         
         html += `<div class="sequence-message-row">
-          <span class="sequence-timestamp">${i + 1}</span>
+          <span class="sequence-timestamp" title="T+${timeStr}">${i + 1}</span>
+          <span class="sequence-time">+${timeStr}</span>
           <div class="sequence-arrow-container" style="left: ${leftPos}%; width: ${arrowWidth}%;">
             ${!isLeftToRight ? `<div class="sequence-arrow-head left ${arrowType}"></div>` : ''}
             <div class="sequence-arrow-line ${arrowType}">
