@@ -207,14 +207,16 @@
       position: relative;
       overflow: hidden;
       min-height: 400px;
+      background: #0a0e17;
     }
     
     #networkCanvas {
       position: absolute;
       top: 0;
       left: 0;
+      width: 100%;
+      height: 100%;
       display: block;
-      background: #0a0e17;
       z-index: 1;
     }
     
@@ -249,6 +251,7 @@
       backdrop-filter: blur(10px);
       overflow: hidden;
       display: none;
+      z-index: 100;
     }
     
     .info-panel.visible { display: block; }
@@ -303,6 +306,7 @@
       backdrop-filter: blur(10px);
       display: flex;
       flex-direction: column;
+      z-index: 50;
     }
     
     .log-header {
@@ -854,21 +858,12 @@
       const container = document.getElementById('canvasContainer');
       if (!container) { console.error('Container not found!'); return; }
       const rect = container.getBoundingClientRect();
-      console.log('Container rect:', rect.width, 'x', rect.height);
       
-      // Force minimum dimensions
-      const newWidth = Math.max(rect.width, 800);
-      const newHeight = Math.max(rect.height, 400);
+      // Set internal canvas dimensions to match display size
+      canvas.width = rect.width;
+      canvas.height = rect.height;
       
-      canvas.width = newWidth;
-      canvas.height = newHeight;
-      
-      // Also set CSS dimensions to match
-      canvas.style.width = newWidth + 'px';
-      canvas.style.height = newHeight + 'px';
-      
-      console.log('Canvas dimensions set to:', canvas.width, 'x', canvas.height);
-      console.log('Canvas element:', canvas, 'Context:', ctx);
+      console.log('Canvas resized to:', canvas.width, 'x', canvas.height);
     }
     
     function setupTabs() {
@@ -895,7 +890,11 @@
         const nodeType = e.dataTransfer.getData('nodeType');
         if (nodeType) {
           const rect = canvas.getBoundingClientRect();
-          createNode(nodeType, e.clientX - rect.left, e.clientY - rect.top);
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const x = (e.clientX - rect.left) * scaleX;
+          const y = (e.clientY - rect.top) * scaleY;
+          createNode(nodeType, x, y);
         }
       });
     }
@@ -967,8 +966,13 @@
     }
     
     function getMousePos(e) { 
-      const rect = canvas.getBoundingClientRect(); 
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top }; 
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return { 
+        x: (e.clientX - rect.left) * scaleX, 
+        y: (e.clientY - rect.top) * scaleY 
+      }; 
     }
     function getNodeAtPosition(pos) { for (let i = nodes.length - 1; i >= 0; i--) { if (Math.sqrt((pos.x - nodes[i].x) ** 2 + (pos.y - nodes[i].y) ** 2) <= nodes[i].radius) return nodes[i]; } return null; }
     
@@ -1249,22 +1253,66 @@
     function drawNodes() {
       nodes.forEach(node => {
         const cfg = node.config;
-        // Debug: draw a bright red circle first
-        ctx.beginPath(); 
+        
+        // Glow effects for special states
+        if (node.attacked) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, node.radius + 20, 0, Math.PI * 2);
+          const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 20);
+          g.addColorStop(0, 'rgba(239,68,68,0.6)');
+          g.addColorStop(1, 'rgba(239,68,68,0)');
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
+        if (node.traced) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, node.radius + 15, 0, Math.PI * 2);
+          const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 15);
+          g.addColorStop(0, 'rgba(34,197,94,0.6)');
+          g.addColorStop(1, 'rgba(34,197,94,0)');
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
+        if (node.intercepting) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, node.radius + 18, 0, Math.PI * 2);
+          const g = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 18);
+          g.addColorStop(0, 'rgba(168,85,247,0.6)');
+          g.addColorStop(1, 'rgba(168,85,247,0)');
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
+        
+        // Main circle with gradient background
+        ctx.beginPath();
         ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ff0000'; 
+        const bg = ctx.createRadialGradient(node.x - 10, node.y - 10, 0, node.x, node.y, node.radius);
+        bg.addColorStop(0, '#3a4466');
+        bg.addColorStop(1, '#252d44');
+        ctx.fillStyle = bg;
         ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3; 
+        
+        // Border
+        ctx.strokeStyle = node === selectedNode ? '#3b82f6' : (node === connectingFrom ? '#22c55e' : cfg.color);
+        ctx.lineWidth = (node === selectedNode || node === connectingFrom) ? 3 : 2;
         ctx.stroke();
         
-        // Draw label
-        ctx.font = 'bold 14px system-ui'; 
-        ctx.fillStyle = '#ffffff'; 
+        // Icon (emoji or text symbol)
+        ctx.font = '22px Arial, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(node.name, node.x, node.y);
-        ctx.fillText(node.ip, node.x, node.y + node.radius + 20);
+        ctx.fillStyle = cfg.color;
+        ctx.fillText(cfg.icon, node.x, node.y);
+        
+        // Node name below
+        ctx.font = 'bold 11px system-ui';
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fillText(node.name, node.x, node.y + node.radius + 14);
+        
+        // IP address
+        ctx.font = '9px system-ui';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText(node.ip, node.x, node.y + node.radius + 26);
       });
     }
     
