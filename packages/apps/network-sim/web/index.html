@@ -2296,8 +2296,17 @@
     }
     
     function createPacket(source, target, type, data = {}) {
+      if (!source || !target) {
+        console.error('createPacket: source ou target invalide', source, target);
+        return null;
+      }
       const path = findPath(source, target);
-      if (path.length < 2) { addLog('warning', 'Pas de route vers ' + target.name); return null; }
+      if (path.length < 2) { 
+        console.warn('createPacket: Pas de route', source.name, '->', target.name);
+        addLog('warning', 'Pas de route vers ' + target.name); 
+        return null; 
+      }
+      console.log('createPacket:', type, source.name, '->', target.name, 'path:', path.map(n => n.name).join(' → '));
       const packet = { id: ++packetCounter, source, target, type, data, x: source.x, y: source.y, progress: 0, speed: 0.015 + Math.random() * 0.01, path, currentPathIndex: 0, trail: [], intercepted: false, blocked: false, timestamp: Date.now() };
       if (activeAttacks.mitm && (type === 'email' || type === 'http') && !activeDefenses.encryption) {
         const mitmNode = nodes.find(n => n.type === 'mitm' && n.intercepting);
@@ -2314,19 +2323,37 @@
     }
     
     function findPath(source, target) {
-      const visited = new Set(), queue = [[source]];
+      if (!source || !target) {
+        console.error('findPath: source ou target null', source, target);
+        return [source || target];
+      }
+      // Vérifier que source et target sont dans le tableau nodes
+      const sourceInNodes = nodes.find(n => n.id === source.id);
+      const targetInNodes = nodes.find(n => n.id === target.id);
+      if (!sourceInNodes || !targetInNodes) {
+        console.warn('findPath: nœud non trouvé dans nodes', 
+          'source in nodes:', !!sourceInNodes, 
+          'target in nodes:', !!targetInNodes);
+      }
+      // Utiliser les références du tableau nodes pour la recherche
+      const actualSource = sourceInNodes || source;
+      const actualTarget = targetInNodes || target;
+      
+      const visited = new Set(), queue = [[actualSource]];
       while (queue.length > 0) {
         const path = queue.shift(), current = path[path.length - 1];
-        if (current === target) return path;
+        if (current.id === actualTarget.id) return path;
         if (!visited.has(current.id)) {
           visited.add(current.id);
-          connections.filter(c => c.from === current || c.to === current).forEach(c => {
-            const neighbor = c.from === current ? c.to : c.from;
+          connections.filter(c => c.from.id === current.id || c.to.id === current.id).forEach(c => {
+            const neighbor = c.from.id === current.id ? c.to : c.from;
             if (!visited.has(neighbor.id)) queue.push([...path, neighbor]);
           });
         }
       }
-      return [source];
+      console.warn('findPath: pas de chemin de', actualSource.name, 'à', actualTarget.name, 
+        'connections:', connections.length);
+      return [actualSource];
     }
     
     function updatePackets() {
@@ -2404,109 +2431,123 @@
     
     function handlePacketArrival(packet) {
       const { type, target, source } = packet;
+      // Capturer les références pour les closures
+      const srcNode = source;
+      const tgtNode = target;
+      
       switch (type) {
         case 'ping': 
-          addSequenceMessage(target, source, 'ICMP Echo Reply', 'response');
+          addSequenceMessage(tgtNode, srcNode, 'ICMP Echo Reply', 'response');
           // Délai pour visualiser l'aller-retour
-          setTimeout(() => {
-            const returnPacket = createPacket(target, source, 'pong', { sentAt: packet.timestamp, originalSource: source });
+          setTimeout(function() {
+            console.log('Creating pong packet from', tgtNode.name, 'to', srcNode.name);
+            const returnPacket = createPacket(tgtNode, srcNode, 'pong', { sentAt: packet.timestamp, originalSource: srcNode });
             if (returnPacket) {
-              addLog('info', '← Pong envoyé de ' + target.name + ' vers ' + source.name);
+              addLog('info', '← Pong envoyé de ' + tgtNode.name + ' vers ' + srcNode.name);
+            } else {
+              console.error('Failed to create pong packet');
             }
           }, 200);
-          addLog('info', '→ Ping reçu par ' + target.name); 
+          addLog('info', '→ Ping reçu par ' + tgtNode.name); 
           break;
         case 'pong': 
-          addLog('success', '✓ Pong reçu de ' + source.name + ' (' + (Date.now() - (packet.data.sentAt || packet.timestamp)) + 'ms)'); 
-          createRingEffect(target, '#22c55e'); // Effet visuel de réception
+          addLog('success', '✓ Pong reçu de ' + srcNode.name + ' (' + (Date.now() - (packet.data.sentAt || packet.timestamp)) + 'ms)'); 
+          createRingEffect(tgtNode, '#22c55e'); // Effet visuel de réception
           break;
         case 'http': 
-          addSequenceMessage(target, source, 'HTTP 200 OK', 'response');
-          setTimeout(() => {
-            const returnPacket = createPacket(target, source, 'httpResponse', { content: 'HTML page' });
-            if (returnPacket) addLog('info', '← HTTP Response envoyée de ' + target.name);
+          addSequenceMessage(tgtNode, srcNode, 'HTTP 200 OK', 'response');
+          setTimeout(function() {
+            console.log('Creating httpResponse from', tgtNode.name, 'to', srcNode.name);
+            const returnPacket = createPacket(tgtNode, srcNode, 'httpResponse', { content: 'HTML page' });
+            if (returnPacket) addLog('info', '← HTTP Response envoyée de ' + tgtNode.name);
           }, 200);
-          addLog('info', '→ HTTP reçu par ' + target.name); 
+          addLog('info', '→ HTTP reçu par ' + tgtNode.name); 
           break;
         case 'https': 
-          addSequenceMessage(target, source, 'HTTPS 200 OK', 'response');
-          setTimeout(() => {
-            const returnPacket = createPacket(target, source, 'httpsResponse', { content: 'Encrypted page' });
-            if (returnPacket) addLog('info', '← HTTPS Response envoyée de ' + target.name);
+          addSequenceMessage(tgtNode, srcNode, 'HTTPS 200 OK', 'response');
+          setTimeout(function() {
+            console.log('Creating httpsResponse from', tgtNode.name, 'to', srcNode.name);
+            const returnPacket = createPacket(tgtNode, srcNode, 'httpsResponse', { content: 'Encrypted page' });
+            if (returnPacket) addLog('info', '← HTTPS Response envoyée de ' + tgtNode.name);
           }, 200);
-          addLog('info', '→ HTTPS reçu par ' + target.name); 
+          addLog('info', '→ HTTPS reçu par ' + tgtNode.name); 
           break;
         case 'httpResponse': case 'httpsResponse':
-          addLog('success', '✓ Réponse ' + (type === 'httpsResponse' ? 'HTTPS' : 'HTTP') + ' reçue de ' + source.name);
-          createRingEffect(target, '#22c55e');
+          addLog('success', '✓ Réponse ' + (type === 'httpsResponse' ? 'HTTPS' : 'HTTP') + ' reçue de ' + srcNode.name);
+          createRingEffect(tgtNode, '#22c55e');
           break;
         case 'email': case 'encrypted':
           // Check if this is being routed via server
           if (packet.data.viaServer && packet.data.finalDest) {
-            addSequenceMessage(target, packet.data.finalDest, 'SMTP Forward', 'request');
-            createPacket(target, packet.data.finalDest, type, { 
+            addSequenceMessage(tgtNode, packet.data.finalDest, 'SMTP Forward', 'request');
+            createPacket(tgtNode, packet.data.finalDest, type, { 
               ...packet.data, 
               viaServer: false 
             });
-            addLog('info', '📨 ' + target.name + ' transmet email à ' + packet.data.finalDest.name);
+            addLog('info', '📨 ' + tgtNode.name + ' transmet email à ' + packet.data.finalDest.name);
           } else {
-            addSequenceMessage(target, source, 'Delivery Confirmation', 'response');
-            addLog('success', '✉️ Email délivré à ' + target.name); 
+            addSequenceMessage(tgtNode, srcNode, 'Delivery Confirmation', 'response');
+            addLog('success', '✉️ Email délivré à ' + tgtNode.name); 
             showEmailPreview(packet, false);
           }
           break;
         case 'emailIntercepted': 
-          addLog('danger', '⚠️ Email compromis délivré à ' + target.name); 
+          addLog('danger', '⚠️ Email compromis délivré à ' + tgtNode.name); 
           break;
         case 'ddos': 
-          target.attacked = true; 
-          setTimeout(() => target.attacked = false, 500); 
+          tgtNode.attacked = true; 
+          setTimeout(() => tgtNode.attacked = false, 500); 
           break;
         case 'dns': 
           if (activeAttacks.dnsspoof) { 
             const att = nodes.find(n => n.type === 'attacker'); 
-            addSequenceMessage(target, source, 'DNS SPOOFED: ' + (att?.ip || '10.0.0.1'), 'attack');
+            addSequenceMessage(tgtNode, srcNode, 'DNS SPOOFED: ' + (att?.ip || '10.0.0.1'), 'attack');
             addLog('danger', '⚠️ DNS falsifié: ' + packet.data.domain + ' → ' + (att?.ip || '10.0.0.1')); 
           } else { 
-            addSequenceMessage(target, source, 'DNS Response: ' + target.ip, 'response');
-            setTimeout(() => {
-              const returnPacket = createPacket(target, source, 'dnsResponse', { domain: packet.data.domain, ip: target.ip });
-              if (returnPacket) addLog('info', '← DNS Response envoyée de ' + target.name);
+            addSequenceMessage(tgtNode, srcNode, 'DNS Response: ' + tgtNode.ip, 'response');
+            const domain = packet.data.domain;
+            const ip = tgtNode.ip;
+            setTimeout(function() {
+              console.log('Creating dnsResponse from', tgtNode.name, 'to', srcNode.name);
+              const returnPacket = createPacket(tgtNode, srcNode, 'dnsResponse', { domain: domain, ip: ip });
+              if (returnPacket) addLog('info', '← DNS Response envoyée de ' + tgtNode.name);
             }, 200);
             addLog('info', '→ DNS Query reçue: ' + packet.data.domain); 
           } 
           break;
         case 'dnsResponse': 
           addLog('success', '✓ DNS Response reçue: ' + packet.data.domain + ' = ' + packet.data.ip);
-          createRingEffect(target, '#22c55e'); 
+          createRingEffect(tgtNode, '#22c55e'); 
           break;
         case 'ssh': 
-          addSequenceMessage(target, source, 'SSH Session Established', 'response');
-          setTimeout(() => {
-            const returnPacket = createPacket(target, source, 'sshResponse', { authenticated: activeDefenses['2fa'] });
-            if (returnPacket) addLog('info', '← SSH ACK envoyé de ' + target.name);
+          addSequenceMessage(tgtNode, srcNode, 'SSH Session Established', 'response');
+          const is2fa = activeDefenses['2fa'];
+          setTimeout(function() {
+            console.log('Creating sshResponse from', tgtNode.name, 'to', srcNode.name);
+            const returnPacket = createPacket(tgtNode, srcNode, 'sshResponse', { authenticated: is2fa });
+            if (returnPacket) addLog('info', '← SSH ACK envoyé de ' + tgtNode.name);
           }, 200);
-          addLog(activeDefenses['2fa'] ? 'success' : 'info', '→ ' + (activeDefenses['2fa'] ? '🔐 SSH sécurisé (2FA) à ' : '🔌 SSH à ') + target.name); 
+          addLog(is2fa ? 'success' : 'info', '→ ' + (is2fa ? '🔐 SSH sécurisé (2FA) à ' : '🔌 SSH à ') + tgtNode.name); 
           break;
         case 'sshResponse':
-          addLog('success', '✓ Session SSH établie avec ' + source.name + (packet.data.authenticated ? ' (2FA)' : ''));
-          createRingEffect(target, '#22c55e');
+          addLog('success', '✓ Session SSH établie avec ' + srcNode.name + (packet.data.authenticated ? ' (2FA)' : ''));
+          createRingEffect(tgtNode, '#22c55e');
           break;
         case 'syn': 
           if (!activeDefenses.firewall) {
-            addSequenceMessage(target, source, 'SYN-ACK', 'response');
-            setTimeout(() => createPacket(target, source, 'synack'), 150);
+            addSequenceMessage(tgtNode, srcNode, 'SYN-ACK', 'response');
+            setTimeout(function() { createPacket(tgtNode, srcNode, 'synack'); }, 150);
           }
           break;
         case 'synack': 
-          addSequenceMessage(packet.target, packet.source, 'ACK', 'response');
-          setTimeout(() => createPacket(packet.target, packet.source, 'ack'), 150); 
+          addSequenceMessage(tgtNode, srcNode, 'ACK', 'response');
+          setTimeout(function() { createPacket(tgtNode, srcNode, 'ack'); }, 150); 
           break;
         case 'ack': 
-          addLog('info', 'TCP établi avec ' + source.name); 
+          addLog('info', 'TCP établi avec ' + srcNode.name); 
           break;
         case 'phishing': 
-          addLog(activeDefenses['2fa'] ? 'success' : 'danger', activeDefenses['2fa'] ? '🛡️ Phishing bloqué (2FA) sur ' + target.name : '⚠️ Credentials volés sur ' + target.name + '!'); 
+          addLog(activeDefenses['2fa'] ? 'success' : 'danger', activeDefenses['2fa'] ? '🛡️ Phishing bloqué (2FA) sur ' + tgtNode.name : '⚠️ Credentials volés sur ' + tgtNode.name + '!'); 
           break;
       }
     }
