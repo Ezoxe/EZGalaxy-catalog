@@ -852,7 +852,19 @@
       const rect = container.getBoundingClientRect();
       canvas.width = rect.width || 800;
       canvas.height = rect.height || 600;
-      console.log('Canvas resized:', canvas.width, canvas.height);
+      console.log('Canvas resized:', canvas.width, canvas.height, 'Container rect:', rect);
+      
+      // Test: draw a visible test pattern
+      ctx.fillStyle = '#ff00ff';
+      ctx.fillRect(10, 10, 100, 100);
+      ctx.fillStyle = '#00ff00';
+      ctx.beginPath();
+      ctx.arc(200, 100, 50, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '20px Arial';
+      ctx.fillText('CANVAS TEST', 50, 200);
+      console.log('Test pattern drawn');
     }
     
     function setupTabs() {
