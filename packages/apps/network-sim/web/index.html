@@ -1220,14 +1220,25 @@
         <h2 style="margin-bottom:20px">Scénarios de simulation</h2>
         <div class="scenario-grid">
           <div class="scenario-card" onclick="loadScenario('basic')"><h4>&#128218; Réseau basique</h4><p>Un réseau simple avec PC, routeur et serveur.</p><span class="scenario-tag">Débutant</span></div>
+          <div class="scenario-card" onclick="loadScenario('home-network')"><h4>&#127968; Réseau domestique</h4><p>Box internet, PC, téléphones et objets connectés.</p><span class="scenario-tag">Débutant</span></div>
           <div class="scenario-card" onclick="loadScenario('ddos')"><h4>&#128165; Simulation DDoS</h4><p>Visualisez une attaque DDoS et apprenez à la contrer.</p><span class="scenario-tag attack">Attaque</span></div>
           <div class="scenario-card" onclick="loadScenario('mitm')"><h4>&#128373; Interception MITM</h4><p>Voyez comment un attaquant intercepte les emails non chiffrés.</p><span class="scenario-tag attack">Attaque</span></div>
+          <div class="scenario-card" onclick="loadScenario('phishing-scenario')"><h4>&#127907; Campagne Phishing</h4><p>Simulation d'une attaque de phishing ciblée.</p><span class="scenario-tag attack">Attaque</span></div>
+          <div class="scenario-card" onclick="loadScenario('ransomware-scenario')"><h4>&#128128; Attaque Ransomware</h4><p>Propagation d'un ransomware dans un réseau.</p><span class="scenario-tag attack">Attaque</span></div>
           <div class="scenario-card" onclick="loadScenario('secure')"><h4>&#128272; Réseau sécurisé</h4><p>Architecture avec firewall, IDS et chiffrement TLS.</p><span class="scenario-tag defense">Défense</span></div>
+          <div class="scenario-card" onclick="loadScenario('zero-trust')"><h4>&#128274; Zero Trust</h4><p>Architecture moderne sans confiance implicite.</p><span class="scenario-tag defense">Défense</span></div>
           <div class="scenario-card" onclick="loadScenario('enterprise')"><h4>&#127970; Réseau d entreprise</h4><p>DMZ, serveurs multiples, segmentation réseau.</p><span class="scenario-tag">Avancé</span></div>
           <div class="scenario-card" onclick="loadScenario('dnsspoof')"><h4>&#127917; DNS Spoofing</h4><p>Attaque de falsification DNS.</p><span class="scenario-tag attack">Attaque</span></div>
+          <div class="scenario-card" onclick="loadScenario('sql-injection')"><h4>&#128137; SQL Injection</h4><p>Exploitation d'une base de données vulnérable.</p><span class="scenario-tag attack">Attaque</span></div>
           <div class="scenario-card" onclick="loadScenario('datacenter')"><h4>&#9729; Datacenter Cloud</h4><p>Infrastructure cloud avec load balancer et bases de données.</p><span class="scenario-tag">Avancé</span></div>
+          <div class="scenario-card" onclick="loadScenario('hybrid-cloud')"><h4>&#127760; Cloud Hybride</h4><p>Infrastructure mixte on-premise et cloud.</p><span class="scenario-tag">Avancé</span></div>
           <div class="scenario-card" onclick="loadScenario('iot-network')"><h4>&#128223; Réseau IoT</h4><p>Objets connectés vulnérables: caméras, capteurs, etc.</p><span class="scenario-tag attack">Vulnérable</span></div>
+          <div class="scenario-card" onclick="loadScenario('hospital')"><h4>&#127973; Réseau Hôpital</h4><p>Infrastructure médicale avec équipements critiques.</p><span class="scenario-tag">Critique</span></div>
+          <div class="scenario-card" onclick="loadScenario('scada')"><h4>&#9881; SCADA Industriel</h4><p>Réseau industriel OT/IT avec automates.</p><span class="scenario-tag">Critique</span></div>
+          <div class="scenario-card" onclick="loadScenario('bank')"><h4>&#127974; Infrastructure Bancaire</h4><p>Architecture sécurisée de services financiers.</p><span class="scenario-tag defense">Défense</span></div>
+          <div class="scenario-card" onclick="loadScenario('vpn-remote')"><h4>&#128274; VPN Télétravail</h4><p>Connexion sécurisée des travailleurs distants.</p><span class="scenario-tag defense">Défense</span></div>
           <div class="scenario-card" onclick="loadScenario('pentest')"><h4>&#127919; Pentest Complet</h4><p>Test d'intrusion sur une infrastructure d'entreprise.</p><span class="scenario-tag attack">Expert</span></div>
+          <div class="scenario-card" onclick="loadScenario('apt')"><h4>&#128520; Menace APT</h4><p>Simulation d'une menace persistante avancée.</p><span class="scenario-tag attack">Expert</span></div>
         </div>
       </div>
     </div>
@@ -1629,6 +1640,11 @@
       // Click handler - for cable mode or show info
       el.addEventListener('click', (e) => {
         e.stopPropagation();
+        // Action mode has highest priority
+        if (actionMode) {
+          handleActionModeClick(node);
+          return;
+        }
         if (cableMode) {
           if (cableFirstNode === null) {
             cableFirstNode = node;
@@ -2395,13 +2411,15 @@
     function drawConnections() {
       connections.forEach(c => {
         ctx.beginPath(); ctx.moveTo(c.from.x, c.from.y); ctx.lineTo(c.to.x, c.to.y);
-        if (c.encrypted || activeDefenses.vpn) { ctx.setLineDash([8, 4]); ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 3; }
-        else { ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; }
+        const dashScale = 1 / zoomLevel;
+        if (c.encrypted || activeDefenses.vpn) { ctx.setLineDash([8 * dashScale, 4 * dashScale]); ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 3 / zoomLevel; }
+        else { ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2 / zoomLevel; }
         ctx.stroke(); ctx.setLineDash([]);
         const mx = (c.from.x + c.to.x) / 2, my = (c.from.y + c.to.y) / 2;
-        ctx.font = '10px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.textAlign = 'center';
-        ctx.fillText(c.latency + 'ms', mx, my - 8);
-        if (c.encrypted) ctx.fillText('', mx, my + 12);
+        const fontSize = Math.round(10 / zoomLevel);
+        ctx.font = fontSize + 'px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.textAlign = 'center';
+        ctx.fillText(c.latency + 'ms', mx, my - 8 / zoomLevel);
+        if (c.encrypted) ctx.fillText('🔒', mx, my + 12 / zoomLevel);
       });
     }
     
@@ -2412,12 +2430,14 @@
         const cfg = node.config;
         const x = node.x;
         const y = node.y;
-        const r = node.radius;
+        // Scale radius inversely with zoom to maintain constant screen size
+        const r = node.radius / zoomLevel;
+        const glowR = (node.radius + 15) / zoomLevel;
         
         // Outer glow for special states
         if (node.attacked || node.traced || node.intercepting) {
           ctx.beginPath();
-          ctx.arc(x, y, r + 15, 0, Math.PI * 2);
+          ctx.arc(x, y, glowR, 0, Math.PI * 2);
           let glowColor = node.attacked ? 'rgba(239,68,68,0.5)' : 
                           node.intercepting ? 'rgba(168,85,247,0.5)' : 'rgba(34,197,94,0.5)';
           ctx.fillStyle = glowColor;
@@ -2430,14 +2450,15 @@
         ctx.fillStyle = '#1e2433';
         ctx.fill();
         
-        // Border
-        ctx.lineWidth = 3;
+        // Border - scale line width with zoom
+        ctx.lineWidth = 3 / zoomLevel;
         ctx.strokeStyle = node === selectedNode ? '#3b82f6' : 
                           node === connectingFrom ? '#22c55e' : cfg.color;
         ctx.stroke();
         
-        // Icon text (use simple letter if emoji fails)
-        ctx.font = 'bold 20px Arial';
+        // Icon text - scale font with zoom
+        const iconSize = Math.round(20 / zoomLevel);
+        ctx.font = 'bold ' + iconSize + 'px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = cfg.color;
@@ -2446,29 +2467,48 @@
         const icon = cfg.icon || cfg.label.charAt(0);
         ctx.fillText(icon, x, y);
         
-        // Node name
-        ctx.font = 'bold 11px Arial';
+        // Node name - scale font with zoom
+        const nameSize = Math.round(11 / zoomLevel);
+        ctx.font = 'bold ' + nameSize + 'px Arial';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(node.name, x, y + r + 15);
+        ctx.fillText(node.name, x, y + r + 15 / zoomLevel);
         
-        // IP address
-        ctx.font = '9px Arial';
+        // IP address - scale font with zoom
+        const ipSize = Math.round(9 / zoomLevel);
+        ctx.font = ipSize + 'px Arial';
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText(node.ip, x, y + r + 27);
+        ctx.fillText(node.ip, x, y + r + 27 / zoomLevel);
       });
     }
     
-    function drawPacketTrails() { packets.forEach(p => { if (p.trail.length > 1) { ctx.beginPath(); ctx.moveTo(p.trail[0].x, p.trail[0].y); p.trail.forEach(t => ctx.lineTo(t.x, t.y)); const c = packetTypes[p.type]?.color || '#fff'; const g = ctx.createLinearGradient(p.trail[0].x, p.trail[0].y, p.x, p.y); g.addColorStop(0, c + '00'); g.addColorStop(1, c + '80'); ctx.strokeStyle = g; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke(); } }); }
+    function drawPacketTrails() { 
+      packets.forEach(p => { 
+        if (p.trail.length > 1) { 
+          ctx.beginPath(); ctx.moveTo(p.trail[0].x, p.trail[0].y); 
+          p.trail.forEach(t => ctx.lineTo(t.x, t.y)); 
+          const c = packetTypes[p.type]?.color || '#fff'; 
+          const g = ctx.createLinearGradient(p.trail[0].x, p.trail[0].y, p.x, p.y); 
+          g.addColorStop(0, c + '00'); g.addColorStop(1, c + '80'); 
+          ctx.strokeStyle = g; ctx.lineWidth = 4 / zoomLevel; ctx.lineCap = 'round'; ctx.stroke(); 
+        } 
+      }); 
+    }
     
     function drawPackets() {
+      const packetRadius = 15 / zoomLevel;
+      const packetCore = 7 / zoomLevel;
       packets.forEach(p => {
         const cfg = packetTypes[p.type], c = cfg?.color || '#fff';
-        ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, Math.PI * 2); const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 15); g.addColorStop(0, c); g.addColorStop(0.5, c + '80'); g.addColorStop(1, c + '00'); ctx.fillStyle = g; ctx.fill();
-        ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); ctx.strokeStyle = 'white'; ctx.lineWidth = 1; ctx.stroke();
-        ctx.font = 'bold 8px system-ui'; ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.fillText(cfg?.label || p.type, p.x, p.y + 22);
-        if (['https', 'encrypted', 'ssh'].includes(p.type) && activeDefenses.encryption) { ctx.font = '12px Arial'; ctx.fillText('', p.x + 12, p.y - 12); }
-        if (p.intercepted) { ctx.font = '14px Arial'; ctx.fillText('', p.x + 12, p.y - 12); }
-        if (p.blocked) { ctx.font = '14px Arial'; ctx.fillText('', p.x + 12, p.y - 12); }
+        ctx.beginPath(); ctx.arc(p.x, p.y, packetRadius, 0, Math.PI * 2); 
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, packetRadius); 
+        g.addColorStop(0, c); g.addColorStop(0.5, c + '80'); g.addColorStop(1, c + '00'); ctx.fillStyle = g; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, packetCore, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); ctx.strokeStyle = 'white'; ctx.lineWidth = 1 / zoomLevel; ctx.stroke();
+        const labelSize = Math.round(8 / zoomLevel);
+        ctx.font = 'bold ' + labelSize + 'px system-ui'; ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.fillText(cfg?.label || p.type, p.x, p.y + 22 / zoomLevel);
+        const iconSize = Math.round(12 / zoomLevel);
+        if (['https', 'encrypted', 'ssh'].includes(p.type) && activeDefenses.encryption) { ctx.font = iconSize + 'px Arial'; ctx.fillText('🔒', p.x + 12 / zoomLevel, p.y - 12 / zoomLevel); }
+        if (p.intercepted) { ctx.font = (iconSize + 2) + 'px Arial'; ctx.fillText('👁️', p.x + 12 / zoomLevel, p.y - 12 / zoomLevel); }
+        if (p.blocked) { ctx.font = (iconSize + 2) + 'px Arial'; ctx.fillText('🛑', p.x + 12 / zoomLevel, p.y - 12 / zoomLevel); }
       });
     }
     
@@ -2725,6 +2765,158 @@
           addLog('success', 'Scénario "Réseau IoT" chargé'); 
           addLog('danger', '⚠️ Réseau IoT vulnérable - ports ouverts, pas de chiffrement');
           showToast('Réseau IoT avec équipements vulnérables', 'warning', '📟 IoT');
+          break;
+        case 'home-network':
+          createNode('internet', 100, 250); createNode('router', 280, 250); createNode('computer', 450, 120); createNode('phone', 450, 250); createNode('phone', 450, 380); createNode('iot', 600, 180); createNode('printer', 600, 320);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[1], nodes[3]); 
+            createConnection(nodes[1], nodes[4]); createConnection(nodes[1], nodes[5]); createConnection(nodes[1], nodes[6]);
+          }, 100);
+          addLog('success', 'Scénario "Réseau domestique" chargé'); 
+          addLog('info', 'Réseau typique avec box internet et appareils connectés');
+          showToast('Réseau domestique - testez la sécurité de votre maison', 'info', '🏠 Home');
+          break;
+        case 'phishing-scenario':
+          createNode('attacker', 80, 250); createNode('internet', 220, 250); createNode('server', 360, 180); createNode('router', 500, 250); createNode('computer', 650, 150); createNode('computer', 650, 250); createNode('computer', 650, 350);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[1], nodes[3]); 
+            createConnection(nodes[3], nodes[4]); createConnection(nodes[3], nodes[5]); createConnection(nodes[3], nodes[6]);
+          }, 100);
+          addLog('success', 'Scénario "Campagne Phishing" chargé'); 
+          addLog('attack', '🎣 L\'attaquant envoie des emails malveillants aux employés');
+          addLog('info', '1. Lancez Phishing  2. Activez 2FA pour protéger');
+          showToast('Campagne de phishing ciblée', 'warning', '🎣 Phishing');
+          break;
+        case 'ransomware-scenario':
+          createNode('attacker', 80, 300); createNode('internet', 200, 300); createNode('firewall', 340, 300); createNode('switch', 480, 300); 
+          createNode('computer', 620, 150); createNode('computer', 620, 250); createNode('computer', 620, 350); createNode('server', 760, 200); createNode('database', 760, 380);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]); 
+            createConnection(nodes[3], nodes[4]); createConnection(nodes[3], nodes[5]); createConnection(nodes[3], nodes[6]);
+            createConnection(nodes[3], nodes[7]); createConnection(nodes[7], nodes[8]);
+          }, 100);
+          addLog('success', 'Scénario "Attaque Ransomware" chargé'); 
+          addLog('attack', '💀 Le ransomware se propage latéralement');
+          addLog('info', '1. Lancez Ransomware  2. Activez Anti-Malware');
+          showToast('Simulation de propagation ransomware', 'error', '💀 Ransomware');
+          break;
+        case 'zero-trust':
+          createNode('vpngateway', 150, 250); createNode('firewall', 300, 250); createNode('loadbalancer', 450, 250);
+          createNode('server', 600, 150); createNode('server', 600, 350); createNode('database', 750, 250);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]);
+            createConnection(nodes[2], nodes[3]); createConnection(nodes[2], nodes[4]);
+            createConnection(nodes[3], nodes[5]); createConnection(nodes[4], nodes[5]);
+            toggleFirewall(); toggleEncryption(); toggleIDS(); toggle2FA();
+          }, 100);
+          addLog('success', 'Scénario "Zero Trust" chargé'); 
+          addLog('info', '🔒 Architecture sans confiance implicite - tout est vérifié');
+          showToast('Zero Trust: ne jamais faire confiance, toujours vérifier', 'success', '🔐 Zero Trust');
+          break;
+        case 'sql-injection':
+          createNode('attacker', 100, 250); createNode('internet', 250, 250); createNode('firewall', 400, 250); createNode('server', 550, 250); createNode('database', 700, 250);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]);
+            createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]);
+          }, 100);
+          addLog('success', 'Scénario "SQL Injection" chargé'); 
+          addLog('attack', '💉 Application web vulnérable aux injections SQL');
+          addLog('info', '1. Lancez SQL Injection  2. Activez WAF pour bloquer');
+          showToast('Application vulnérable - testez les injections', 'warning', '💉 SQLi');
+          break;
+        case 'hybrid-cloud':
+          createNode('enterprise', 100, 200); createNode('firewall', 250, 200); createNode('router', 400, 200); createNode('internet', 400, 350);
+          createNode('cloud', 550, 200); createNode('loadbalancer', 700, 150); createNode('server', 850, 100); createNode('server', 850, 200); createNode('database', 700, 280);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]);
+            createConnection(nodes[2], nodes[4]); createConnection(nodes[4], nodes[5]); createConnection(nodes[5], nodes[6]);
+            createConnection(nodes[5], nodes[7]); createConnection(nodes[4], nodes[8]);
+            toggleVPN(); toggleEncryption();
+          }, 100);
+          addLog('success', 'Scénario "Cloud Hybride" chargé'); 
+          addLog('info', '☁️ Infrastructure mixte on-premise et cloud public');
+          showToast('Architecture hybride avec VPN site-to-cloud', 'info', '☁️ Hybrid');
+          break;
+        case 'hospital':
+          createNode('internet', 50, 250); createNode('firewall', 180, 250); createNode('router', 320, 250);
+          createNode('switch', 460, 150); createNode('switch', 460, 350);
+          createNode('server', 600, 80); createNode('database', 720, 150); createNode('computer', 600, 220);
+          createNode('iot', 600, 320); createNode('iot', 600, 400); createNode('printer', 720, 350);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]);
+            createConnection(nodes[2], nodes[3]); createConnection(nodes[2], nodes[4]);
+            createConnection(nodes[3], nodes[5]); createConnection(nodes[3], nodes[6]); createConnection(nodes[3], nodes[7]);
+            createConnection(nodes[4], nodes[8]); createConnection(nodes[4], nodes[9]); createConnection(nodes[4], nodes[10]);
+            toggleFirewall(); toggleEncryption();
+          }, 100);
+          addLog('success', 'Scénario "Réseau Hôpital" chargé'); 
+          addLog('danger', '🏥 Infrastructure critique - équipements médicaux connectés');
+          addLog('info', 'Les IoT représentent les appareils médicaux (scanners, pompes)');
+          showToast('Réseau hospitalier - protégez les vies!', 'warning', '🏥 Hôpital');
+          break;
+        case 'scada':
+          createNode('internet', 80, 200); createNode('firewall', 200, 200); createNode('router', 340, 200);
+          createNode('server', 480, 120); createNode('computer', 480, 280);
+          createNode('iot', 620, 80); createNode('iot', 620, 160); createNode('iot', 620, 240); createNode('iot', 620, 320);
+          createNode('attacker', 80, 350);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]);
+            createConnection(nodes[2], nodes[3]); createConnection(nodes[2], nodes[4]);
+            createConnection(nodes[3], nodes[5]); createConnection(nodes[3], nodes[6]); createConnection(nodes[4], nodes[7]); createConnection(nodes[4], nodes[8]);
+            createConnection(nodes[9], nodes[0]);
+            toggleFirewall();
+          }, 100);
+          addLog('success', 'Scénario "SCADA Industriel" chargé'); 
+          addLog('danger', '⚙️ Réseau OT/IT - automates industriels vulnérables');
+          addLog('warning', 'Les IoT sont des PLCs contrôlant des processus physiques');
+          showToast('Infrastructure industrielle critique', 'error', '⚙️ SCADA');
+          break;
+        case 'bank':
+          createNode('internet', 80, 250); createNode('firewall', 200, 250); createNode('loadbalancer', 340, 250);
+          createNode('server', 480, 150); createNode('server', 480, 350);
+          createNode('firewall', 620, 250); createNode('database', 760, 180); createNode('database', 760, 320);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]);
+            createConnection(nodes[2], nodes[3]); createConnection(nodes[2], nodes[4]);
+            createConnection(nodes[3], nodes[5]); createConnection(nodes[4], nodes[5]);
+            createConnection(nodes[5], nodes[6]); createConnection(nodes[5], nodes[7]);
+            toggleFirewall(); toggleIDS(); toggleEncryption(); toggle2FA(); toggleWAF();
+          }, 100);
+          addLog('success', 'Scénario "Infrastructure Bancaire" chargé'); 
+          addLog('info', '🏦 Architecture PCI-DSS avec segmentation stricte');
+          showToast('Infrastructure financière haute sécurité', 'success', '🏦 Banque');
+          break;
+        case 'vpn-remote':
+          createNode('computer', 80, 150); createNode('phone', 80, 350); createNode('internet', 250, 250);
+          createNode('vpngateway', 420, 250); createNode('firewall', 570, 250); createNode('router', 700, 250);
+          createNode('server', 850, 180); createNode('server', 850, 320);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[2]); createConnection(nodes[1], nodes[2]);
+            createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]);
+            createConnection(nodes[4], nodes[5]); createConnection(nodes[5], nodes[6]); createConnection(nodes[5], nodes[7]);
+            toggleVPN(); toggleEncryption(); toggle2FA();
+          }, 100);
+          addLog('success', 'Scénario "VPN Télétravail" chargé'); 
+          addLog('info', '🔐 Connexion sécurisée des travailleurs distants');
+          showToast('Accès distant sécurisé via VPN', 'success', '🏠 Remote');
+          break;
+        case 'apt':
+          createNode('attacker', 50, 300); createNode('internet', 180, 300); createNode('firewall', 320, 300); createNode('router', 460, 300);
+          createNode('switch', 600, 200); createNode('switch', 600, 400);
+          createNode('computer', 740, 120); createNode('computer', 740, 200); createNode('computer', 740, 280);
+          createNode('server', 740, 380); createNode('database', 740, 460);
+          createNode('mitm', 460, 150);
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]);
+            createConnection(nodes[3], nodes[4]); createConnection(nodes[3], nodes[5]); createConnection(nodes[11], nodes[4]);
+            createConnection(nodes[4], nodes[6]); createConnection(nodes[4], nodes[7]); createConnection(nodes[4], nodes[8]);
+            createConnection(nodes[5], nodes[9]); createConnection(nodes[5], nodes[10]);
+            toggleFirewall();
+          }, 100);
+          addLog('success', 'Scénario "Menace APT" chargé'); 
+          addLog('attack', '👹 Menace Persistante Avancée - attaque sophistiquée');
+          addLog('danger', 'L\'attaquant a déjà un accès interne via le nœud MITM!');
+          showToast('APT: L\'attaquant est déjà dans le réseau', 'error', '👹 APT');
           break;
         case 'pentest':
           createNode('attacker', 80, 250); createNode('internet', 200, 250); createNode('firewall', 350, 250); createNode('router', 500, 250);
