@@ -1669,7 +1669,7 @@
           <div class="scenario-card" onclick="loadScenario('vpn-remote')"><h4>&#128274; VPN Télétravail</h4><p>Connexion sécurisée des travailleurs distants.</p><span class="scenario-tag defense">Défense</span></div>
           <div class="scenario-card" onclick="loadScenario('pentest')"><h4>&#127919; Pentest Complet</h4><p>Test d'intrusion sur une infrastructure d'entreprise.</p><span class="scenario-tag attack">Expert</span></div>
           <div class="scenario-card" onclick="loadScenario('apt')"><h4>&#128520; Menace APT</h4><p>Simulation d'une menace persistante avancée.</p><span class="scenario-tag attack">Expert</span></div>
-          <div class="scenario-card featured" onclick="loadScenario('internet')" style="border: 2px solid var(--accent-blue); background: linear-gradient(135deg, var(--card-bg), rgba(59,130,246,0.1));"><h4>&#127760; Internet Mondial</h4><p>Simulation massive: entreprises, foyers, cloud, VPN, attaquants. 58 équipements!</p><span class="scenario-tag" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">MASSIF</span></div>
+          <div class="scenario-card featured" onclick="loadScenario('internet')" style="border: 2px solid var(--accent-blue); background: linear-gradient(135deg, var(--card-bg), rgba(59,130,246,0.1));"><h4>&#127760; Internet Mondial</h4><p>Simulation massive: 7 foyers, entreprises, cloud, VPN, attaquants. 91 équipements!</p><span class="scenario-tag" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">MASSIF</span></div>
         </div>
       </div>
     </div>
@@ -3966,204 +3966,308 @@
           break;
         
         case 'internet':
-          // ============ SCÉNARIO MASSIF INTERNET ============
-          // Backbone Internet
-          createNode('internet', 700, 400); // Centre du monde - nœud 0
-          createNode('cloud', 500, 400); // Cloud provider 1 - nœud 1
-          createNode('cloud', 900, 400); // Cloud provider 2 - nœud 2
+          // ============ SCÉNARIO MASSIF INTERNET - VERSION ÉTENDUE ============
+          // Coordonnées espacées pour meilleure visibilité (canvas virtuel ~2000x1400)
+          
+          // ======= BACKBONE INTERNET (centre) =======
+          createNode('internet', 1000, 700); // Centre du monde - nœud 0
+          createNode('cloud', 700, 700); // Cloud AWS - nœud 1
+          createNode('cloud', 1300, 700); // Cloud Azure - nœud 2
+          createNode('cloud', 1000, 500); // Cloud Google - nœud 3
           
           // ISP et backbone
-          createNode('router', 700, 200); // ISP Principal - nœud 3
-          createNode('router', 400, 300); // ISP Régional 1 - nœud 4
-          createNode('router', 1000, 300); // ISP Régional 2 - nœud 5
-          createNode('dns', 700, 100); // Root DNS - nœud 6
+          createNode('router', 1000, 350); // ISP Principal Tier-1 - nœud 4
+          createNode('router', 500, 500); // ISP Régional Ouest - nœud 5
+          createNode('router', 1500, 500); // ISP Régional Est - nœud 6
+          createNode('dns', 1000, 200); // Root DNS - nœud 7
+          createNode('dns', 850, 200); // DNS .com - nœud 8
+          createNode('dns', 1150, 200); // DNS .fr - nœud 9
           
           // ======= ENTREPRISE 1 - Grande Corp (gauche haut) =======
-          createNode('firewall', 150, 100); // FW Entreprise 1 - nœud 7
-          createNode('router', 150, 180); // Router Corp 1 - nœud 8
-          createNode('switch', 80, 260); // Switch bureau - nœud 9
-          createNode('switch', 220, 260); // Switch serveurs - nœud 10
-          createNode('computer', 30, 340); // PC employé 1 - nœud 11
-          createNode('computer', 80, 340); // PC employé 2 - nœud 12
-          createNode('computer', 130, 340); // PC employé 3 - nœud 13
-          createNode('server', 180, 340); // Serveur web - nœud 14
-          createNode('server', 230, 340); // Serveur app - nœud 15
-          createNode('database', 280, 340); // Base données - nœud 16
-          createNode('vpngateway', 320, 180); // VPN Gateway - nœud 17
+          createNode('firewall', 150, 150); // FW Entreprise 1 - nœud 10
+          createNode('router', 150, 250); // Router Corp 1 - nœud 11
+          createNode('switch', 70, 350); // Switch bureau - nœud 12
+          createNode('switch', 230, 350); // Switch serveurs - nœud 13
+          createNode('computer', 20, 450); // PC employé 1 - nœud 14
+          createNode('computer', 70, 450); // PC employé 2 - nœud 15
+          createNode('computer', 120, 450); // PC employé 3 - nœud 16
+          createNode('server', 180, 450); // Serveur web - nœud 17
+          createNode('server', 230, 450); // Serveur app - nœud 18
+          createNode('database', 280, 450); // Base données - nœud 19
+          createNode('vpngateway', 350, 250); // VPN Gateway Corp - nœud 20
           
           // ======= ENTREPRISE 2 - Tech Startup (droite haut) =======
-          createNode('firewall', 1050, 100); // FW Startup - nœud 18
-          createNode('router', 1050, 180); // Router Startup - nœud 19
-          createNode('loadbalancer', 1050, 260); // Load balancer - nœud 20
-          createNode('server', 980, 340); // Web 1 - nœud 21
-          createNode('server', 1050, 340); // Web 2 - nœud 22
-          createNode('server', 1120, 340); // Web 3 - nœud 23
-          createNode('database', 1050, 420); // DB cluster - nœud 24
-          
-          // ======= FOYER 1 - Famille Martin (gauche bas) =======
-          createNode('router', 100, 550); // Box internet - nœud 25
-          createNode('computer', 50, 630); // PC familial - nœud 26
-          createNode('phone', 100, 630); // Smartphone parent - nœud 27
-          createNode('phone', 150, 630); // Smartphone enfant - nœud 28
-          createNode('iot', 50, 700); // Caméra - nœud 29
-          createNode('iot', 100, 700); // Thermostat - nœud 30
-          createNode('printer', 150, 700); // Imprimante - nœud 31
-          
-          // ======= FOYER 2 - Télétravailleur (centre bas) =======
-          createNode('router', 400, 550); // Box télétravail - nœud 32
-          createNode('computer', 350, 630); // PC pro - nœud 33
-          createNode('phone', 400, 630); // Téléphone pro - nœud 34
-          createNode('computer', 450, 630); // PC perso - nœud 35
-          
-          // ======= FOYER 3 - Gamer (droite bas) =======
-          createNode('router', 600, 550); // Box gaming - nœud 36
-          createNode('computer', 550, 630); // PC gaming - nœud 37
-          createNode('computer', 600, 630); // Console - nœud 38
-          createNode('phone', 650, 630); // Mobile - nœud 39
-          
-          // ======= DATACENTER / CLOUD (centre droit) =======
-          createNode('firewall', 850, 500); // FW Cloud - nœud 40
-          createNode('loadbalancer', 920, 500); // LB Cloud - nœud 41
-          createNode('server', 920, 580); // Serveur 1 - nœud 42
-          createNode('server', 990, 580); // Serveur 2 - nœud 43
-          createNode('database', 955, 650); // DB Cloud - nœud 44
-          
-          // ======= RÉSEAU ATTAQUANTS (extrême droite) =======
-          createNode('attacker', 1150, 500); // Hacker 1 - nœud 45
-          createNode('attacker', 1200, 550); // Hacker 2 - nœud 46
-          createNode('attacker', 1150, 600); // Botnet C2 - nœud 47
-          createNode('mitm', 1100, 450); // MITM node - nœud 48
+          createNode('firewall', 1700, 150); // FW Startup - nœud 21
+          createNode('router', 1700, 250); // Router Startup - nœud 22
+          createNode('loadbalancer', 1700, 350); // Load balancer - nœud 23
+          createNode('server', 1600, 450); // Web 1 - nœud 24
+          createNode('server', 1700, 450); // Web 2 - nœud 25
+          createNode('server', 1800, 450); // Web 3 - nœud 26
+          createNode('database', 1700, 550); // DB cluster - nœud 27
           
           // ======= ENTREPRISE 3 - Hôpital (gauche milieu) =======
-          createNode('firewall', 50, 450); // FW Hôpital - nœud 49
-          createNode('router', 50, 380); // Router Hôpital - nœud 50
-          createNode('server', 0, 450); // Serveur médical - nœud 51
-          createNode('database', 0, 520); // Dossiers patients - nœud 52
-          createNode('iot', 100, 450); // Équipement médical - nœud 53
+          createNode('firewall', 50, 650); // FW Hôpital - nœud 28
+          createNode('router', 150, 650); // Router Hôpital - nœud 29
+          createNode('server', 50, 750); // Serveur médical - nœud 30
+          createNode('database', 150, 750); // Dossiers patients - nœud 31
+          createNode('iot', 250, 750); // Équipement médical - nœud 32
+          createNode('iot', 250, 650); // Scanner IRM - nœud 33
+          
+          // ======= FOYER 1 - Famille Martin (bas gauche) =======
+          createNode('router', 100, 950); // Box internet - nœud 34
+          createNode('computer', 30, 1050); // PC familial - nœud 35
+          createNode('phone', 100, 1050); // Smartphone parent - nœud 36
+          createNode('phone', 170, 1050); // Smartphone enfant - nœud 37
+          createNode('iot', 30, 1150); // Caméra - nœud 38
+          createNode('iot', 100, 1150); // Thermostat - nœud 39
+          createNode('printer', 170, 1150); // Imprimante - nœud 40
+          
+          // ======= FOYER 2 - Télétravailleur Pro (bas centre-gauche) =======
+          createNode('router', 350, 950); // Box télétravail - nœud 41
+          createNode('computer', 280, 1050); // PC pro - nœud 42
+          createNode('phone', 350, 1050); // Téléphone pro - nœud 43
+          createNode('computer', 420, 1050); // PC perso - nœud 44
+          createNode('printer', 350, 1150); // Imprimante pro - nœud 45
+          
+          // ======= FOYER 3 - Gamer / Streamer (bas centre) =======
+          createNode('router', 600, 950); // Box gaming - nœud 46
+          createNode('computer', 530, 1050); // PC gaming - nœud 47
+          createNode('computer', 600, 1050); // Console PS5 - nœud 48
+          createNode('computer', 670, 1050); // Console Xbox - nœud 49
+          createNode('phone', 600, 1150); // Mobile gaming - nœud 50
+          
+          // ======= FOYER 4 - Famille Nombreuse (bas centre-droit) =======
+          createNode('router', 850, 950); // Box famille - nœud 51
+          createNode('computer', 780, 1050); // PC parents - nœud 52
+          createNode('computer', 850, 1050); // PC enfant 1 - nœud 53
+          createNode('computer', 920, 1050); // PC enfant 2 - nœud 54
+          createNode('phone', 780, 1150); // Phone 1 - nœud 55
+          createNode('phone', 850, 1150); // Phone 2 - nœud 56
+          createNode('phone', 920, 1150); // Phone 3 - nœud 57
+          createNode('iot', 990, 1050); // TV connectée - nœud 58
+          
+          // ======= FOYER 5 - Retraités (bas droit) =======
+          createNode('router', 1100, 950); // Box retraités - nœud 59
+          createNode('computer', 1050, 1050); // PC bureau - nœud 60
+          createNode('phone', 1150, 1050); // Smartphone - nœud 61
+          createNode('iot', 1100, 1150); // Assistant vocal - nœud 62
+          
+          // ======= FOYER 6 - Étudiant (extrême bas droit) =======
+          createNode('router', 1350, 950); // Box étudiant - nœud 63
+          createNode('computer', 1300, 1050); // PC portable - nœud 64
+          createNode('phone', 1400, 1050); // Smartphone - nœud 65
+          createNode('printer', 1350, 1150); // Imprimante - nœud 66
+          
+          // ======= FOYER 7 - Freelance / Nomade digital (haut centre) =======
+          createNode('router', 600, 150); // Box freelance - nœud 67
+          createNode('computer', 550, 250); // MacBook - nœud 68
+          createNode('phone', 650, 250); // iPhone - nœud 69
+          createNode('computer', 600, 350); // iPad - nœud 70
+          
+          // ======= DATACENTER / CLOUD (droite milieu) =======
+          createNode('firewall', 1550, 700); // FW Cloud - nœud 71
+          createNode('loadbalancer', 1650, 700); // LB Cloud - nœud 72
+          createNode('server', 1600, 800); // Serveur 1 - nœud 73
+          createNode('server', 1700, 800); // Serveur 2 - nœud 74
+          createNode('server', 1800, 800); // Serveur 3 - nœud 75
+          createNode('database', 1650, 900); // DB Cloud 1 - nœud 76
+          createNode('database', 1750, 900); // DB Cloud 2 - nœud 77
+          
+          // ======= RÉSEAU ATTAQUANTS (extrême droite) =======
+          createNode('attacker', 1900, 600); // Hacker 1 - nœud 78
+          createNode('attacker', 1950, 700); // Hacker 2 - nœud 79
+          createNode('attacker', 1900, 800); // Botnet C2 - nœud 80
+          createNode('mitm', 1850, 500); // MITM node - nœud 81
+          createNode('attacker', 1950, 900); // Script kiddie - nœud 82
           
           // ======= EMPLOYÉS EN VPN/TÉLÉTRAVAIL =======
-          createNode('vpngateway', 500, 150); // VPN concentrateur - nœud 54
-          createNode('computer', 500, 80); // Télétravailleur 1 - nœud 55
-          createNode('phone', 560, 80); // Mobile VPN - nœud 56
+          createNode('vpngateway', 700, 500); // VPN concentrateur - nœud 83
+          createNode('computer', 600, 600); // Télétravailleur 1 - nœud 84
+          createNode('phone', 800, 600); // Mobile VPN - nœud 85
           
-          // ======= SERVEUR DE JEUX (gaming) =======
-          createNode('server', 750, 550); // Game server - nœud 57
+          // ======= SERVEURS DE JEUX / STREAMING =======
+          createNode('server', 1000, 900); // Game server - nœud 86
+          createNode('server', 1150, 900); // Streaming server - nœud 87
+          createNode('loadbalancer', 1075, 800); // CDN - nœud 88
+          
+          // ======= CDN / EDGE (distribué) =======
+          createNode('server', 400, 700); // Edge node Ouest - nœud 89
+          createNode('server', 1600, 350); // Edge node Est - nœud 90
           
           setTimeout(() => {
-            // Backbone connections
-            createConnection(nodes[0], nodes[1]); // Internet - Cloud1
-            createConnection(nodes[0], nodes[2]); // Internet - Cloud2
-            createConnection(nodes[0], nodes[3]); // Internet - ISP Principal
-            createConnection(nodes[3], nodes[4]); // ISP Principal - ISP Régional 1
-            createConnection(nodes[3], nodes[5]); // ISP Principal - ISP Régional 2
-            createConnection(nodes[3], nodes[6]); // ISP Principal - Root DNS
-            createConnection(nodes[1], nodes[4]); // Cloud1 - ISP Régional 1
-            createConnection(nodes[2], nodes[5]); // Cloud2 - ISP Régional 2
+            // ===== BACKBONE CONNECTIONS =====
+            createConnection(nodes[0], nodes[1]); // Internet - AWS
+            createConnection(nodes[0], nodes[2]); // Internet - Azure
+            createConnection(nodes[0], nodes[3]); // Internet - Google
+            createConnection(nodes[0], nodes[4]); // Internet - ISP Tier-1
+            createConnection(nodes[4], nodes[5]); // ISP Tier-1 - ISP Ouest
+            createConnection(nodes[4], nodes[6]); // ISP Tier-1 - ISP Est
+            createConnection(nodes[4], nodes[7]); // ISP - Root DNS
+            createConnection(nodes[7], nodes[8]); // Root - .com
+            createConnection(nodes[7], nodes[9]); // Root - .fr
+            createConnection(nodes[1], nodes[5]); // AWS - ISP Ouest
+            createConnection(nodes[2], nodes[6]); // Azure - ISP Est
+            createConnection(nodes[3], nodes[4]); // Google - ISP Tier-1
             
-            // Entreprise 1 - Grande Corp
-            createConnection(nodes[4], nodes[7]); // ISP - FW Corp
-            createConnection(nodes[7], nodes[8]); // FW - Router
-            createConnection(nodes[8], nodes[9]); // Router - Switch bureau
-            createConnection(nodes[8], nodes[10]); // Router - Switch serveurs
-            createConnection(nodes[9], nodes[11]); // Switch - PC1
-            createConnection(nodes[9], nodes[12]); // Switch - PC2
-            createConnection(nodes[9], nodes[13]); // Switch - PC3
-            createConnection(nodes[10], nodes[14]); // Switch - Web server
-            createConnection(nodes[10], nodes[15]); // Switch - App server
-            createConnection(nodes[10], nodes[16]); // Switch - Database
-            createConnection(nodes[8], nodes[17]); // Router - VPN Gateway
+            // ===== ENTREPRISE 1 - GRANDE CORP =====
+            createConnection(nodes[5], nodes[10]); // ISP Ouest - FW Corp
+            createConnection(nodes[10], nodes[11]); // FW - Router
+            createConnection(nodes[11], nodes[12]); // Router - Switch bureau
+            createConnection(nodes[11], nodes[13]); // Router - Switch serveurs
+            createConnection(nodes[12], nodes[14]); // Switch - PC1
+            createConnection(nodes[12], nodes[15]); // Switch - PC2
+            createConnection(nodes[12], nodes[16]); // Switch - PC3
+            createConnection(nodes[13], nodes[17]); // Switch - Web server
+            createConnection(nodes[13], nodes[18]); // Switch - App server
+            createConnection(nodes[13], nodes[19]); // Switch - Database
+            createConnection(nodes[11], nodes[20]); // Router - VPN Gateway
             
-            // Entreprise 2 - Startup
-            createConnection(nodes[5], nodes[18]); // ISP - FW Startup
-            createConnection(nodes[18], nodes[19]); // FW - Router
-            createConnection(nodes[19], nodes[20]); // Router - LB
-            createConnection(nodes[20], nodes[21]); // LB - Web1
-            createConnection(nodes[20], nodes[22]); // LB - Web2
-            createConnection(nodes[20], nodes[23]); // LB - Web3
-            createConnection(nodes[21], nodes[24]); // Web1 - DB
-            createConnection(nodes[22], nodes[24]); // Web2 - DB
-            createConnection(nodes[23], nodes[24]); // Web3 - DB
+            // ===== ENTREPRISE 2 - STARTUP =====
+            createConnection(nodes[6], nodes[21]); // ISP Est - FW Startup
+            createConnection(nodes[21], nodes[22]); // FW - Router
+            createConnection(nodes[22], nodes[23]); // Router - LB
+            createConnection(nodes[23], nodes[24]); // LB - Web1
+            createConnection(nodes[23], nodes[25]); // LB - Web2
+            createConnection(nodes[23], nodes[26]); // LB - Web3
+            createConnection(nodes[24], nodes[27]); // Web1 - DB
+            createConnection(nodes[25], nodes[27]); // Web2 - DB
+            createConnection(nodes[26], nodes[27]); // Web3 - DB
             
-            // Foyer 1 - Famille Martin
-            createConnection(nodes[4], nodes[25]); // ISP - Box
-            createConnection(nodes[25], nodes[26]); // Box - PC
-            createConnection(nodes[25], nodes[27]); // Box - Phone1
-            createConnection(nodes[25], nodes[28]); // Box - Phone2
-            createConnection(nodes[25], nodes[29]); // Box - Cam
-            createConnection(nodes[25], nodes[30]); // Box - Thermostat
-            createConnection(nodes[25], nodes[31]); // Box - Printer
+            // ===== ENTREPRISE 3 - HÔPITAL =====
+            createConnection(nodes[5], nodes[28]); // ISP Ouest - FW Hôpital
+            createConnection(nodes[28], nodes[29]); // FW - Router
+            createConnection(nodes[29], nodes[30]); // Router - Server médical
+            createConnection(nodes[30], nodes[31]); // Server - DB patients
+            createConnection(nodes[29], nodes[32]); // Router - Équipement
+            createConnection(nodes[29], nodes[33]); // Router - Scanner
             
-            // Foyer 2 - Télétravailleur
-            createConnection(nodes[4], nodes[32]); // ISP - Box
-            createConnection(nodes[32], nodes[33]); // Box - PC Pro
-            createConnection(nodes[32], nodes[34]); // Box - Phone Pro
-            createConnection(nodes[32], nodes[35]); // Box - PC Perso
-            createConnection(nodes[33], nodes[17]); // PC Pro - VPN (tunnel)
+            // ===== FOYER 1 - FAMILLE MARTIN =====
+            createConnection(nodes[5], nodes[34]); // ISP - Box
+            createConnection(nodes[34], nodes[35]); // Box - PC
+            createConnection(nodes[34], nodes[36]); // Box - Phone1
+            createConnection(nodes[34], nodes[37]); // Box - Phone2
+            createConnection(nodes[34], nodes[38]); // Box - Cam
+            createConnection(nodes[34], nodes[39]); // Box - Thermostat
+            createConnection(nodes[34], nodes[40]); // Box - Printer
             
-            // Foyer 3 - Gamer
-            createConnection(nodes[0], nodes[36]); // Internet direct - Box
-            createConnection(nodes[36], nodes[37]); // Box - PC
-            createConnection(nodes[36], nodes[38]); // Box - Console
-            createConnection(nodes[36], nodes[39]); // Box - Mobile
+            // ===== FOYER 2 - TÉLÉTRAVAILLEUR =====
+            createConnection(nodes[5], nodes[41]); // ISP - Box
+            createConnection(nodes[41], nodes[42]); // Box - PC Pro
+            createConnection(nodes[41], nodes[43]); // Box - Phone Pro
+            createConnection(nodes[41], nodes[44]); // Box - PC Perso
+            createConnection(nodes[41], nodes[45]); // Box - Printer
+            createConnection(nodes[42], nodes[20]); // PC Pro - VPN Corp (tunnel)
             
-            // Datacenter Cloud
-            createConnection(nodes[2], nodes[40]); // Cloud - FW
-            createConnection(nodes[40], nodes[41]); // FW - LB
-            createConnection(nodes[41], nodes[42]); // LB - Server1
-            createConnection(nodes[41], nodes[43]); // LB - Server2
-            createConnection(nodes[42], nodes[44]); // Server1 - DB
-            createConnection(nodes[43], nodes[44]); // Server2 - DB
+            // ===== FOYER 3 - GAMER =====
+            createConnection(nodes[0], nodes[46]); // Internet direct - Box gaming
+            createConnection(nodes[46], nodes[47]); // Box - PC gaming
+            createConnection(nodes[46], nodes[48]); // Box - PS5
+            createConnection(nodes[46], nodes[49]); // Box - Xbox
+            createConnection(nodes[46], nodes[50]); // Box - Mobile
             
-            // Réseau Attaquants
-            createConnection(nodes[0], nodes[45]); // Internet - Hacker1
-            createConnection(nodes[45], nodes[46]); // Hacker1 - Hacker2
-            createConnection(nodes[45], nodes[47]); // Hacker1 - Botnet
-            createConnection(nodes[45], nodes[48]); // Hacker1 - MITM
+            // ===== FOYER 4 - FAMILLE NOMBREUSE =====
+            createConnection(nodes[0], nodes[51]); // Internet - Box
+            createConnection(nodes[51], nodes[52]); // Box - PC parents
+            createConnection(nodes[51], nodes[53]); // Box - PC enfant1
+            createConnection(nodes[51], nodes[54]); // Box - PC enfant2
+            createConnection(nodes[51], nodes[55]); // Box - Phone1
+            createConnection(nodes[51], nodes[56]); // Box - Phone2
+            createConnection(nodes[51], nodes[57]); // Box - Phone3
+            createConnection(nodes[51], nodes[58]); // Box - TV
             
-            // Hôpital
-            createConnection(nodes[4], nodes[49]); // ISP - FW Hôpital
-            createConnection(nodes[49], nodes[50]); // FW - Router
-            createConnection(nodes[50], nodes[51]); // Router - Server médical
-            createConnection(nodes[51], nodes[52]); // Server - DB patients
-            createConnection(nodes[50], nodes[53]); // Router - Équipement médical
+            // ===== FOYER 5 - RETRAITÉS =====
+            createConnection(nodes[6], nodes[59]); // ISP Est - Box
+            createConnection(nodes[59], nodes[60]); // Box - PC
+            createConnection(nodes[59], nodes[61]); // Box - Phone
+            createConnection(nodes[59], nodes[62]); // Box - Assistant vocal
             
-            // VPN Télétravailleurs
-            createConnection(nodes[3], nodes[54]); // ISP - VPN concentrateur
-            createConnection(nodes[54], nodes[55]); // VPN - Télétravailleur1
-            createConnection(nodes[54], nodes[56]); // VPN - Mobile
-            createConnection(nodes[54], nodes[17]); // VPN concentrateur - VPN Corp
+            // ===== FOYER 6 - ÉTUDIANT =====
+            createConnection(nodes[6], nodes[63]); // ISP Est - Box
+            createConnection(nodes[63], nodes[64]); // Box - PC portable
+            createConnection(nodes[63], nodes[65]); // Box - Phone
+            createConnection(nodes[63], nodes[66]); // Box - Printer
             
-            // Gaming
-            createConnection(nodes[0], nodes[57]); // Internet - Game server
-            createConnection(nodes[37], nodes[57]); // PC Gaming - Game server (jeu)
-            createConnection(nodes[38], nodes[57]); // Console - Game server
+            // ===== FOYER 7 - FREELANCE =====
+            createConnection(nodes[5], nodes[67]); // ISP Ouest - Box
+            createConnection(nodes[67], nodes[68]); // Box - MacBook
+            createConnection(nodes[67], nodes[69]); // Box - iPhone
+            createConnection(nodes[67], nodes[70]); // Box - iPad
             
-            // Quelques connexions croisées réalistes
-            createConnection(nodes[1], nodes[41]); // Cloud1 - LB Cloud (CDN)
-            createConnection(nodes[6], nodes[24]); // DNS - DB Startup (requêtes)
+            // ===== DATACENTER CLOUD =====
+            createConnection(nodes[2], nodes[71]); // Azure - FW Cloud
+            createConnection(nodes[71], nodes[72]); // FW - LB
+            createConnection(nodes[72], nodes[73]); // LB - Server1
+            createConnection(nodes[72], nodes[74]); // LB - Server2
+            createConnection(nodes[72], nodes[75]); // LB - Server3
+            createConnection(nodes[73], nodes[76]); // Server1 - DB1
+            createConnection(nodes[74], nodes[76]); // Server2 - DB1
+            createConnection(nodes[75], nodes[77]); // Server3 - DB2
+            createConnection(nodes[76], nodes[77]); // DB1 - DB2 (replication)
+            
+            // ===== RÉSEAU ATTAQUANTS =====
+            createConnection(nodes[0], nodes[78]); // Internet - Hacker1
+            createConnection(nodes[78], nodes[79]); // Hacker1 - Hacker2
+            createConnection(nodes[78], nodes[80]); // Hacker1 - Botnet
+            createConnection(nodes[78], nodes[81]); // Hacker1 - MITM
+            createConnection(nodes[79], nodes[82]); // Hacker2 - Script kiddie
+            createConnection(nodes[80], nodes[82]); // Botnet - Script kiddie
+            
+            // ===== VPN TÉLÉTRAVAILLEURS =====
+            createConnection(nodes[4], nodes[83]); // ISP - VPN concentrateur
+            createConnection(nodes[83], nodes[84]); // VPN - Télétravailleur1
+            createConnection(nodes[83], nodes[85]); // VPN - Mobile
+            createConnection(nodes[83], nodes[20]); // VPN concentrateur - VPN Corp
+            
+            // ===== GAMING & STREAMING =====
+            createConnection(nodes[0], nodes[88]); // Internet - CDN
+            createConnection(nodes[88], nodes[86]); // CDN - Game server
+            createConnection(nodes[88], nodes[87]); // CDN - Streaming
+            createConnection(nodes[47], nodes[86]); // PC Gaming - Game server
+            createConnection(nodes[48], nodes[86]); // PS5 - Game server
+            createConnection(nodes[49], nodes[86]); // Xbox - Game server
+            createConnection(nodes[53], nodes[87]); // PC enfant - Streaming
+            createConnection(nodes[54], nodes[87]); // PC enfant2 - Streaming
+            
+            // ===== CDN / EDGE =====
+            createConnection(nodes[1], nodes[89]); // AWS - Edge Ouest
+            createConnection(nodes[6], nodes[90]); // ISP Est - Edge Est
+            createConnection(nodes[5], nodes[89]); // ISP Ouest - Edge Ouest
+            
+            // ===== CONNEXIONS CROISÉES RÉALISTES =====
+            createConnection(nodes[8], nodes[27]); // DNS .com - DB Startup
+            createConnection(nodes[3], nodes[72]); // Google - LB Cloud
             
           }, 100);
           
           // Régler le viewport pour voir le réseau complet
           setTimeout(() => {
-            zoomLevel = 0.6;
-            viewportX = 50;
-            viewportY = 50;
+            zoomLevel = 0.45;
+            viewportX = -100;
+            viewportY = -50;
           }, 200);
           
           addLog('success', '🌐 Scénario "Internet Mondial" chargé!');
-          addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          addLog('info', '📊 ' + 58 + ' équipements, réseau massif');
-          addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          addLog('info', '🏢 2 grandes entreprises avec serveurs');
+          addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          addLog('info', '📊 91 équipements - Réseau Internet réaliste');
+          addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          addLog('info', '🏢 2 grandes entreprises (Corp + Startup)');
           addLog('info', '🏥 1 hôpital avec équipements médicaux');
-          addLog('info', '🏠 3 foyers (famille, télétravail, gamer)');
-          addLog('info', '☁️ 2 fournisseurs cloud + datacenter');
-          addLog('info', '🔐 Télétravailleurs en VPN');
-          addLog('info', '👹 Réseau d\'attaquants avec MITM');
-          addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          addLog('warning', 'Conseil: Zoomez avec la molette pour naviguer');
-          showToast('Internet mondial simulé - 58 équipements!', 'success', '🌐 Internet');
+          addLog('info', '🏠 7 foyers variés:');
+          addLog('info', '   • Famille Martin (IoT connecté)');
+          addLog('info', '   • Télétravailleur Pro (VPN)');
+          addLog('info', '   • Gamer/Streamer (consoles)');
+          addLog('info', '   • Famille nombreuse (8 appareils)');
+          addLog('info', '   • Retraités (simple)');
+          addLog('info', '   • Étudiant (essentiel)');
+          addLog('info', '   • Freelance/Nomade (Apple)');
+          addLog('info', '☁️ 3 fournisseurs cloud (AWS, Azure, Google)');
+          addLog('info', '🔐 Télétravailleurs connectés en VPN');
+          addLog('info', '🎮 Serveurs gaming + streaming + CDN');
+          addLog('info', '👹 5 attaquants avec MITM et Botnet');
+          addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          addLog('warning', '💡 Conseil: Utilisez la molette pour zoomer/dézoomer');
+          addLog('warning', '💡 Maintenez clic gauche pour déplacer la vue');
+          showToast('Internet mondial - 91 équipements!', 'success', '🌐 Internet');
           break;
       }
       
