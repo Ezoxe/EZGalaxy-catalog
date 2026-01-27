@@ -83,6 +83,13 @@
       "function": "Jeu de drapeaux en mode survie : devine le pays à partir de son drapeau. 3 modes (facile, normal, difficile), 3 vies, classement en ligne via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.flaggame",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.projecthub",
+      "title": "Project Hub - AI Dashboard",
+      "function": "Dashboard de gestion de projet futuriste avec Kanban intelligent, Gantt HD avec dépendances, matrice de charge équipe, moteur prédictif IA (Time-Traveler), analyseur de risques, score de sentiment, métriques financières. Sauvegarde via Community Data API.",
+      "path": "packages/apps/com.ezgalaxy.projecthub",
+      "version": "1.0.0"
     }
   ]
 }
