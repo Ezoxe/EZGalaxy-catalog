@@ -1591,7 +1591,7 @@
               <button class="defense-btn" data-defense="firewall" data-search="firewall pare-feu bloquer filtrer"><span class="icon">&#128737;</span><div><div>Firewall</div><small>Bloquer trafic malveillant</small></div></button>
               <button class="defense-btn" data-defense="ids" data-search="ids ips intrusion détection"><span class="icon">&#128065;</span><div><div>IDS/IPS</div><small>Détection d'intrusion</small></div></button>
               <button class="defense-btn" data-defense="encryption" data-search="tls ssl chiffrement encryption https"><span class="icon">&#128272;</span><div><div>Chiffrement TLS</div><small>Communications sécurisées</small></div></button>
-              <button class="defense-btn" data-defense="vpn" data-search="vpn tunnel chiffré remote"><span class="icon">&#128274;</span><div><div>VPN</div><small>Tunnel chiffré</small></div></button>
+              <button class="defense-btn" data-defense="vpn" data-search="vpn tunnel chiffré remote" title="Cliquez pour créer un tunnel VPN point-à-point entre deux équipements"><span class="icon">&#128274;</span><div><div>VPN</div><small>Créer tunnel</small></div></button>
               <button class="defense-btn" data-defense="ratelimit" data-search="rate limit limitation requêtes"><span class="icon">&#9201;</span><div><div>Rate Limiting</div><small>Limiter les requêtes</small></div></button>
               <button class="defense-btn" data-defense="2fa" data-search="2fa mfa authentification double"><span class="icon">&#128241;</span><div><div>2FA</div><small>Double authentification</small></div></button>
               <button class="defense-btn" data-defense="antimalware" data-search="antimalware antivirus protection malware"><span class="icon">&#128022;</span><div><div>Anti-Malware</div><small>Protection ransomware</small></div></button>
@@ -1669,7 +1669,7 @@
           <div class="scenario-card" onclick="loadScenario('vpn-remote')"><h4>&#128274; VPN Télétravail</h4><p>Connexion sécurisée des travailleurs distants.</p><span class="scenario-tag defense">Défense</span></div>
           <div class="scenario-card" onclick="loadScenario('pentest')"><h4>&#127919; Pentest Complet</h4><p>Test d'intrusion sur une infrastructure d'entreprise.</p><span class="scenario-tag attack">Expert</span></div>
           <div class="scenario-card" onclick="loadScenario('apt')"><h4>&#128520; Menace APT</h4><p>Simulation d'une menace persistante avancée.</p><span class="scenario-tag attack">Expert</span></div>
-          <div class="scenario-card featured" onclick="loadScenario('internet')" style="border: 2px solid var(--accent-blue); background: linear-gradient(135deg, var(--card-bg), rgba(59,130,246,0.1));"><h4>&#127760; Internet Mondial</h4><p>Simulation massive: 7 foyers, entreprises, cloud, VPN, attaquants. 91 équipements!</p><span class="scenario-tag" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">MASSIF</span></div>
+          <div class="scenario-card featured" onclick="loadScenario('internet')" style="border: 2px solid var(--accent-blue); background: linear-gradient(135deg, var(--card-bg), rgba(59,130,246,0.1));"><h4>&#127760; Internet Structuré</h4><p>FAI central, entreprises, foyers, datacenter, attaquants. 66 équipements avec zones!</p><span class="scenario-tag" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">COMPLET</span></div>
         </div>
       </div>
     </div>
@@ -1680,6 +1680,7 @@
       <div class="status-item"><span>Connexions: <span id="connectionCount">0</span></span></div>
       <div class="status-item"><span>Paquets: <span id="packetCount">0</span></span></div>
       <div class="status-item"><span>Messages: <span id="messageCount">0</span></span></div>
+      <div class="status-item" id="vpnStatus" style="display:none"><span class="status-dot" style="background:#15803d"></span><span style="color:#15803d">VPN: <span id="vpnTunnelCount">0</span> tunnel(s)</span></div>
       <div class="status-item" id="attackStatus" style="display:none"><span class="status-dot danger"></span><span style="color:var(--accent-red)">Attaque en cours</span></div>
     </div>
     
@@ -1757,6 +1758,8 @@
     let nodes = [];
     let connections = [];
     let packets = [];
+    let zones = []; // Zones visuelles pour regrouper les équipements
+    let vpnTunnels = []; // Tunnels VPN établis: [{id, client, gateway, color}]
     let selectedNode = null;
     let connectingFrom = null;
     let draggedNode = null;
@@ -1840,7 +1843,8 @@
       zeroday: { color: '#4c1d95', label: '0-DAY' },
       credstuffing: { color: '#9f1239', label: 'CREDS' },
       malware: { color: '#450a0a', label: 'MALWARE' },
-      blocked: { color: '#22c55e', label: 'BLOCKED' }
+      blocked: { color: '#22c55e', label: 'BLOCKED' },
+      vpn: { color: '#15803d', label: 'VPN' }
     };
     
     let logs = [];
@@ -2386,30 +2390,51 @@
       };
       
       // MITM interception - ping, http, email sans chiffrement
-      if (activeAttacks.mitm && !activeDefenses.encryption && !activeDefenses.vpn) {
+      // MITM ne peut intercepter que si:
+      // 1. L'attaque MITM est active
+      // 2. Pas de chiffrement TLS global
+      // 3. Le MITM est DANS le chemin du paquet
+      // 4. Le segment n'est PAS protégé par un tunnel VPN
+      if (activeAttacks.mitm && !activeDefenses.encryption) {
         const mitmNode = nodes.find(n => n.type === 'mitm' && n.intercepting);
         if (mitmNode) {
-          const mitmInPath = path.find(n => n.id === mitmNode.id);
-          if (mitmInPath) {
-            packet.willBeIntercepted = true; 
-            packet.mitmNode = mitmNode;
-            // Marquer comme intercepté pour changer la couleur
-            if (['ping', 'http', 'email'].includes(type)) {
-              packet.mitmIntercepted = true;
+          const mitmIndex = path.findIndex(n => n.id === mitmNode.id);
+          if (mitmIndex > 0 && mitmIndex < path.length - 1) {
+            // Le MITM est dans le chemin (pas aux extrémités)
+            // Vérifier si ce segment est protégé par VPN
+            const segmentProtectedByVPN = isSegmentProtectedByVPN(path, mitmIndex);
+            
+            if (!segmentProtectedByVPN) {
+              packet.willBeIntercepted = true; 
+              packet.mitmNode = mitmNode;
+              packet.mitmIndex = mitmIndex;
+              // Marquer comme intercepté pour changer la couleur
+              if (['ping', 'http', 'email', 'dns', 'dnsQuery'].includes(type)) {
+                packet.mitmIntercepted = true;
+              }
+            } else {
+              // Le VPN protège ce segment
+              packet.vpnProtected = true;
             }
           }
         }
       }
       
-      // Firewall blocking - avec animation
+      // Firewall blocking - bloque les attaques qui traversent le firewall
+      // Le firewall est efficace s'il est DANS le chemin entre l'attaquant et la cible
       if (activeDefenses.firewall && isAttack) {
-        const fw = nodes.find(n => n.type === 'firewall');
-        if (fw) {
-          const fwInPath = path.find(n => n.id === fw.id);
-          if (fwInPath) { 
+        // Trouver tous les firewalls dans le chemin
+        const firewallsInPath = path.filter(n => n.type === 'firewall');
+        if (firewallsInPath.length > 0) {
+          const fw = firewallsInPath[0]; // Premier firewall rencontré
+          const fwIndex = path.findIndex(n => n.id === fw.id);
+          
+          // Le firewall bloque si l'attaque vient de "l'extérieur" (avant le FW dans le chemin)
+          if (fwIndex > 0) {
             packet.blocked = true; 
             packet.blockedAt = fw;
-            packet.blockedAtIndex = path.findIndex(n => n.id === fw.id);
+            packet.blockedAtIndex = fwIndex;
+            packet.blockedReason = 'Firewall: ' + type.toUpperCase() + ' bloqué';
           }
         }
       }
@@ -2521,6 +2546,16 @@
                 addLog('danger', '👁️ HTTP intercepté par ' + next.name + '!');
                 packet.type = 'httpIntercepted';
               }
+            }
+            
+            // Le VPN protège contre le MITM - montrer l'effet
+            if (packet.vpnProtected && next.type === 'mitm' && next.intercepting) {
+              createRingEffect(next, '#15803d');
+              createParticles(next, 5, '#15803d');
+              addLog('success', '🔐 VPN protège le trafic - MITM ne peut pas intercepter!');
+              showToast('Trafic protégé par tunnel VPN', 'success', '🔐 VPN');
+              // Ne montrer qu'une fois par paquet
+              packet.vpnProtected = false;
             }
             
             // Log pour traceroute - chaque hop
@@ -2856,7 +2891,23 @@
     function toggleFirewall() { activeDefenses.firewall = !activeDefenses.firewall; document.querySelector('[data-defense="firewall"]').classList.toggle('active', activeDefenses.firewall); addLog(activeDefenses.firewall ? 'success' : 'warning', activeDefenses.firewall ? ' Firewall activé' : ' Firewall désactivé'); }
     function toggleIDS() { activeDefenses.ids = !activeDefenses.ids; document.querySelector('[data-defense="ids"]').classList.toggle('active', activeDefenses.ids); addLog(activeDefenses.ids ? 'success' : 'warning', activeDefenses.ids ? ' IDS/IPS activé' : ' IDS/IPS désactivé'); }
     function toggleEncryption() { activeDefenses.encryption = !activeDefenses.encryption; document.querySelector('[data-defense="encryption"]').classList.toggle('active', activeDefenses.encryption); connections.forEach(c => c.encrypted = activeDefenses.encryption); addLog(activeDefenses.encryption ? 'success' : 'warning', activeDefenses.encryption ? ' TLS activé' : ' Chiffrement désactivé'); }
-    function toggleVPN() { activeDefenses.vpn = !activeDefenses.vpn; document.querySelector('[data-defense="vpn"]').classList.toggle('active', activeDefenses.vpn); addLog(activeDefenses.vpn ? 'success' : 'warning', activeDefenses.vpn ? ' VPN activé' : ' VPN désactivé'); }
+    function toggleVPN() { 
+      // VPN point-à-point: cliquer sur un client puis un VPN Gateway pour créer un tunnel
+      if (vpnTunnels.length > 0) {
+        // Si des tunnels existent, proposer de les supprimer ou d'en créer un nouveau
+        if (confirm('Supprimer tous les tunnels VPN existants?')) {
+          vpnTunnels = [];
+          activeDefenses.vpn = false;
+          document.querySelector('[data-defense="vpn"]').classList.remove('active');
+          addLog('warning', '🔓 Tous les tunnels VPN supprimés');
+          showToast('Tous les tunnels VPN supprimés', 'warning', '🔓 VPN');
+        } else {
+          startActionMode('vpn', '🔐', 'Tunnel VPN');
+        }
+      } else {
+        startActionMode('vpn', '🔐', 'Tunnel VPN');
+      }
+    }
     function toggleRateLimit() { activeDefenses.ratelimit = !activeDefenses.ratelimit; document.querySelector('[data-defense="ratelimit"]').classList.toggle('active', activeDefenses.ratelimit); addLog(activeDefenses.ratelimit ? 'success' : 'warning', activeDefenses.ratelimit ? ' Rate Limiting activé' : ' Rate Limiting désactivé'); }
     function toggle2FA() { activeDefenses['2fa'] = !activeDefenses['2fa']; document.querySelector('[data-defense="2fa"]').classList.toggle('active', activeDefenses['2fa']); addLog(activeDefenses['2fa'] ? 'success' : 'warning', activeDefenses['2fa'] ? ' 2FA activé' : ' 2FA désactivé'); }
     
@@ -3221,6 +3272,52 @@
         case 'xss': executeXSS(src, tgt); break;
         case 'zeroday': executeZeroDay(src, tgt); break;
         case 'credstuffing': executeCredentialStuffing(src, tgt); break;
+        case 'vpn': 
+          // Établir un tunnel VPN entre client et VPN gateway
+          if (tgt.type !== 'vpngateway' && src.type !== 'vpngateway') {
+            showToast('Un des équipements doit être un VPN Gateway', 'warning', '🔐 VPN');
+            addLog('warning', '⚠️ Tunnel VPN nécessite un VPN Gateway');
+            return;
+          }
+          // Vérifier si un tunnel existe déjà entre ces deux points
+          const existingTunnel = vpnTunnels.find(t => 
+            (t.client.id === src.id && t.gateway.id === tgt.id) ||
+            (t.client.id === tgt.id && t.gateway.id === src.id)
+          );
+          if (existingTunnel) {
+            // Supprimer le tunnel existant
+            vpnTunnels = vpnTunnels.filter(t => t.id !== existingTunnel.id);
+            addLog('warning', '🔓 Tunnel VPN supprimé: ' + src.name + ' ↔ ' + tgt.name);
+            showToast('Tunnel VPN fermé', 'warning', '🔓 VPN');
+            updateStatusBar();
+            if (vpnTunnels.length === 0) {
+              activeDefenses.vpn = false;
+              document.querySelector('[data-defense="vpn"]').classList.remove('active');
+            }
+          } else {
+            // Créer un nouveau tunnel
+            const client = src.type === 'vpngateway' ? tgt : src;
+            const gateway = src.type === 'vpngateway' ? src : tgt;
+            const tunnelColors = ['#15803d', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ec4899'];
+            const tunnel = {
+              id: Date.now(),
+              client: client,
+              gateway: gateway,
+              path: findPath(client, gateway),
+              color: tunnelColors[vpnTunnels.length % tunnelColors.length]
+            };
+            vpnTunnels.push(tunnel);
+            activeDefenses.vpn = true;
+            document.querySelector('[data-defense="vpn"]').classList.add('active');
+            addLog('success', '🔐 Tunnel VPN établi: ' + client.name + ' ↔ ' + gateway.name);
+            showToast('Tunnel VPN sécurisé établi!', 'success', '🔐 VPN');
+            updateStatusBar();
+            createParticles(client, 10, tunnel.color);
+            createParticles(gateway, 10, tunnel.color);
+            // Animation de connexion
+            createPacket(client, gateway, 'vpn', { establishing: true });
+          }
+          break;
       }
     }
     
@@ -3273,8 +3370,10 @@
         ctx.scale(zoomLevel, zoomLevel);
         
         // Draw everything in world coordinates
-        drawGrid(); 
-        drawConnections(); 
+        drawGrid();
+        drawZones();
+        drawConnections();
+        drawVPNTunnels();
         drawConnectingLine(); 
         drawPacketTrails(); 
         drawPackets(); 
@@ -3348,6 +3447,40 @@
       }
     }
     
+    // ============ ZONE SYSTEM ============
+    function createZone(x, y, width, height, title, color = 'rgba(59, 130, 246, 0.15)', borderColor = 'rgba(59, 130, 246, 0.4)') {
+      const zone = { x, y, width, height, title, color, borderColor };
+      zones.push(zone);
+      return zone;
+    }
+    
+    function clearZones() {
+      zones = [];
+    }
+    
+    function drawZones() {
+      zones.forEach(zone => {
+        // Draw zone background
+        ctx.fillStyle = zone.color;
+        ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+        
+        // Draw zone border
+        ctx.strokeStyle = zone.borderColor;
+        ctx.lineWidth = 2 / zoomLevel;
+        ctx.setLineDash([8 / zoomLevel, 4 / zoomLevel]);
+        ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+        ctx.setLineDash([]);
+        
+        // Draw zone title
+        const fontSize = Math.max(14, Math.round(16 / zoomLevel));
+        ctx.font = 'bold ' + fontSize + 'px system-ui';
+        ctx.fillStyle = zone.borderColor.replace('0.4', '0.9').replace('0.15', '0.9');
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(zone.title, zone.x + 10 / zoomLevel, zone.y + 8 / zoomLevel);
+      });
+    }
+    
     function drawGrid() { 
       // Calculate visible world coordinates based on viewport
       const gridSize = 40;
@@ -3386,7 +3519,9 @@
       connections.forEach(c => {
         ctx.beginPath(); ctx.moveTo(c.from.x, c.from.y); ctx.lineTo(c.to.x, c.to.y);
         const dashScale = 1 / zoomLevel;
-        if (c.encrypted || activeDefenses.vpn) { ctx.setLineDash([8 * dashScale, 4 * dashScale]); ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 3 / zoomLevel; }
+        // Vérifier si cette connexion fait partie d'un tunnel VPN
+        const isInVPNTunnel = isConnectionInVPNTunnel(c);
+        if (c.encrypted || isInVPNTunnel) { ctx.setLineDash([8 * dashScale, 4 * dashScale]); ctx.strokeStyle = isInVPNTunnel ? '#15803d' : '#22d3ee'; ctx.lineWidth = 3 / zoomLevel; }
         else { ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2 / zoomLevel; }
         ctx.stroke(); ctx.setLineDash([]);
         const mx = (c.from.x + c.to.x) / 2, my = (c.from.y + c.to.y) / 2;
@@ -3394,6 +3529,127 @@
         ctx.font = fontSize + 'px system-ui'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.textAlign = 'center';
         ctx.fillText(c.latency + 'ms', mx, my - 8 / zoomLevel);
         if (c.encrypted) ctx.fillText('🔒', mx, my + 12 / zoomLevel);
+        if (isInVPNTunnel) ctx.fillText('🔐', mx, my + 12 / zoomLevel);
+      });
+    }
+    
+    // Vérifie si une connexion fait partie d'un tunnel VPN
+    function isConnectionInVPNTunnel(connection) {
+      for (const tunnel of vpnTunnels) {
+        // Vérifier si la connexion fait partie du chemin du tunnel
+        for (let i = 0; i < tunnel.path.length - 1; i++) {
+          const pathFrom = tunnel.path[i];
+          const pathTo = tunnel.path[i + 1];
+          if ((connection.from.id === pathFrom.id && connection.to.id === pathTo.id) ||
+              (connection.from.id === pathTo.id && connection.to.id === pathFrom.id)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    
+    // Vérifie si un paquet est protégé par un tunnel VPN
+    function isPacketProtectedByVPN(packet) {
+      if (!packet.path || packet.path.length < 2) return false;
+      
+      for (const tunnel of vpnTunnels) {
+        // Le paquet est protégé si son chemin traverse le tunnel
+        // C'est-à-dire si le client du tunnel est dans le chemin et le gateway aussi
+        const clientInPath = packet.path.find(n => n.id === tunnel.client.id);
+        const gatewayInPath = packet.path.find(n => n.id === tunnel.gateway.id);
+        
+        if (clientInPath && gatewayInPath) {
+          // Le paquet traverse le tunnel VPN
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Vérifie si un segment spécifique du chemin est protégé par un tunnel VPN
+    // segmentIndex = index du nœud dans le chemin
+    function isSegmentProtectedByVPN(path, segmentIndex) {
+      if (!path || path.length < 2 || segmentIndex < 0) return false;
+      
+      for (const tunnel of vpnTunnels) {
+        // Trouver les indices du client et gateway dans le chemin du paquet
+        const clientIdx = path.findIndex(n => n.id === tunnel.client.id);
+        const gatewayIdx = path.findIndex(n => n.id === tunnel.gateway.id);
+        
+        if (clientIdx === -1 || gatewayIdx === -1) continue;
+        
+        // Le segment est protégé si l'index est entre le client et le gateway
+        const minIdx = Math.min(clientIdx, gatewayIdx);
+        const maxIdx = Math.max(clientIdx, gatewayIdx);
+        
+        if (segmentIndex >= minIdx && segmentIndex <= maxIdx) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Dessine les tunnels VPN visuellement
+    function drawVPNTunnels() {
+      if (vpnTunnels.length === 0) return;
+      
+      const time = Date.now() * 0.001;
+      
+      vpnTunnels.forEach((tunnel, idx) => {
+        if (!tunnel.path || tunnel.path.length < 2) return;
+        
+        // Dessiner le tunnel comme une ligne épaisse semi-transparente
+        ctx.beginPath();
+        ctx.moveTo(tunnel.path[0].x, tunnel.path[0].y);
+        for (let i = 1; i < tunnel.path.length; i++) {
+          ctx.lineTo(tunnel.path[i].x, tunnel.path[i].y);
+        }
+        
+        // Style du tunnel: ligne épaisse avec animation de flux
+        const dashScale = 1 / zoomLevel;
+        const dashOffset = time * 50;
+        ctx.setLineDash([15 * dashScale, 10 * dashScale]);
+        ctx.lineDashOffset = -dashOffset;
+        ctx.strokeStyle = tunnel.color + '80'; // Semi-transparent
+        ctx.lineWidth = 8 / zoomLevel;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        
+        // Contour plus fin
+        ctx.lineWidth = 2 / zoomLevel;
+        ctx.strokeStyle = tunnel.color;
+        ctx.stroke();
+        
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+        
+        // Label du tunnel au milieu
+        if (tunnel.path.length >= 2) {
+          const midIdx = Math.floor(tunnel.path.length / 2);
+          const midNode = tunnel.path[midIdx];
+          const prevNode = tunnel.path[midIdx - 1] || tunnel.path[0];
+          const mx = (midNode.x + prevNode.x) / 2;
+          const my = (midNode.y + prevNode.y) / 2;
+          
+          const fontSize = Math.round(12 / zoomLevel);
+          ctx.font = 'bold ' + fontSize + 'px system-ui';
+          ctx.fillStyle = tunnel.color;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          
+          // Fond pour le label
+          const label = '🔐 VPN Tunnel';
+          const metrics = ctx.measureText(label);
+          const padding = 5 / zoomLevel;
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fillRect(mx - metrics.width/2 - padding, my - fontSize/2 - padding, 
+                       metrics.width + padding*2, fontSize + padding*2);
+          
+          ctx.fillStyle = tunnel.color;
+          ctx.fillText(label, mx, my);
+        }
       });
     }
     
@@ -3472,8 +3728,34 @@
       else if (p.blocked && p.blockedAt) {
         color = '#f59e0b'; // Orange pendant le transit
       }
+      // Paquet dans un tunnel VPN = vert VPN
+      else if (isPacketInVPNTunnel(p)) {
+        color = '#15803d';
+      }
       
       return color;
+    }
+    
+    // Vérifie si le paquet est actuellement dans un tunnel VPN
+    function isPacketInVPNTunnel(packet) {
+      if (!packet.path || packet.path.length < 2) return false;
+      
+      for (const tunnel of vpnTunnels) {
+        // Trouver les indices du client et gateway dans le chemin du paquet
+        const clientIdx = packet.path.findIndex(n => n.id === tunnel.client.id);
+        const gatewayIdx = packet.path.findIndex(n => n.id === tunnel.gateway.id);
+        
+        if (clientIdx === -1 || gatewayIdx === -1) continue;
+        
+        // Le paquet est dans le tunnel s'il est entre le client et le gateway
+        const minIdx = Math.min(clientIdx, gatewayIdx);
+        const maxIdx = Math.max(clientIdx, gatewayIdx);
+        
+        if (packet.currentPathIndex >= minIdx && packet.currentPathIndex <= maxIdx) {
+          return true;
+        }
+      }
+      return false;
     }
     
     function drawPacketTrails() { 
@@ -3736,6 +4018,8 @@
       document.querySelectorAll('.detail-popup').forEach(el => el.remove());
       
       nodes = []; connections = []; packets = []; packetCounter = 0; particles = [];
+      zones = []; // Clear zones
+      vpnTunnels = []; // Clear VPN tunnels
       viewportX = 0; viewportY = 0; zoomLevel = 1; // Reset viewport
       Object.keys(activeAttacks).forEach(k => { activeAttacks[k] = false; clearInterval(activeAttacks[k + 'Interval']); });
       Object.keys(activeDefenses).forEach(k => activeDefenses[k] = false);
@@ -3756,9 +4040,22 @@
           addLog('success', 'Scénario "DDoS" chargé'); addLog('info', '1. Lancez DDoS  2. Activez Firewall');
           break;
         case 'mitm':
-          createNode('computer', 100, 250); createNode('mitm', 350, 250); createNode('router', 500, 250); createNode('server', 700, 250);
-          setTimeout(() => { createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[2], nodes[3]); }, 100);
-          addLog('success', 'Scénario "MITM" chargé'); addLog('info', '1. Activez MITM  2. Envoyez email  3. Activez TLS');
+          createNode('computer', 100, 250); // 0
+          createNode('mitm', 300, 250); // 1
+          createNode('router', 500, 250); // 2
+          createNode('vpngateway', 500, 380); // 3 - Ajout d'un VPN gateway
+          createNode('server', 700, 250); // 4
+          setTimeout(() => { 
+            createConnection(nodes[0], nodes[1]); 
+            createConnection(nodes[1], nodes[2]); 
+            createConnection(nodes[2], nodes[4]);
+            createConnection(nodes[0], nodes[3]); // Chemin alternatif via VPN
+            createConnection(nodes[3], nodes[2]);
+          }, 100);
+          addLog('success', 'Scénario "MITM" chargé');
+          addLog('info', '1. Activez MITM 2. Envoyez email depuis PC vers Serveur');
+          addLog('info', '3. L\'email est intercepté! 😱');
+          addLog('info', '💡 Pour contrer: Créez un tunnel VPN (PC → VPN Gateway)');
           break;
         case 'secure':
           createNode('computer', 100, 200); createNode('computer', 100, 350); createNode('switch', 250, 275); createNode('firewall', 400, 275); createNode('router', 550, 275); createNode('server', 700, 200); createNode('dns', 700, 350);
@@ -3917,18 +4214,51 @@
           showToast('Infrastructure financière haute sécurité', 'success', '🏦 Banque');
           break;
         case 'vpn-remote':
-          createNode('computer', 80, 150); createNode('phone', 80, 350); createNode('internet', 250, 250);
-          createNode('vpngateway', 420, 250); createNode('firewall', 570, 250); createNode('router', 700, 250);
-          createNode('server', 850, 180); createNode('server', 850, 320);
+          // Scénario VPN: montre le VPN point-à-point contre le MITM
+          createNode('computer', 80, 150); // 0 - PC distant
+          createNode('phone', 80, 350); // 1 - Téléphone distant
+          createNode('mitm', 250, 180); // 2 - MITM sur le chemin
+          createNode('internet', 250, 320); // 3 - Internet
+          createNode('vpngateway', 420, 250); // 4 - VPN Gateway entreprise
+          createNode('firewall', 570, 250); // 5 - Firewall
+          createNode('router', 700, 250); // 6 - Router
+          createNode('server', 850, 180); // 7 - Serveur
+          createNode('server', 850, 320); // 8 - Serveur 2
           setTimeout(() => { 
-            createConnection(nodes[0], nodes[2]); createConnection(nodes[1], nodes[2]);
-            createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]);
-            createConnection(nodes[4], nodes[5]); createConnection(nodes[5], nodes[6]); createConnection(nodes[5], nodes[7]);
-            toggleVPN(); toggleEncryption(); toggle2FA();
+            // Le PC passe par le MITM puis le VPN Gateway
+            createConnection(nodes[0], nodes[2]); // PC -> MITM
+            createConnection(nodes[2], nodes[4]); // MITM -> VPN Gateway
+            // Le téléphone passe par Internet
+            createConnection(nodes[1], nodes[3]); // Phone -> Internet
+            createConnection(nodes[3], nodes[4]); // Internet -> VPN Gateway
+            // Suite du réseau interne
+            createConnection(nodes[4], nodes[5]); createConnection(nodes[5], nodes[6]); 
+            createConnection(nodes[6], nodes[7]); createConnection(nodes[6], nodes[8]);
+            
+            // Créer automatiquement un tunnel VPN entre le PC et le VPN Gateway
+            setTimeout(() => {
+              const pc = nodes[0];
+              const vpnGw = nodes[4];
+              const tunnel = {
+                id: Date.now(),
+                client: pc,
+                gateway: vpnGw,
+                path: findPath(pc, vpnGw),
+                color: '#15803d'
+              };
+              vpnTunnels.push(tunnel);
+              activeDefenses.vpn = true;
+              document.querySelector('[data-defense="vpn"]').classList.add('active');
+              addLog('success', '🔐 Tunnel VPN établi: ' + pc.name + ' ↔ ' + vpnGw.name);
+            }, 200);
+            
+            toggleEncryption(); toggle2FA();
           }, 100);
           addLog('success', 'Scénario "VPN Télétravail" chargé'); 
-          addLog('info', '🔐 Connexion sécurisée des travailleurs distants');
-          showToast('Accès distant sécurisé via VPN', 'success', '🏠 Remote');
+          addLog('info', '🔐 Le PC a un tunnel VPN - le MITM ne peut pas intercepter!');
+          addLog('info', '💡 1. Activez MITM 2. Envoyez email depuis PC → protégé!');
+          addLog('info', '💡 Le téléphone n\'a pas de VPN - essayez depuis le téléphone');
+          showToast('Le tunnel VPN protège contre le MITM', 'success', '🔐 VPN');
           break;
         case 'apt':
           createNode('attacker', 50, 300); createNode('internet', 180, 300); createNode('firewall', 320, 300); createNode('router', 460, 300);
@@ -3966,308 +4296,250 @@
           break;
         
         case 'internet':
-          // ============ SCÉNARIO MASSIF INTERNET - VERSION ÉQUILIBRÉE ============
-          // Canvas virtuel ~4500x3000 - espacement modéré
+          // ============ SCÉNARIO INTERNET STRUCTURÉ AVEC ZONES ============
+          // Layout: FAI au centre, entreprises en haut, foyers en bas, attaquants à droite
+          // Canvas ~2400x1800 avec zones clairement définies
           
-          // ======= BACKBONE INTERNET (centre) =======
-          createNode('internet', 2250, 1300); // Centre du monde - nœud 0
-          createNode('cloud', 1800, 1300); // Cloud AWS - nœud 1
-          createNode('cloud', 2700, 1300); // Cloud Azure - nœud 2
-          createNode('cloud', 2250, 1000); // Cloud Google - nœud 3
+          // ========== CRÉATION DES ZONES ==========
+          // Zone FAI / Backbone (centre)
+          createZone(850, 580, 500, 320, '🌐 FAI / Backbone Internet', 'rgba(100, 116, 139, 0.12)', 'rgba(100, 116, 139, 0.5)');
           
-          // ISP et backbone
-          createNode('router', 2250, 650); // ISP Principal Tier-1 - nœud 4
-          createNode('router', 900, 900); // ISP Régional Ouest - nœud 5
-          createNode('router', 3600, 900); // ISP Régional Est - nœud 6
-          createNode('dns', 2250, 350); // Root DNS - nœud 7
-          createNode('dns', 2000, 350); // DNS .com - nœud 8
-          createNode('dns', 2500, 350); // DNS .fr - nœud 9
+          // Zone Cloud (au-dessus du FAI)
+          createZone(750, 350, 700, 200, '☁️ Services Cloud', 'rgba(56, 189, 248, 0.1)', 'rgba(56, 189, 248, 0.4)');
           
-          // ======= ENTREPRISE 1 - Grande Corp (gauche haut) =======
-          createNode('firewall', 200, 200); // FW Entreprise 1 - nœud 10
-          createNode('router', 200, 380); // Router Corp 1 - nœud 11
-          createNode('switch', 100, 560); // Switch bureau - nœud 12
-          createNode('switch', 300, 560); // Switch serveurs - nœud 13
-          createNode('computer', 30, 740); // PC employé 1 - nœud 14
-          createNode('computer', 100, 740); // PC employé 2 - nœud 15
-          createNode('computer', 170, 740); // PC employé 3 - nœud 16
-          createNode('server', 240, 740); // Serveur web - nœud 17
-          createNode('server', 310, 740); // Serveur app - nœud 18
-          createNode('database', 380, 740); // Base données - nœud 19
-          createNode('vpngateway', 500, 380); // VPN Gateway Corp - nœud 20
+          // Zone Entreprise 1 (haut gauche)
+          createZone(50, 50, 380, 380, '🏢 Entreprise TechCorp', 'rgba(249, 115, 22, 0.1)', 'rgba(249, 115, 22, 0.4)');
           
-          // ======= ENTREPRISE 2 - Tech Startup (droite haut) =======
-          createNode('firewall', 4100, 200); // FW Startup - nœud 21
-          createNode('router', 4100, 380); // Router Startup - nœud 22
-          createNode('loadbalancer', 4100, 560); // Load balancer - nœud 23
-          createNode('server', 3950, 740); // Web 1 - nœud 24
-          createNode('server', 4100, 740); // Web 2 - nœud 25
-          createNode('server', 4250, 740); // Web 3 - nœud 26
-          createNode('database', 4100, 920); // DB cluster - nœud 27
+          // Zone Entreprise 2 (haut droite)
+          createZone(1770, 50, 380, 380, '🏥 Hôpital Central', 'rgba(239, 68, 68, 0.1)', 'rgba(239, 68, 68, 0.4)');
           
-          // ======= ENTREPRISE 3 - Hôpital (gauche milieu) =======
-          createNode('firewall', 100, 1100); // FW Hôpital - nœud 28
-          createNode('router', 280, 1100); // Router Hôpital - nœud 29
-          createNode('server', 100, 1300); // Serveur médical - nœud 30
-          createNode('database', 280, 1300); // Dossiers patients - nœud 31
-          createNode('iot', 460, 1300); // Équipement médical - nœud 32
-          createNode('iot', 460, 1100); // Scanner IRM - nœud 33
+          // Zone Foyers 1-2 (bas gauche)
+          createZone(50, 980, 550, 380, '🏠 Quartier Résidentiel Ouest', 'rgba(34, 197, 94, 0.1)', 'rgba(34, 197, 94, 0.4)');
           
-          // ======= FOYER 1 - Famille Martin (bas gauche) =======
-          createNode('router', 180, 2000); // Box internet - nœud 34
-          createNode('computer', 80, 2180); // PC familial - nœud 35
-          createNode('phone', 180, 2180); // Smartphone parent - nœud 36
-          createNode('phone', 280, 2180); // Smartphone enfant - nœud 37
-          createNode('iot', 80, 2360); // Caméra - nœud 38
-          createNode('iot', 180, 2360); // Thermostat - nœud 39
-          createNode('printer', 280, 2360); // Imprimante - nœud 40
+          // Zone Foyers 3-4 (bas centre)
+          createZone(650, 980, 550, 380, '🏠 Quartier Résidentiel Centre', 'rgba(34, 197, 94, 0.1)', 'rgba(34, 197, 94, 0.4)');
           
-          // ======= FOYER 2 - Télétravailleur Pro (bas centre-gauche) =======
-          createNode('router', 650, 2000); // Box télétravail - nœud 41
-          createNode('computer', 550, 2180); // PC pro - nœud 42
-          createNode('phone', 650, 2180); // Téléphone pro - nœud 43
-          createNode('computer', 750, 2180); // PC perso - nœud 44
-          createNode('printer', 650, 2360); // Imprimante pro - nœud 45
+          // Zone Foyers 5-6 (bas droite)
+          createZone(1250, 980, 550, 380, '🏠 Quartier Résidentiel Est', 'rgba(34, 197, 94, 0.1)', 'rgba(34, 197, 94, 0.4)');
           
-          // ======= FOYER 3 - Gamer / Streamer (bas centre-gauche 2) =======
-          createNode('router', 1150, 2000); // Box gaming - nœud 46
-          createNode('computer', 1050, 2180); // PC gaming - nœud 47
-          createNode('computer', 1150, 2180); // Console PS5 - nœud 48
-          createNode('computer', 1250, 2180); // Console Xbox - nœud 49
-          createNode('phone', 1150, 2360); // Mobile gaming - nœud 50
+          // Zone Attaquants (extrême droite)
+          createZone(2000, 480, 180, 400, '👹 Darknet', 'rgba(239, 68, 68, 0.15)', 'rgba(239, 68, 68, 0.6)');
           
-          // ======= FOYER 4 - Famille Nombreuse (bas centre) =======
-          createNode('router', 1750, 2000); // Box famille - nœud 51
-          createNode('computer', 1600, 2180); // PC parents - nœud 52
-          createNode('computer', 1750, 2180); // PC enfant 1 - nœud 53
-          createNode('computer', 1900, 2180); // PC enfant 2 - nœud 54
-          createNode('phone', 1600, 2360); // Phone 1 - nœud 55
-          createNode('phone', 1750, 2360); // Phone 2 - nœud 56
-          createNode('phone', 1900, 2360); // Phone 3 - nœud 57
-          createNode('iot', 2050, 2180); // TV connectée - nœud 58
+          // Zone Datacenter (droite milieu)
+          createZone(1600, 480, 350, 400, '🖥️ Datacenter Cloud', 'rgba(139, 92, 246, 0.1)', 'rgba(139, 92, 246, 0.4)');
           
-          // ======= FOYER 5 - Retraités (bas centre-droit) =======
-          createNode('router', 2450, 2000); // Box retraités - nœud 59
-          createNode('computer', 2350, 2180); // PC bureau - nœud 60
-          createNode('phone', 2550, 2180); // Smartphone - nœud 61
-          createNode('iot', 2450, 2360); // Assistant vocal - nœud 62
+          // ========== BACKBONE / FAI (centre) ==========
+          createNode('internet', 1100, 740); // Internet mondial - 0
+          createNode('router', 1000, 650); // FAI Principal - 1
+          createNode('router', 1200, 650); // FAI Secondaire - 2
+          createNode('dns', 1100, 850); // Serveur DNS FAI - 3
           
-          // ======= FOYER 6 - Étudiant (bas droit) =======
-          createNode('router', 3050, 2000); // Box étudiant - nœud 63
-          createNode('computer', 2950, 2180); // PC portable - nœud 64
-          createNode('phone', 3150, 2180); // Smartphone - nœud 65
-          createNode('printer', 3050, 2360); // Imprimante - nœud 66
+          // ========== CLOUD (au-dessus du FAI) ==========
+          createNode('cloud', 850, 450); // AWS - 4
+          createNode('cloud', 1050, 450); // Azure - 5
+          createNode('cloud', 1250, 450); // Google Cloud - 6
+          createNode('loadbalancer', 1350, 450); // CDN Global - 7
           
-          // ======= FOYER 7 - Freelance / Nomade digital (haut centre) =======
-          createNode('router', 1400, 200); // Box freelance - nœud 67
-          createNode('computer', 1300, 400); // MacBook - nœud 68
-          createNode('phone', 1500, 400); // iPhone - nœud 69
-          createNode('computer', 1400, 600); // iPad - nœud 70
+          // ========== ENTREPRISE 1 - TechCorp (haut gauche) ==========
+          createNode('firewall', 200, 100); // Firewall - 8
+          createNode('router', 200, 180); // Routeur principal - 9
+          createNode('switch', 120, 270); // Switch bureaux - 10
+          createNode('switch', 280, 270); // Switch serveurs - 11
+          createNode('computer', 70, 360); // PC 1 - 12
+          createNode('computer', 130, 360); // PC 2 - 13
+          createNode('computer', 190, 360); // PC 3 - 14
+          createNode('server', 250, 360); // Serveur Web - 15
+          createNode('database', 320, 360); // BDD - 16
+          createNode('vpngateway', 370, 180); // VPN Gateway - 17
           
-          // ======= DATACENTER / CLOUD (droite milieu) =======
-          createNode('firewall', 3500, 1250); // FW Cloud - nœud 71
-          createNode('loadbalancer', 3700, 1250); // LB Cloud - nœud 72
-          createNode('server', 3550, 1450); // Serveur 1 - nœud 73
-          createNode('server', 3750, 1450); // Serveur 2 - nœud 74
-          createNode('server', 3950, 1450); // Serveur 3 - nœud 75
-          createNode('database', 3650, 1650); // DB Cloud 1 - nœud 76
-          createNode('database', 3850, 1650); // DB Cloud 2 - nœud 77
+          // ========== ENTREPRISE 2 - Hôpital (haut droite) ==========
+          createNode('firewall', 1950, 100); // Firewall - 18
+          createNode('router', 1950, 180); // Routeur - 19
+          createNode('switch', 1870, 270); // Switch admin - 20
+          createNode('switch', 2030, 270); // Switch médical - 21
+          createNode('computer', 1820, 360); // PC Admin - 22
+          createNode('computer', 1880, 360); // PC Accueil - 23
+          createNode('server', 1970, 360); // Serveur Dossiers - 24
+          createNode('database', 2040, 360); // BDD Patients - 25
+          createNode('iot', 2100, 360); // Scanner IRM - 26
           
-          // ======= RÉSEAU ATTAQUANTS (extrême droite) =======
-          createNode('attacker', 4300, 1050); // Hacker 1 - nœud 78
-          createNode('attacker', 4300, 1250); // Hacker 2 - nœud 79
-          createNode('attacker', 4300, 1450); // Botnet C2 - nœud 80
-          createNode('mitm', 4150, 850); // MITM node - nœud 81
-          createNode('attacker', 4300, 1650); // Script kiddie - nœud 82
+          // ========== FOYER 1 - Famille (bas gauche, zone ouest) ==========
+          createNode('router', 150, 1050); // Box internet - 27
+          createNode('computer', 80, 1150); // PC Salon - 28
+          createNode('phone', 150, 1150); // Smartphone - 29
+          createNode('iot', 220, 1150); // TV connectée - 30
+          createNode('printer', 150, 1230); // Imprimante - 31
           
-          // ======= EMPLOYÉS EN VPN/TÉLÉTRAVAIL =======
-          createNode('vpngateway', 1800, 900); // VPN concentrateur - nœud 83
-          createNode('computer', 1650, 1100); // Télétravailleur 1 - nœud 84
-          createNode('phone', 1950, 1100); // Mobile VPN - nœud 85
+          // ========== FOYER 2 - Télétravailleur (bas gauche, zone ouest) ==========
+          createNode('router', 400, 1050); // Box internet - 32
+          createNode('computer', 330, 1150); // PC Pro - 33
+          createNode('computer', 400, 1150); // PC Perso - 34
+          createNode('phone', 470, 1150); // Smartphone - 35
           
-          // ======= SERVEURS DE JEUX / STREAMING =======
-          createNode('server', 2250, 1700); // Game server - nœud 86
-          createNode('server', 2500, 1700); // Streaming server - nœud 87
-          createNode('loadbalancer', 2375, 1550); // CDN - nœud 88
+          // ========== FOYER 3 - Gamer (bas centre) ==========
+          createNode('router', 780, 1050); // Box fibre - 36
+          createNode('computer', 710, 1150); // PC Gaming - 37
+          createNode('computer', 780, 1150); // Console - 38
+          createNode('phone', 850, 1150); // Mobile - 39
+          createNode('iot', 780, 1230); // Casque VR - 40
           
-          // ======= CDN / EDGE (distribué) =======
-          createNode('server', 750, 1100); // Edge node Ouest - nœud 89
-          createNode('server', 3750, 600); // Edge node Est - nœud 90
+          // ========== FOYER 4 - Famille nombreuse (bas centre) ==========
+          createNode('router', 1050, 1050); // Box internet - 41
+          createNode('computer', 970, 1150); // PC Parents - 42
+          createNode('computer', 1050, 1150); // PC Enfant 1 - 43
+          createNode('phone', 1130, 1150); // Phone 1 - 44
+          createNode('phone', 970, 1230); // Phone 2 - 45
+          createNode('iot', 1050, 1230); // Tablette - 46
+          createNode('iot', 1130, 1230); // Enceinte - 47
           
+          // ========== FOYER 5 - Étudiant (bas droite, zone est) ==========
+          createNode('router', 1380, 1050); // Box - 48
+          createNode('computer', 1320, 1150); // PC Portable - 49
+          createNode('phone', 1440, 1150); // Phone - 50
+          
+          // ========== FOYER 6 - Retraités (bas droite, zone est) ==========
+          createNode('router', 1620, 1050); // Box - 51
+          createNode('computer', 1560, 1150); // PC - 52
+          createNode('phone', 1680, 1150); // Phone - 53
+          createNode('iot', 1620, 1230); // Assistant vocal - 54
+          
+          // ========== DATACENTER (droite milieu) ==========
+          createNode('firewall', 1680, 550); // FW Datacenter - 55
+          createNode('loadbalancer', 1750, 630); // Load Balancer - 56
+          createNode('server', 1680, 720); // Serveur 1 - 57
+          createNode('server', 1750, 720); // Serveur 2 - 58
+          createNode('server', 1820, 720); // Serveur 3 - 59
+          createNode('database', 1720, 810); // BDD 1 - 60
+          createNode('database', 1800, 810); // BDD 2 - 61
+          
+          // ========== ATTAQUANTS (extrême droite) ==========
+          createNode('attacker', 2080, 550); // Hacker Solo - 62
+          createNode('attacker', 2080, 650); // Hacker 2 - 63
+          createNode('mitm', 2080, 750); // MITM Attacker - 64
+          createNode('attacker', 2080, 850); // Botnet C2 - 65
+          
+          // ========== CONNEXIONS ==========
           setTimeout(() => {
-            // ===== BACKBONE CONNECTIONS =====
-            createConnection(nodes[0], nodes[1]); // Internet - AWS
-            createConnection(nodes[0], nodes[2]); // Internet - Azure
-            createConnection(nodes[0], nodes[3]); // Internet - Google
-            createConnection(nodes[0], nodes[4]); // Internet - ISP Tier-1
-            createConnection(nodes[4], nodes[5]); // ISP Tier-1 - ISP Ouest
-            createConnection(nodes[4], nodes[6]); // ISP Tier-1 - ISP Est
-            createConnection(nodes[4], nodes[7]); // ISP - Root DNS
-            createConnection(nodes[7], nodes[8]); // Root - .com
-            createConnection(nodes[7], nodes[9]); // Root - .fr
-            createConnection(nodes[1], nodes[5]); // AWS - ISP Ouest
-            createConnection(nodes[2], nodes[6]); // Azure - ISP Est
-            createConnection(nodes[3], nodes[4]); // Google - ISP Tier-1
+            // -- Backbone FAI --
+            createConnection(nodes[0], nodes[1]); // Internet - FAI 1
+            createConnection(nodes[0], nodes[2]); // Internet - FAI 2
+            createConnection(nodes[1], nodes[2]); // FAI 1 - FAI 2
+            createConnection(nodes[1], nodes[3]); // FAI 1 - DNS
+            createConnection(nodes[2], nodes[3]); // FAI 2 - DNS
             
-            // ===== ENTREPRISE 1 - GRANDE CORP =====
-            createConnection(nodes[5], nodes[10]); // ISP Ouest - FW Corp
-            createConnection(nodes[10], nodes[11]); // FW - Router
-            createConnection(nodes[11], nodes[12]); // Router - Switch bureau
-            createConnection(nodes[11], nodes[13]); // Router - Switch serveurs
-            createConnection(nodes[12], nodes[14]); // Switch - PC1
-            createConnection(nodes[12], nodes[15]); // Switch - PC2
-            createConnection(nodes[12], nodes[16]); // Switch - PC3
-            createConnection(nodes[13], nodes[17]); // Switch - Web server
-            createConnection(nodes[13], nodes[18]); // Switch - App server
-            createConnection(nodes[13], nodes[19]); // Switch - Database
-            createConnection(nodes[11], nodes[20]); // Router - VPN Gateway
+            // -- Cloud vers FAI --
+            createConnection(nodes[0], nodes[4]); // Internet - AWS
+            createConnection(nodes[0], nodes[5]); // Internet - Azure
+            createConnection(nodes[0], nodes[6]); // Internet - Google
+            createConnection(nodes[6], nodes[7]); // Google - CDN
             
-            // ===== ENTREPRISE 2 - STARTUP =====
-            createConnection(nodes[6], nodes[21]); // ISP Est - FW Startup
-            createConnection(nodes[21], nodes[22]); // FW - Router
-            createConnection(nodes[22], nodes[23]); // Router - LB
-            createConnection(nodes[23], nodes[24]); // LB - Web1
-            createConnection(nodes[23], nodes[25]); // LB - Web2
-            createConnection(nodes[23], nodes[26]); // LB - Web3
-            createConnection(nodes[24], nodes[27]); // Web1 - DB
-            createConnection(nodes[25], nodes[27]); // Web2 - DB
-            createConnection(nodes[26], nodes[27]); // Web3 - DB
+            // -- Entreprise 1 TechCorp --
+            createConnection(nodes[1], nodes[8]); // FAI - FW
+            createConnection(nodes[8], nodes[9]); // FW - Router
+            createConnection(nodes[9], nodes[10]); // Router - Switch Bureaux
+            createConnection(nodes[9], nodes[11]); // Router - Switch Serveurs
+            createConnection(nodes[10], nodes[12]); // Switch - PC1
+            createConnection(nodes[10], nodes[13]); // Switch - PC2
+            createConnection(nodes[10], nodes[14]); // Switch - PC3
+            createConnection(nodes[11], nodes[15]); // Switch - Server
+            createConnection(nodes[11], nodes[16]); // Switch - BDD
+            createConnection(nodes[9], nodes[17]); // Router - VPN
             
-            // ===== ENTREPRISE 3 - HÔPITAL =====
-            createConnection(nodes[5], nodes[28]); // ISP Ouest - FW Hôpital
-            createConnection(nodes[28], nodes[29]); // FW - Router
-            createConnection(nodes[29], nodes[30]); // Router - Server médical
-            createConnection(nodes[30], nodes[31]); // Server - DB patients
-            createConnection(nodes[29], nodes[32]); // Router - Équipement
-            createConnection(nodes[29], nodes[33]); // Router - Scanner
+            // -- Entreprise 2 Hôpital --
+            createConnection(nodes[2], nodes[18]); // FAI - FW
+            createConnection(nodes[18], nodes[19]); // FW - Router
+            createConnection(nodes[19], nodes[20]); // Router - Switch Admin
+            createConnection(nodes[19], nodes[21]); // Router - Switch Médical
+            createConnection(nodes[20], nodes[22]); // Switch - PC Admin
+            createConnection(nodes[20], nodes[23]); // Switch - PC Accueil
+            createConnection(nodes[21], nodes[24]); // Switch - Server Dossiers
+            createConnection(nodes[21], nodes[25]); // Switch - BDD Patients
+            createConnection(nodes[21], nodes[26]); // Switch - Scanner
             
-            // ===== FOYER 1 - FAMILLE MARTIN =====
-            createConnection(nodes[5], nodes[34]); // ISP - Box
-            createConnection(nodes[34], nodes[35]); // Box - PC
-            createConnection(nodes[34], nodes[36]); // Box - Phone1
-            createConnection(nodes[34], nodes[37]); // Box - Phone2
-            createConnection(nodes[34], nodes[38]); // Box - Cam
-            createConnection(nodes[34], nodes[39]); // Box - Thermostat
-            createConnection(nodes[34], nodes[40]); // Box - Printer
+            // -- Foyer 1 Famille --
+            createConnection(nodes[1], nodes[27]); // FAI - Box
+            createConnection(nodes[27], nodes[28]); // Box - PC
+            createConnection(nodes[27], nodes[29]); // Box - Phone
+            createConnection(nodes[27], nodes[30]); // Box - TV
+            createConnection(nodes[27], nodes[31]); // Box - Imprimante
             
-            // ===== FOYER 2 - TÉLÉTRAVAILLEUR =====
-            createConnection(nodes[5], nodes[41]); // ISP - Box
-            createConnection(nodes[41], nodes[42]); // Box - PC Pro
-            createConnection(nodes[41], nodes[43]); // Box - Phone Pro
-            createConnection(nodes[41], nodes[44]); // Box - PC Perso
-            createConnection(nodes[41], nodes[45]); // Box - Printer
-            createConnection(nodes[42], nodes[20]); // PC Pro - VPN Corp (tunnel)
+            // -- Foyer 2 Télétravailleur --
+            createConnection(nodes[1], nodes[32]); // FAI - Box
+            createConnection(nodes[32], nodes[33]); // Box - PC Pro
+            createConnection(nodes[32], nodes[34]); // Box - PC Perso
+            createConnection(nodes[32], nodes[35]); // Box - Phone
+            createConnection(nodes[33], nodes[17]); // PC Pro - VPN TechCorp
             
-            // ===== FOYER 3 - GAMER =====
-            createConnection(nodes[0], nodes[46]); // Internet direct - Box gaming
-            createConnection(nodes[46], nodes[47]); // Box - PC gaming
-            createConnection(nodes[46], nodes[48]); // Box - PS5
-            createConnection(nodes[46], nodes[49]); // Box - Xbox
-            createConnection(nodes[46], nodes[50]); // Box - Mobile
+            // -- Foyer 3 Gamer --
+            createConnection(nodes[1], nodes[36]); // FAI - Box
+            createConnection(nodes[36], nodes[37]); // Box - PC Gaming
+            createConnection(nodes[36], nodes[38]); // Box - Console
+            createConnection(nodes[36], nodes[39]); // Box - Mobile
+            createConnection(nodes[36], nodes[40]); // Box - VR
             
-            // ===== FOYER 4 - FAMILLE NOMBREUSE =====
-            createConnection(nodes[0], nodes[51]); // Internet - Box
-            createConnection(nodes[51], nodes[52]); // Box - PC parents
-            createConnection(nodes[51], nodes[53]); // Box - PC enfant1
-            createConnection(nodes[51], nodes[54]); // Box - PC enfant2
-            createConnection(nodes[51], nodes[55]); // Box - Phone1
-            createConnection(nodes[51], nodes[56]); // Box - Phone2
-            createConnection(nodes[51], nodes[57]); // Box - Phone3
-            createConnection(nodes[51], nodes[58]); // Box - TV
+            // -- Foyer 4 Famille nombreuse --
+            createConnection(nodes[2], nodes[41]); // FAI - Box
+            createConnection(nodes[41], nodes[42]); // Box - PC Parents
+            createConnection(nodes[41], nodes[43]); // Box - PC Enfant
+            createConnection(nodes[41], nodes[44]); // Box - Phone 1
+            createConnection(nodes[41], nodes[45]); // Box - Phone 2
+            createConnection(nodes[41], nodes[46]); // Box - Tablette
+            createConnection(nodes[41], nodes[47]); // Box - Enceinte
             
-            // ===== FOYER 5 - RETRAITÉS =====
-            createConnection(nodes[6], nodes[59]); // ISP Est - Box
-            createConnection(nodes[59], nodes[60]); // Box - PC
-            createConnection(nodes[59], nodes[61]); // Box - Phone
-            createConnection(nodes[59], nodes[62]); // Box - Assistant vocal
+            // -- Foyer 5 Étudiant --
+            createConnection(nodes[2], nodes[48]); // FAI - Box
+            createConnection(nodes[48], nodes[49]); // Box - PC
+            createConnection(nodes[48], nodes[50]); // Box - Phone
             
-            // ===== FOYER 6 - ÉTUDIANT =====
-            createConnection(nodes[6], nodes[63]); // ISP Est - Box
-            createConnection(nodes[63], nodes[64]); // Box - PC portable
-            createConnection(nodes[63], nodes[65]); // Box - Phone
-            createConnection(nodes[63], nodes[66]); // Box - Printer
+            // -- Foyer 6 Retraités --
+            createConnection(nodes[2], nodes[51]); // FAI - Box
+            createConnection(nodes[51], nodes[52]); // Box - PC
+            createConnection(nodes[51], nodes[53]); // Box - Phone
+            createConnection(nodes[51], nodes[54]); // Box - Assistant
             
-            // ===== FOYER 7 - FREELANCE =====
-            createConnection(nodes[5], nodes[67]); // ISP Ouest - Box
-            createConnection(nodes[67], nodes[68]); // Box - MacBook
-            createConnection(nodes[67], nodes[69]); // Box - iPhone
-            createConnection(nodes[67], nodes[70]); // Box - iPad
+            // -- Datacenter --
+            createConnection(nodes[5], nodes[55]); // Azure - FW Datacenter
+            createConnection(nodes[55], nodes[56]); // FW - LB
+            createConnection(nodes[56], nodes[57]); // LB - Server 1
+            createConnection(nodes[56], nodes[58]); // LB - Server 2
+            createConnection(nodes[56], nodes[59]); // LB - Server 3
+            createConnection(nodes[57], nodes[60]); // Server 1 - BDD 1
+            createConnection(nodes[58], nodes[60]); // Server 2 - BDD 1
+            createConnection(nodes[59], nodes[61]); // Server 3 - BDD 2
+            createConnection(nodes[60], nodes[61]); // BDD 1 - BDD 2 (replication)
             
-            // ===== DATACENTER CLOUD =====
-            createConnection(nodes[2], nodes[71]); // Azure - FW Cloud
-            createConnection(nodes[71], nodes[72]); // FW - LB
-            createConnection(nodes[72], nodes[73]); // LB - Server1
-            createConnection(nodes[72], nodes[74]); // LB - Server2
-            createConnection(nodes[72], nodes[75]); // LB - Server3
-            createConnection(nodes[73], nodes[76]); // Server1 - DB1
-            createConnection(nodes[74], nodes[76]); // Server2 - DB1
-            createConnection(nodes[75], nodes[77]); // Server3 - DB2
-            createConnection(nodes[76], nodes[77]); // DB1 - DB2 (replication)
+            // -- Attaquants (connexions au réseau) --
+            createConnection(nodes[0], nodes[62]); // Internet - Hacker 1
+            createConnection(nodes[62], nodes[63]); // Hacker 1 - Hacker 2
+            createConnection(nodes[63], nodes[64]); // Hacker 2 - MITM
+            createConnection(nodes[64], nodes[65]); // MITM - Botnet
             
-            // ===== RÉSEAU ATTAQUANTS =====
-            createConnection(nodes[0], nodes[78]); // Internet - Hacker1
-            createConnection(nodes[78], nodes[79]); // Hacker1 - Hacker2
-            createConnection(nodes[78], nodes[80]); // Hacker1 - Botnet
-            createConnection(nodes[78], nodes[81]); // Hacker1 - MITM
-            createConnection(nodes[79], nodes[82]); // Hacker2 - Script kiddie
-            createConnection(nodes[80], nodes[82]); // Botnet - Script kiddie
-            
-            // ===== VPN TÉLÉTRAVAILLEURS =====
-            createConnection(nodes[4], nodes[83]); // ISP - VPN concentrateur
-            createConnection(nodes[83], nodes[84]); // VPN - Télétravailleur1
-            createConnection(nodes[83], nodes[85]); // VPN - Mobile
-            createConnection(nodes[83], nodes[20]); // VPN concentrateur - VPN Corp
-            
-            // ===== GAMING & STREAMING =====
-            createConnection(nodes[0], nodes[88]); // Internet - CDN
-            createConnection(nodes[88], nodes[86]); // CDN - Game server
-            createConnection(nodes[88], nodes[87]); // CDN - Streaming
-            createConnection(nodes[47], nodes[86]); // PC Gaming - Game server
-            createConnection(nodes[48], nodes[86]); // PS5 - Game server
-            createConnection(nodes[49], nodes[86]); // Xbox - Game server
-            createConnection(nodes[53], nodes[87]); // PC enfant - Streaming
-            createConnection(nodes[54], nodes[87]); // PC enfant2 - Streaming
-            
-            // ===== CDN / EDGE =====
-            createConnection(nodes[1], nodes[89]); // AWS - Edge Ouest
-            createConnection(nodes[6], nodes[90]); // ISP Est - Edge Est
-            createConnection(nodes[5], nodes[89]); // ISP Ouest - Edge Ouest
-            
-            // ===== CONNEXIONS CROISÉES RÉALISTES =====
-            createConnection(nodes[8], nodes[27]); // DNS .com - DB Startup
-            createConnection(nodes[3], nodes[72]); // Google - LB Cloud
+            // -- Liens Cloud <-> Datacenter --
+            createConnection(nodes[5], nodes[7]); // Azure - CDN
             
           }, 100);
           
-          // Régler le viewport pour voir le réseau complet (canvas 4500x3000)
+          // Viewport pour voir tout le réseau
           setTimeout(() => {
-            zoomLevel = 0.28;
-            viewportX = -200;
-            viewportY = -100;
+            zoomLevel = 0.5;
+            viewportX = 50;
+            viewportY = 50;
           }, 200);
           
-          addLog('success', '🌐 Scénario "Internet Mondial" chargé!');
+          addLog('success', '🌐 Scénario "Internet Structuré" chargé!');
           addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          addLog('info', '📊 91 équipements - Réseau Internet réaliste');
+          addLog('info', '📊 66 équipements répartis en zones');
           addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          addLog('info', '🏢 2 grandes entreprises (Corp + Startup)');
-          addLog('info', '🏥 1 hôpital avec équipements médicaux');
-          addLog('info', '🏠 7 foyers variés:');
-          addLog('info', '   • Famille Martin (IoT connecté)');
-          addLog('info', '   • Télétravailleur Pro (VPN)');
-          addLog('info', '   • Gamer/Streamer (consoles)');
-          addLog('info', '   • Famille nombreuse (8 appareils)');
-          addLog('info', '   • Retraités (simple)');
-          addLog('info', '   • Étudiant (essentiel)');
-          addLog('info', '   • Freelance/Nomade (Apple)');
-          addLog('info', '☁️ 3 fournisseurs cloud (AWS, Azure, Google)');
-          addLog('info', '🔐 Télétravailleurs connectés en VPN');
-          addLog('info', '🎮 Serveurs gaming + streaming + CDN');
-          addLog('info', '👹 5 attaquants avec MITM et Botnet');
+          addLog('info', '🌐 FAI central avec 2 routeurs + DNS');
+          addLog('info', '☁️ 3 clouds + CDN (AWS, Azure, Google)');
+          addLog('info', '🏢 TechCorp: 3 PC, serveur, BDD, VPN');
+          addLog('info', '🏥 Hôpital: admin, dossiers patients, IRM');
+          addLog('info', '🏠 6 foyers variés connectés aux FAI');
+          addLog('info', '🖥️ Datacenter: LB + 3 serveurs + 2 BDD');
+          addLog('info', '👹 4 attaquants incluant MITM et Botnet');
           addLog('info', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          addLog('warning', '💡 Conseil: Utilisez la molette pour zoomer/dézoomer');
-          addLog('warning', '💡 Maintenez clic gauche pour déplacer la vue');
-          showToast('Internet mondial - 91 équipements!', 'success', '🌐 Internet');
+          addLog('warning', '💡 Les zones colorées identifient chaque réseau');
+          showToast('Internet structuré - 66 équipements en zones!', 'success', '🌐');
           break;
       }
       
@@ -4506,6 +4778,18 @@
       document.getElementById('packetCount').textContent = packetCounter;
       const msgCount = document.getElementById('messageCount');
       if (msgCount) msgCount.textContent = sequenceMessages.length;
+      
+      // Update VPN status
+      const vpnStatusEl = document.getElementById('vpnStatus');
+      const vpnTunnelCountEl = document.getElementById('vpnTunnelCount');
+      if (vpnStatusEl && vpnTunnelCountEl) {
+        if (vpnTunnels.length > 0) {
+          vpnStatusEl.style.display = 'flex';
+          vpnTunnelCountEl.textContent = vpnTunnels.length;
+        } else {
+          vpnStatusEl.style.display = 'none';
+        }
+      }
     }
 
     window.addEventListener('DOMContentLoaded', init);
