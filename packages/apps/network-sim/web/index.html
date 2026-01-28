@@ -2399,8 +2399,8 @@
         const mitmNode = nodes.find(n => n.type === 'mitm' && n.intercepting);
         if (mitmNode) {
           const mitmIndex = path.findIndex(n => n.id === mitmNode.id);
-          if (mitmIndex > 0 && mitmIndex < path.length - 1) {
-            // Le MITM est dans le chemin (pas aux extrémités)
+          // Le MITM intercepte s'il est dans le chemin du paquet
+          if (mitmIndex >= 0) {
             // Vérifier si ce segment est protégé par VPN
             const segmentProtectedByVPN = isSegmentProtectedByVPN(path, mitmIndex);
             
@@ -2894,16 +2894,13 @@
     function toggleVPN() { 
       // VPN point-à-point: cliquer sur un client puis un VPN Gateway pour créer un tunnel
       if (vpnTunnels.length > 0) {
-        // Si des tunnels existent, proposer de les supprimer ou d'en créer un nouveau
-        if (confirm('Supprimer tous les tunnels VPN existants?')) {
-          vpnTunnels = [];
-          activeDefenses.vpn = false;
-          document.querySelector('[data-defense="vpn"]').classList.remove('active');
-          addLog('warning', '🔓 Tous les tunnels VPN supprimés');
-          showToast('Tous les tunnels VPN supprimés', 'warning', '🔓 VPN');
-        } else {
-          startActionMode('vpn', '🔐', 'Tunnel VPN');
-        }
+        // Si des tunnels existent, les supprimer directement
+        vpnTunnels = [];
+        activeDefenses.vpn = false;
+        document.querySelector('[data-defense="vpn"]').classList.remove('active');
+        updateStatusBar();
+        addLog('warning', '🔓 Tous les tunnels VPN supprimés');
+        showToast('Tunnels VPN désactivés', 'warning', '🔓 VPN');
       } else {
         startActionMode('vpn', '🔐', 'Tunnel VPN');
       }
