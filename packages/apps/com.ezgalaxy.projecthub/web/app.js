@@ -1,1954 +1,2122 @@
 /**
- * Project Hub - AI Dashboard
+ * Project Hub - Ultimate AI Dashboard
  * EZGalaxy Catalog Application
  * 
- * Features:
+ * Ultra-modern project management dashboard with:
  * - Smart Kanban with drag-and-drop
- * - Gantt Chart with dependencies
+ * - Interactive Gantt Chart
  * - Resource Workload Matrix
- * - Predictive Engine (Time-Traveler)
- * - Risk Analyzer
+ * - AI Predictions & Time-Traveler
+ * - Risk Analyzer & Heat Maps
  * - Sentiment Score
- * - Community Data API integration
+ * - Budget Tracking
+ * - Team Analytics
+ * - Activity Timeline
+ * - Custom Charts & Visualizations
  */
 
-const { useState, useEffect, useMemo, useCallback, useRef, createContext, useContext } = React;
-const { motion, AnimatePresence } = Motion;
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useMemo = React.useMemo;
+var useCallback = React.useCallback;
+var useRef = React.useRef;
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
-const CONFIG = {
-  EXTENSION_ID: 'com.ezgalaxy.projecthub',
-  COLLECTIONS: {
-    TASKS: 'tasks',
-    COLLABORATORS: 'collaborators',
-    METRICS: 'metrics',
-    SETTINGS: 'settings',
-    HISTORY: 'history'
-  },
-  SYNC_DEBOUNCE: 1500
+var CONFIG = {
+    EXTENSION_ID: 'com.ezgalaxy.projecthub',
+    SYNC_DEBOUNCE: 1500
 };
 
 // ============================================================================
-// DEMO DATA - MASSIVE DATASET
+// DEMO DATA GENERATOR
 // ============================================================================
-const generateDemoData = () => {
-  // 8 Collaborators with avatars, roles, and activity logs
-  const collaborators = [
-    {
-      id: 'collab-1',
-      name: 'Alice Martin',
-      role: 'Lead Developer',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
-      email: 'alice@project.io',
-      capacity: 40, // hours per week
-      currentLoad: 38,
-      skills: ['React', 'Node.js', 'TypeScript', 'AWS'],
-      recentActivity: [
-        { date: '2026-01-27', action: 'Completed task: API Integration' },
-        { date: '2026-01-26', action: 'Code review: Payment module' }
-      ]
-    },
-    {
-      id: 'collab-2',
-      name: 'Bob Johnson',
-      role: 'Senior Developer',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
-      email: 'bob@project.io',
-      capacity: 40,
-      currentLoad: 45, // Overloaded!
-      skills: ['Python', 'Django', 'PostgreSQL', 'Docker'],
-      recentActivity: [
-        { date: '2026-01-28', action: 'Started: Database optimization' },
-        { date: '2026-01-27', action: 'Bug fix: User authentication' }
-      ]
-    },
-    {
-      id: 'collab-3',
-      name: 'Clara Chen',
-      role: 'UX Designer',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop',
-      email: 'clara@project.io',
-      capacity: 40,
-      currentLoad: 32,
-      skills: ['Figma', 'Prototyping', 'User Research', 'Design Systems'],
-      recentActivity: [
-        { date: '2026-01-28', action: 'Uploaded: New wireframes' },
-        { date: '2026-01-25', action: 'User testing session #5' }
-      ]
-    },
-    {
-      id: 'collab-4',
-      name: 'David Park',
-      role: 'Project Manager',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
-      email: 'david@project.io',
-      capacity: 40,
-      currentLoad: 35,
-      skills: ['Agile', 'Scrum', 'JIRA', 'Stakeholder Management'],
-      recentActivity: [
-        { date: '2026-01-28', action: 'Sprint planning meeting' },
-        { date: '2026-01-27', action: 'Updated project timeline' }
-      ]
-    },
-    {
-      id: 'collab-5',
-      name: 'Emma Wilson',
-      role: 'QA Engineer',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
-      email: 'emma@project.io',
-      capacity: 40,
-      currentLoad: 42, // Slightly overloaded
-      skills: ['Selenium', 'Jest', 'Cypress', 'Performance Testing'],
-      recentActivity: [
-        { date: '2026-01-28', action: 'Test report: Sprint 12' },
-        { date: '2026-01-26', action: 'Automated 15 new test cases' }
-      ]
-    },
-    {
-      id: 'collab-6',
-      name: 'Frank Garcia',
-      role: 'Backend Developer',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
-      email: 'frank@project.io',
-      capacity: 40,
-      currentLoad: 28,
-      skills: ['Java', 'Spring Boot', 'Microservices', 'Kafka'],
-      recentActivity: [
-        { date: '2026-01-27', action: 'Deployed: Notification service' },
-        { date: '2026-01-24', action: 'Refactored: Order processing' }
-      ]
-    },
-    {
-      id: 'collab-7',
-      name: 'Grace Lee',
-      role: 'DevOps Engineer',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop',
-      email: 'grace@project.io',
-      capacity: 40,
-      currentLoad: 36,
-      skills: ['Kubernetes', 'Terraform', 'CI/CD', 'Monitoring'],
-      recentActivity: [
-        { date: '2026-01-28', action: 'Updated: Kubernetes configs' },
-        { date: '2026-01-26', action: 'Set up: New monitoring alerts' }
-      ]
-    },
-    {
-      id: 'collab-8',
-      name: 'Henry Brown',
-      role: 'Frontend Developer',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop',
-      email: 'henry@project.io',
-      capacity: 40,
-      currentLoad: 39,
-      skills: ['Vue.js', 'React', 'CSS', 'WebGL'],
-      recentActivity: [
-        { date: '2026-01-28', action: 'Implemented: Dark mode toggle' },
-        { date: '2026-01-27', action: 'Fixed: Mobile responsive issues' }
-      ]
-    }
-  ];
+function generateDemoData() {
+    var now = new Date();
+    var currentMonth = now.getMonth();
+    var currentYear = now.getFullYear();
 
-  // 30+ Tasks with varied statuses, priorities, and tags
-  const tasks = [
-    // Backlog (6 tasks)
-    { id: 'task-1', title: 'Research competitor features', status: 'backlog', priority: 'low', tags: ['research'], assignee: 'collab-4', estimatedHours: 8, actualHours: 0, startDate: null, endDate: null, dependencies: [], blockers: [] },
-    { id: 'task-2', title: 'Define API v2 specifications', status: 'backlog', priority: 'medium', tags: ['backend', 'planning'], assignee: 'collab-1', estimatedHours: 16, actualHours: 0, startDate: null, endDate: null, dependencies: [], blockers: [] },
-    { id: 'task-3', title: 'Design system documentation', status: 'backlog', priority: 'low', tags: ['design', 'documentation'], assignee: 'collab-3', estimatedHours: 12, actualHours: 0, startDate: null, endDate: null, dependencies: [], blockers: [] },
-    { id: 'task-4', title: 'Performance audit planning', status: 'backlog', priority: 'medium', tags: ['devops', 'performance'], assignee: 'collab-7', estimatedHours: 6, actualHours: 0, startDate: null, endDate: null, dependencies: [], blockers: [] },
-    { id: 'task-5', title: 'User feedback analysis Q4', status: 'backlog', priority: 'low', tags: ['research', 'ux'], assignee: 'collab-3', estimatedHours: 10, actualHours: 0, startDate: null, endDate: null, dependencies: [], blockers: [] },
-    { id: 'task-6', title: 'Security audit preparation', status: 'backlog', priority: 'high', tags: ['security', 'compliance'], assignee: 'collab-7', estimatedHours: 20, actualHours: 0, startDate: null, endDate: null, dependencies: [], blockers: [] },
+    // 8 Team Members
+    var collaborators = [
+        { id: 'c1', name: 'Alice Martin', role: 'Lead Developer', avatar: '👩‍💻', skills: ['React', 'Node.js', 'TypeScript'], capacity: 40, currentLoad: 38, status: 'active', color: '#00d4ff' },
+        { id: 'c2', name: 'Bob Johnson', role: 'Senior Developer', avatar: '👨‍💻', skills: ['Python', 'Django', 'PostgreSQL'], capacity: 40, currentLoad: 45, status: 'overloaded', color: '#a855f7' },
+        { id: 'c3', name: 'Clara Chen', role: 'UX Designer', avatar: '👩‍🎨', skills: ['Figma', 'Prototyping', 'Research'], capacity: 40, currentLoad: 32, status: 'active', color: '#ec4899' },
+        { id: 'c4', name: 'David Park', role: 'Project Manager', avatar: '👨‍💼', skills: ['Agile', 'Scrum', 'Planning'], capacity: 40, currentLoad: 35, status: 'active', color: '#22c55e' },
+        { id: 'c5', name: 'Emma Wilson', role: 'QA Engineer', avatar: '👩‍🔬', skills: ['Testing', 'Automation', 'CI/CD'], capacity: 40, currentLoad: 28, status: 'available', color: '#facc15' },
+        { id: 'c6', name: 'Frank Lee', role: 'DevOps Engineer', avatar: '👨‍🔧', skills: ['Docker', 'Kubernetes', 'AWS'], capacity: 40, currentLoad: 42, status: 'busy', color: '#f97316' },
+        { id: 'c7', name: 'Grace Kim', role: 'Frontend Developer', avatar: '👩‍💻', skills: ['Vue.js', 'CSS', 'Animation'], capacity: 40, currentLoad: 36, status: 'active', color: '#0ea5a4' },
+        { id: 'c8', name: 'Henry Brown', role: 'Backend Developer', avatar: '👨‍💻', skills: ['Java', 'Spring', 'MongoDB'], capacity: 40, currentLoad: 30, status: 'available', color: '#8b5cf6' }
+    ];
 
-    // Todo (8 tasks)
-    { id: 'task-7', title: 'Implement OAuth 2.0 flow', status: 'todo', priority: 'urgent', tags: ['backend', 'security'], assignee: 'collab-2', estimatedHours: 24, actualHours: 0, startDate: '2026-01-29', endDate: '2026-02-02', dependencies: [], blockers: [] },
-    { id: 'task-8', title: 'Create onboarding wireframes', status: 'todo', priority: 'high', tags: ['design', 'ux'], assignee: 'collab-3', estimatedHours: 16, actualHours: 0, startDate: '2026-01-29', endDate: '2026-01-31', dependencies: [], blockers: [] },
-    { id: 'task-9', title: 'Set up staging environment', status: 'todo', priority: 'high', tags: ['devops', 'infrastructure'], assignee: 'collab-7', estimatedHours: 12, actualHours: 0, startDate: '2026-01-30', endDate: '2026-02-01', dependencies: ['task-7'], blockers: [] },
-    { id: 'task-10', title: 'Write E2E tests for checkout', status: 'todo', priority: 'medium', tags: ['qa', 'testing'], assignee: 'collab-5', estimatedHours: 20, actualHours: 0, startDate: '2026-02-01', endDate: '2026-02-05', dependencies: [], blockers: [] },
-    { id: 'task-11', title: 'Refactor payment module', status: 'todo', priority: 'high', tags: ['backend', 'refactoring'], assignee: 'collab-6', estimatedHours: 32, actualHours: 0, startDate: '2026-02-03', endDate: '2026-02-10', dependencies: ['task-7'], blockers: [] },
-    { id: 'task-12', title: 'Mobile app navigation redesign', status: 'todo', priority: 'medium', tags: ['design', 'mobile'], assignee: 'collab-3', estimatedHours: 18, actualHours: 0, startDate: '2026-02-01', endDate: '2026-02-06', dependencies: ['task-8'], blockers: [] },
-    { id: 'task-13', title: 'Database migration script', status: 'todo', priority: 'urgent', tags: ['backend', 'database'], assignee: 'collab-2', estimatedHours: 16, actualHours: 0, startDate: '2026-01-29', endDate: '2026-01-31', dependencies: [], blockers: ['Waiting for DBA approval'] },
-    { id: 'task-14', title: 'API rate limiting implementation', status: 'todo', priority: 'high', tags: ['backend', 'security'], assignee: 'collab-1', estimatedHours: 14, actualHours: 0, startDate: '2026-02-02', endDate: '2026-02-05', dependencies: [], blockers: [] },
+    // Task priorities and statuses
+    var priorities = ['critical', 'high', 'medium', 'low'];
+    var statuses = ['backlog', 'todo', 'in-progress', 'review', 'done'];
+    var categories = ['feature', 'bugfix', 'improvement', 'documentation', 'testing', 'devops'];
 
-    // In Progress (8 tasks)
-    { id: 'task-15', title: 'Dashboard analytics component', status: 'in-progress', priority: 'high', tags: ['frontend', 'analytics'], assignee: 'collab-8', estimatedHours: 28, actualHours: 18, startDate: '2026-01-20', endDate: '2026-01-30', dependencies: [], blockers: [] },
-    { id: 'task-16', title: 'User profile API endpoints', status: 'in-progress', priority: 'medium', tags: ['backend', 'api'], assignee: 'collab-6', estimatedHours: 20, actualHours: 14, startDate: '2026-01-22', endDate: '2026-01-29', dependencies: [], blockers: [] },
-    { id: 'task-17', title: 'Notification system integration', status: 'in-progress', priority: 'high', tags: ['backend', 'integration'], assignee: 'collab-1', estimatedHours: 24, actualHours: 20, startDate: '2026-01-18', endDate: '2026-01-28', dependencies: [], blockers: ['Third-party API delay'] },
-    { id: 'task-18', title: 'CI/CD pipeline optimization', status: 'in-progress', priority: 'medium', tags: ['devops', 'automation'], assignee: 'collab-7', estimatedHours: 16, actualHours: 10, startDate: '2026-01-24', endDate: '2026-01-30', dependencies: [], blockers: [] },
-    { id: 'task-19', title: 'Search functionality upgrade', status: 'in-progress', priority: 'high', tags: ['frontend', 'backend'], assignee: 'collab-2', estimatedHours: 30, actualHours: 22, startDate: '2026-01-15', endDate: '2026-01-29', dependencies: [], blockers: [] },
-    { id: 'task-20', title: 'User testing session setup', status: 'in-progress', priority: 'medium', tags: ['ux', 'research'], assignee: 'collab-3', estimatedHours: 8, actualHours: 5, startDate: '2026-01-26', endDate: '2026-01-28', dependencies: [], blockers: [] },
-    { id: 'task-21', title: 'Performance monitoring setup', status: 'in-progress', priority: 'high', tags: ['devops', 'monitoring'], assignee: 'collab-7', estimatedHours: 18, actualHours: 12, startDate: '2026-01-20', endDate: '2026-01-29', dependencies: [], blockers: [] },
-    { id: 'task-22', title: 'Test automation framework', status: 'in-progress', priority: 'high', tags: ['qa', 'automation'], assignee: 'collab-5', estimatedHours: 40, actualHours: 28, startDate: '2026-01-10', endDate: '2026-01-30', dependencies: [], blockers: [] },
+    // 32 Tasks
+    var tasks = [
+        { id: 't1', title: 'Design System Implementation', description: 'Create comprehensive design tokens and components', status: 'done', priority: 'high', category: 'feature', assignee: 'c3', estimate: 24, spent: 22, startDate: '2026-01-05', endDate: '2026-01-12', progress: 100, dependencies: [] },
+        { id: 't2', title: 'User Authentication Flow', description: 'Implement OAuth2 with JWT tokens', status: 'done', priority: 'critical', category: 'feature', assignee: 'c1', estimate: 32, spent: 35, startDate: '2026-01-08', endDate: '2026-01-15', progress: 100, dependencies: [] },
+        { id: 't3', title: 'Database Schema Design', description: 'Design and optimize PostgreSQL schema', status: 'done', priority: 'high', category: 'feature', assignee: 'c2', estimate: 16, spent: 14, startDate: '2026-01-06', endDate: '2026-01-10', progress: 100, dependencies: [] },
+        { id: 't4', title: 'API Gateway Setup', description: 'Configure Kong API gateway with rate limiting', status: 'in-progress', priority: 'high', category: 'devops', assignee: 'c6', estimate: 20, spent: 12, startDate: '2026-01-18', endDate: '2026-01-25', progress: 60, dependencies: ['t3'] },
+        { id: 't5', title: 'Dashboard UI Components', description: 'Build reusable chart and card components', status: 'in-progress', priority: 'high', category: 'feature', assignee: 'c7', estimate: 40, spent: 28, startDate: '2026-01-15', endDate: '2026-01-28', progress: 70, dependencies: ['t1'] },
+        { id: 't6', title: 'Real-time Notifications', description: 'WebSocket-based notification system', status: 'in-progress', priority: 'medium', category: 'feature', assignee: 'c1', estimate: 24, spent: 8, startDate: '2026-01-20', endDate: '2026-01-30', progress: 35, dependencies: ['t2'] },
+        { id: 't7', title: 'Unit Test Coverage', description: 'Achieve 80% test coverage for core modules', status: 'in-progress', priority: 'medium', category: 'testing', assignee: 'c5', estimate: 32, spent: 18, startDate: '2026-01-12', endDate: '2026-01-28', progress: 55, dependencies: [] },
+        { id: 't8', title: 'Performance Optimization', description: 'Optimize bundle size and lazy loading', status: 'todo', priority: 'medium', category: 'improvement', assignee: 'c7', estimate: 16, spent: 0, startDate: '2026-01-28', endDate: '2026-02-02', progress: 0, dependencies: ['t5'] },
+        { id: 't9', title: 'Mobile Responsive Design', description: 'Ensure full mobile compatibility', status: 'review', priority: 'high', category: 'feature', assignee: 'c3', estimate: 24, spent: 22, startDate: '2026-01-18', endDate: '2026-01-26', progress: 90, dependencies: ['t1', 't5'] },
+        { id: 't10', title: 'CI/CD Pipeline', description: 'Setup GitHub Actions with staging deploy', status: 'done', priority: 'high', category: 'devops', assignee: 'c6', estimate: 16, spent: 18, startDate: '2026-01-10', endDate: '2026-01-14', progress: 100, dependencies: [] },
+        { id: 't11', title: 'Error Handling System', description: 'Global error boundary and logging', status: 'in-progress', priority: 'medium', category: 'improvement', assignee: 'c8', estimate: 12, spent: 6, startDate: '2026-01-22', endDate: '2026-01-28', progress: 50, dependencies: [] },
+        { id: 't12', title: 'Analytics Integration', description: 'Integrate Mixpanel and custom events', status: 'todo', priority: 'low', category: 'feature', assignee: 'c1', estimate: 8, spent: 0, startDate: '2026-02-01', endDate: '2026-02-04', progress: 0, dependencies: ['t2'] },
+        { id: 't13', title: 'Documentation Update', description: 'Update API docs and README', status: 'in-progress', priority: 'low', category: 'documentation', assignee: 'c4', estimate: 8, spent: 4, startDate: '2026-01-24', endDate: '2026-01-28', progress: 50, dependencies: [] },
+        { id: 't14', title: 'Security Audit', description: 'Perform security review and fix vulnerabilities', status: 'blocked', priority: 'critical', category: 'testing', assignee: 'c5', estimate: 24, spent: 4, startDate: '2026-01-26', endDate: '2026-02-02', progress: 15, dependencies: ['t2', 't4'], blockedReason: 'Waiting for API Gateway completion' },
+        { id: 't15', title: 'User Profile Management', description: 'Profile editing and avatar upload', status: 'todo', priority: 'medium', category: 'feature', assignee: 'c7', estimate: 16, spent: 0, startDate: '2026-02-02', endDate: '2026-02-06', progress: 0, dependencies: ['t2'] },
+        { id: 't16', title: 'Email Notification Service', description: 'Transactional emails with SendGrid', status: 'backlog', priority: 'medium', category: 'feature', assignee: 'c8', estimate: 12, spent: 0, startDate: null, endDate: null, progress: 0, dependencies: [] },
+        { id: 't17', title: 'Dark Mode Support', description: 'Implement theme switching', status: 'done', priority: 'low', category: 'feature', assignee: 'c3', estimate: 8, spent: 6, startDate: '2026-01-14', endDate: '2026-01-16', progress: 100, dependencies: ['t1'] },
+        { id: 't18', title: 'Search Functionality', description: 'Full-text search with Elasticsearch', status: 'todo', priority: 'high', category: 'feature', assignee: 'c2', estimate: 24, spent: 0, startDate: '2026-01-30', endDate: '2026-02-06', progress: 0, dependencies: ['t3'] },
+        { id: 't19', title: 'Export to PDF/CSV', description: 'Report generation and export', status: 'backlog', priority: 'low', category: 'feature', assignee: 'c1', estimate: 12, spent: 0, startDate: null, endDate: null, progress: 0, dependencies: [] },
+        { id: 't20', title: 'Keyboard Shortcuts', description: 'Power user keyboard navigation', status: 'backlog', priority: 'low', category: 'improvement', assignee: 'c7', estimate: 8, spent: 0, startDate: null, endDate: null, progress: 0, dependencies: [] },
+        { id: 't21', title: 'Activity Feed', description: 'Team activity timeline', status: 'in-progress', priority: 'medium', category: 'feature', assignee: 'c8', estimate: 16, spent: 10, startDate: '2026-01-22', endDate: '2026-01-30', progress: 60, dependencies: [] },
+        { id: 't22', title: 'Role-based Access Control', description: 'Implement RBAC system', status: 'review', priority: 'critical', category: 'feature', assignee: 'c2', estimate: 32, spent: 30, startDate: '2026-01-12', endDate: '2026-01-24', progress: 95, dependencies: ['t2'] },
+        { id: 't23', title: 'Backup System', description: 'Automated database backups', status: 'done', priority: 'high', category: 'devops', assignee: 'c6', estimate: 8, spent: 10, startDate: '2026-01-08', endDate: '2026-01-10', progress: 100, dependencies: [] },
+        { id: 't24', title: 'Load Testing', description: 'Performance load testing with k6', status: 'todo', priority: 'medium', category: 'testing', assignee: 'c5', estimate: 12, spent: 0, startDate: '2026-02-03', endDate: '2026-02-06', progress: 0, dependencies: ['t4'] },
+        { id: 't25', title: 'Onboarding Flow', description: 'New user onboarding wizard', status: 'blocked', priority: 'medium', category: 'feature', assignee: 'c3', estimate: 20, spent: 2, startDate: '2026-01-28', endDate: '2026-02-04', progress: 10, dependencies: ['t9'], blockedReason: 'Design review pending' },
+        { id: 't26', title: 'Webhooks System', description: 'External webhook integrations', status: 'backlog', priority: 'medium', category: 'feature', assignee: 'c2', estimate: 16, spent: 0, startDate: null, endDate: null, progress: 0, dependencies: [] },
+        { id: 't27', title: 'Data Migration Tool', description: 'Import from legacy systems', status: 'todo', priority: 'high', category: 'feature', assignee: 'c8', estimate: 24, spent: 0, startDate: '2026-02-01', endDate: '2026-02-08', progress: 0, dependencies: ['t3'] },
+        { id: 't28', title: 'Localization (i18n)', description: 'Multi-language support', status: 'backlog', priority: 'low', category: 'feature', assignee: 'c7', estimate: 20, spent: 0, startDate: null, endDate: null, progress: 0, dependencies: [] },
+        { id: 't29', title: 'Audit Logging', description: 'Track all user actions', status: 'in-progress', priority: 'high', category: 'feature', assignee: 'c2', estimate: 16, spent: 8, startDate: '2026-01-24', endDate: '2026-01-30', progress: 50, dependencies: ['t22'] },
+        { id: 't30', title: 'Rate Limiting', description: 'API rate limiting implementation', status: 'review', priority: 'high', category: 'devops', assignee: 'c6', estimate: 8, spent: 7, startDate: '2026-01-22', endDate: '2026-01-25', progress: 85, dependencies: ['t4'] },
+        { id: 't31', title: 'SSO Integration', description: 'SAML/OIDC single sign-on', status: 'backlog', priority: 'medium', category: 'feature', assignee: 'c1', estimate: 24, spent: 0, startDate: null, endDate: null, progress: 0, dependencies: ['t2'] },
+        { id: 't32', title: 'Monitoring Dashboard', description: 'Grafana monitoring setup', status: 'todo', priority: 'medium', category: 'devops', assignee: 'c6', estimate: 12, spent: 0, startDate: '2026-02-04', endDate: '2026-02-08', progress: 0, dependencies: ['t10'] }
+    ];
 
-    // Review (5 tasks)
-    { id: 'task-23', title: 'Login page redesign', status: 'review', priority: 'medium', tags: ['frontend', 'design'], assignee: 'collab-8', estimatedHours: 16, actualHours: 15, startDate: '2026-01-15', endDate: '2026-01-25', dependencies: [], blockers: [] },
-    { id: 'task-24', title: 'Email template system', status: 'review', priority: 'low', tags: ['backend', 'email'], assignee: 'collab-6', estimatedHours: 12, actualHours: 11, startDate: '2026-01-18', endDate: '2026-01-24', dependencies: [], blockers: [] },
-    { id: 'task-25', title: 'Data export feature', status: 'review', priority: 'medium', tags: ['backend', 'feature'], assignee: 'collab-1', estimatedHours: 20, actualHours: 18, startDate: '2026-01-12', endDate: '2026-01-22', dependencies: [], blockers: [] },
-    { id: 'task-26', title: 'Accessibility improvements', status: 'review', priority: 'high', tags: ['frontend', 'a11y'], assignee: 'collab-8', estimatedHours: 24, actualHours: 22, startDate: '2026-01-08', endDate: '2026-01-20', dependencies: [], blockers: [] },
-    { id: 'task-27', title: 'Sprint 11 test report', status: 'review', priority: 'medium', tags: ['qa', 'documentation'], assignee: 'collab-5', estimatedHours: 8, actualHours: 7, startDate: '2026-01-22', endDate: '2026-01-24', dependencies: [], blockers: [] },
-
-    // Done (5 tasks)
-    { id: 'task-28', title: 'User authentication module', status: 'done', priority: 'urgent', tags: ['backend', 'security'], assignee: 'collab-2', estimatedHours: 40, actualHours: 38, startDate: '2025-12-15', endDate: '2026-01-10', dependencies: [], blockers: [] },
-    { id: 'task-29', title: 'Homepage redesign', status: 'done', priority: 'high', tags: ['frontend', 'design'], assignee: 'collab-8', estimatedHours: 32, actualHours: 30, startDate: '2025-12-20', endDate: '2026-01-08', dependencies: [], blockers: [] },
-    { id: 'task-30', title: 'Database schema optimization', status: 'done', priority: 'high', tags: ['backend', 'database'], assignee: 'collab-6', estimatedHours: 24, actualHours: 26, startDate: '2025-12-10', endDate: '2025-12-28', dependencies: [], blockers: [] },
-    { id: 'task-31', title: 'Initial test coverage setup', status: 'done', priority: 'medium', tags: ['qa', 'testing'], assignee: 'collab-5', estimatedHours: 16, actualHours: 14, startDate: '2025-12-01', endDate: '2025-12-15', dependencies: [], blockers: [] },
-    { id: 'task-32', title: 'Project kickoff documentation', status: 'done', priority: 'high', tags: ['planning', 'documentation'], assignee: 'collab-4', estimatedHours: 12, actualHours: 10, startDate: '2025-11-15', endDate: '2025-11-20', dependencies: [], blockers: [] }
-  ];
-
-  // Financial Metrics
-  const financials = {
-    totalBudget: 250000,
-    spent: 147500,
-    committed: 42000,
-    projected: 215000,
-    breakdown: {
-      development: { budget: 120000, spent: 72000 },
-      design: { budget: 40000, spent: 28000 },
-      infrastructure: { budget: 35000, spent: 22500 },
-      testing: { budget: 30000, spent: 15000 },
-      management: { budget: 25000, spent: 10000 }
-    },
-    monthlyBurn: [
-      { month: 'Nov 2025', planned: 35000, actual: 32000 },
-      { month: 'Dec 2025', planned: 45000, actual: 48000 },
-      { month: 'Jan 2026', planned: 55000, actual: 52500 },
-      { month: 'Feb 2026', planned: 60000, actual: null },
-      { month: 'Mar 2026', planned: 55000, actual: null }
-    ]
-  };
-
-  // 3 months of historical data for trends
-  const history = [];
-  const startDate = new Date('2025-11-01');
-  const endDate = new Date('2026-01-28');
-  
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const daysSinceStart = Math.floor((d - startDate) / (1000 * 60 * 60 * 24));
-    const baseCompleted = Math.min(5 + Math.floor(daysSinceStart * 0.35), 32);
-    const velocity = 2 + Math.random() * 3;
-    
-    history.push({
-      date: d.toISOString().split('T')[0],
-      tasksCompleted: Math.min(baseCompleted + Math.floor(Math.random() * 3), 32),
-      tasksTotal: 32,
-      velocity: parseFloat(velocity.toFixed(1)),
-      burndown: Math.max(0, 32 - baseCompleted),
-      teamMorale: 65 + Math.floor(Math.random() * 25),
-      budgetUsed: Math.min(financials.totalBudget, 30000 + daysSinceStart * 1500 + Math.random() * 2000)
-    });
-  }
-
-  // Project metadata
-  const project = {
-    name: 'Phoenix Platform v2.0',
-    description: 'Next-generation enterprise platform with AI-powered features',
-    startDate: '2025-11-01',
-    targetEndDate: '2026-03-31',
-    currentPhase: 'Development',
-    sprintNumber: 12,
-    sprintStartDate: '2026-01-20',
-    sprintEndDate: '2026-02-02'
-  };
-
-  return { collaborators, tasks, financials, history, project };
-};
-
-const DEMO_DATA = generateDemoData();
-
-// ============================================================================
-// COMMUNITY DATA API
-// ============================================================================
-class CommunityDataAPI {
-  constructor(extensionId) {
-    this.extensionId = extensionId;
-    this.baseUrl = '/api/community';
-    this.token = null;
-  }
-
-  setToken(token) {
-    this.token = token;
-  }
-
-  async request(method, path, data = null) {
-    const url = `${this.baseUrl}/${this.extensionId}${path}`;
-    const options = {
-      method,
-      headers: {
-        'Content-Type': 'application/json'
-      }
+    // Financial data
+    var financials = {
+        totalBudget: 250000,
+        spent: 147500,
+        committed: 45000,
+        remaining: 57500,
+        burnRate: 12500,
+        projectedOverrun: 15000,
+        categories: [
+            { name: 'Development', budget: 120000, spent: 78000, color: '#00d4ff' },
+            { name: 'Design', budget: 40000, spent: 28000, color: '#a855f7' },
+            { name: 'Infrastructure', budget: 35000, spent: 22500, color: '#22c55e' },
+            { name: 'Testing', budget: 25000, spent: 12000, color: '#facc15' },
+            { name: 'Management', budget: 30000, spent: 7000, color: '#ec4899' }
+        ],
+        monthly: [
+            { month: 'Nov', planned: 35000, actual: 32000 },
+            { month: 'Dec', planned: 40000, actual: 45000 },
+            { month: 'Jan', planned: 45000, actual: 52000 },
+            { month: 'Feb', planned: 42000, actual: 0 },
+            { month: 'Mar', planned: 38000, actual: 0 }
+        ]
     };
 
-    if (this.token) {
-      options.headers['Authorization'] = `Bearer ${this.token}`;
+    // Historical metrics (90 days)
+    var history = [];
+    for (var i = 90; i >= 0; i--) {
+        var date = new Date(now);
+        date.setDate(date.getDate() - i);
+        var completed = Math.floor(5 + (90 - i) * 0.3 + Math.random() * 2);
+        var velocity = 2 + Math.sin(i * 0.1) * 1.5 + Math.random();
+        history.push({
+            date: date.toISOString().split('T')[0],
+            tasksCompleted: Math.min(completed, 32),
+            velocity: Math.round(velocity * 10) / 10,
+            burndown: Math.max(0, 32 - completed),
+            teamMorale: 65 + Math.sin(i * 0.05) * 15 + Math.random() * 10
+        });
     }
 
-    if (data) {
-      options.body = JSON.stringify(data);
-    }
+    // Project info
+    var project = {
+        name: 'Project Phoenix',
+        description: 'Next-generation enterprise platform',
+        startDate: '2026-01-01',
+        targetDate: '2026-02-15',
+        currentSprint: 12,
+        sprintStart: '2026-01-20',
+        sprintEnd: '2026-02-02',
+        methodology: 'Agile/Scrum',
+        repository: 'github.com/company/phoenix',
+        status: 'on-track'
+    };
 
-    try {
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        if (response.status === 404) return null;
-        throw new Error(`API Error: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.warn('Community Data API:', error.message);
-      return null;
-    }
-  }
+    // Activity log
+    var activities = [
+        { id: 'a1', type: 'task_completed', user: 'c1', task: 't2', timestamp: '2026-01-28T14:32:00', message: 'completed "User Authentication Flow"' },
+        { id: 'a2', type: 'comment', user: 'c4', task: 't5', timestamp: '2026-01-28T13:15:00', message: 'added comment on "Dashboard UI Components"' },
+        { id: 'a3', type: 'task_started', user: 'c6', task: 't4', timestamp: '2026-01-28T11:00:00', message: 'started working on "API Gateway Setup"' },
+        { id: 'a4', type: 'review_requested', user: 'c3', task: 't9', timestamp: '2026-01-28T10:30:00', message: 'requested review for "Mobile Responsive Design"' },
+        { id: 'a5', type: 'blocked', user: 'c5', task: 't14', timestamp: '2026-01-27T16:45:00', message: 'marked "Security Audit" as blocked' },
+        { id: 'a6', type: 'task_completed', user: 'c6', task: 't10', timestamp: '2026-01-27T15:20:00', message: 'completed "CI/CD Pipeline"' },
+        { id: 'a7', type: 'sprint_started', user: 'c4', task: null, timestamp: '2026-01-20T09:00:00', message: 'started Sprint 12' },
+        { id: 'a8', type: 'milestone', user: 'c4', task: null, timestamp: '2026-01-15T10:00:00', message: 'reached milestone: Core Features Complete' }
+    ];
 
-  // CRUD Operations
-  async getRecord(collection, key) {
-    return this.request('GET', `/${collection}/${key}`);
-  }
-
-  async listRecords(collection, options = {}) {
-    const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit);
-    if (options.offset) params.append('offset', options.offset);
-    if (options.prefix) params.append('prefix', options.prefix);
-    const query = params.toString() ? `?${params.toString()}` : '';
-    return this.request('GET', `/${collection}${query}`);
-  }
-
-  async saveRecord(collection, key, data, expiresIn = null) {
-    const body = { data };
-    if (expiresIn) body.expires_in = expiresIn;
-    return this.request('PUT', `/${collection}/${key}`, body);
-  }
-
-  async deleteRecord(collection, key) {
-    return this.request('DELETE', `/${collection}/${key}`);
-  }
+    return {
+        collaborators: collaborators,
+        tasks: tasks,
+        financials: financials,
+        history: history,
+        project: project,
+        activities: activities
+    };
 }
 
-const api = new CommunityDataAPI(CONFIG.EXTENSION_ID);
+var DEMO_DATA = generateDemoData();
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
-const debounce = (fn, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn(...args), delay);
-  };
-};
+function formatCurrency(amount) {
+    return '$' + amount.toLocaleString();
+}
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
-};
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
 
-const formatDate = (date) => {
-  if (!date) return '-';
-  return new Date(date).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: 'short'
-  });
-};
+function formatDateTime(dateStr) {
+    if (!dateStr) return '-';
+    var date = new Date(dateStr);
+    return date.toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
 
-const calculateDaysRemaining = (endDate) => {
-  if (!endDate) return null;
-  const end = new Date(endDate);
-  const now = new Date();
-  return Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-};
+function calculateDaysRemaining(targetDate) {
+    var target = new Date(targetDate);
+    var now = new Date();
+    var diff = target - now;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
 
-// ============================================================================
-// PREDICTION ENGINE (Time-Traveler)
-// ============================================================================
-const PredictionEngine = {
-  // Linear regression for completion prediction
-  // T_fin = T_actuel + (Tâches_restantes / Vitesse_moyenne)
-  predictCompletionDate(tasks, history) {
-    const now = new Date();
-    const completed = tasks.filter(t => t.status === 'done').length;
-    const remaining = tasks.length - completed;
-    
-    // Calculate average velocity from last 14 days
-    const recentHistory = history.slice(-14);
-    const avgVelocity = recentHistory.reduce((sum, h) => sum + h.velocity, 0) / recentHistory.length;
-    
-    if (avgVelocity <= 0) return null;
-    
-    const daysToComplete = remaining / avgVelocity;
-    const predictedDate = new Date(now.getTime() + daysToComplete * 24 * 60 * 60 * 1000);
-    
-    return {
-      date: predictedDate,
-      daysRemaining: Math.ceil(daysToComplete),
-      confidence: Math.min(95, 60 + (recentHistory.length * 2)),
-      avgVelocity: avgVelocity.toFixed(2)
+function getStatusColor(status) {
+    var colors = {
+        'backlog': '#6b7280',
+        'todo': '#00d4ff',
+        'in-progress': '#a855f7',
+        'review': '#facc15',
+        'done': '#22c55e',
+        'blocked': '#ef4444'
     };
-  },
+    return colors[status] || '#6b7280';
+}
 
-  // Generate prediction curve for chart
-  generatePredictionCurve(tasks, history, daysAhead = 30) {
-    const now = new Date();
-    const prediction = this.predictCompletionDate(tasks, history);
-    if (!prediction) return [];
-
-    const curve = [];
-    const currentBurndown = tasks.filter(t => t.status !== 'done').length;
-    
-    for (let i = 0; i <= daysAhead; i++) {
-      const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-      const predicted = Math.max(0, currentBurndown - (i * parseFloat(prediction.avgVelocity)));
-      curve.push({
-        date: date.toISOString().split('T')[0],
-        predicted: parseFloat(predicted.toFixed(1))
-      });
-    }
-    
-    return curve;
-  }
-};
+function getPriorityColor(priority) {
+    var colors = {
+        'critical': '#ef4444',
+        'high': '#f97316',
+        'medium': '#facc15',
+        'low': '#22c55e'
+    };
+    return colors[priority] || '#6b7280';
+}
 
 // ============================================================================
-// RISK ANALYZER
+// CHART COMPONENTS (Custom SVG)
 // ============================================================================
-const RiskAnalyzer = {
-  analyzeProject(tasks, collaborators, financials, project) {
-    const insights = [];
-    const now = new Date();
-    
-    // Check for overloaded team members
-    const overloaded = collaborators.filter(c => c.currentLoad > c.capacity);
-    if (overloaded.length > 0) {
-      insights.push({
-        type: 'warning',
-        category: 'Team',
-        title: 'Burnout Risk Detected',
-        message: `${overloaded.length} team member(s) are overloaded: ${overloaded.map(c => c.name).join(', ')}. Recommend task redistribution.`,
-        probability: 85
-      });
-    }
 
-    // Check for blocked tasks
-    const blockedTasks = tasks.filter(t => t.blockers && t.blockers.length > 0);
-    if (blockedTasks.length > 0) {
-      insights.push({
-        type: 'danger',
-        category: 'Execution',
-        title: 'Blocked Tasks Alert',
-        message: `${blockedTasks.length} task(s) have blockers that need immediate attention.`,
-        probability: 95
-      });
-    }
+// Circular Progress Chart
+function CircularProgress(props) {
+    var value = props.value || 0;
+    var max = props.max || 100;
+    var size = props.size || 120;
+    var strokeWidth = props.strokeWidth || 8;
+    var color = props.color || '#00d4ff';
+    var label = props.label;
+    var sublabel = props.sublabel;
 
-    // Budget risk analysis
-    const budgetUsage = (financials.spent + financials.committed) / financials.totalBudget;
-    const projectProgress = tasks.filter(t => t.status === 'done').length / tasks.length;
-    
-    if (budgetUsage > projectProgress + 0.15) {
-      insights.push({
-        type: 'danger',
-        category: 'Budget',
-        title: 'Budget Overrun Risk',
-        message: `Budget usage (${(budgetUsage * 100).toFixed(0)}%) exceeds project progress (${(projectProgress * 100).toFixed(0)}%). ${(budgetUsage * 100 - projectProgress * 100).toFixed(0)}% over expected spend rate.`,
-        probability: 78
-      });
-    }
+    var radius = (size - strokeWidth) / 2;
+    var circumference = 2 * Math.PI * radius;
+    var progress = (value / max) * circumference;
+    var offset = circumference - progress;
 
-    // Sprint velocity check
-    const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
-    const sprintEnd = new Date(project.sprintEndDate);
-    const daysLeft = Math.ceil((sprintEnd - now) / (1000 * 60 * 60 * 24));
-    
-    if (daysLeft < 5 && inProgressTasks.length > 5) {
-      insights.push({
-        type: 'warning',
-        category: 'Sprint',
-        title: 'Sprint Completion Risk',
-        message: `${inProgressTasks.length} tasks still in progress with only ${daysLeft} days left in sprint. Consider scope adjustment.`,
-        probability: 72
-      });
-    }
+    return React.createElement('div', { className: 'circular-progress', style: { width: size, height: size } },
+        React.createElement('svg', { width: size, height: size, viewBox: '0 0 ' + size + ' ' + size },
+            React.createElement('circle', {
+                cx: size / 2,
+                cy: size / 2,
+                r: radius,
+                fill: 'none',
+                stroke: 'rgba(255,255,255,0.1)',
+                strokeWidth: strokeWidth
+            }),
+            React.createElement('circle', {
+                cx: size / 2,
+                cy: size / 2,
+                r: radius,
+                fill: 'none',
+                stroke: color,
+                strokeWidth: strokeWidth,
+                strokeLinecap: 'round',
+                strokeDasharray: circumference,
+                strokeDashoffset: offset,
+                style: { transform: 'rotate(-90deg)', transformOrigin: 'center', transition: 'stroke-dashoffset 1s ease' }
+            }),
+            React.createElement('text', {
+                x: size / 2,
+                y: size / 2 - 5,
+                textAnchor: 'middle',
+                fill: '#fff',
+                fontSize: size * 0.22,
+                fontWeight: 'bold'
+            }, Math.round(value)),
+            sublabel && React.createElement('text', {
+                x: size / 2,
+                y: size / 2 + 15,
+                textAnchor: 'middle',
+                fill: 'rgba(255,255,255,0.6)',
+                fontSize: size * 0.1
+            }, sublabel)
+        ),
+        label && React.createElement('div', { className: 'circular-progress-label' }, label)
+    );
+}
 
-    // Test phase risk
-    const testTasks = tasks.filter(t => t.tags.includes('qa') || t.tags.includes('testing'));
-    const testNotStarted = testTasks.filter(t => t.status === 'backlog' || t.status === 'todo');
-    if (testNotStarted.length > testTasks.length * 0.5) {
-      insights.push({
-        type: 'warning',
-        category: 'Quality',
-        title: 'Testing Delay Risk',
-        message: `Le projet a 85% de chance de dépasser le budget si la phase de Test ne commence pas sous 3 jours.`,
-        probability: 85
-      });
-    }
+// Line/Area Chart
+function LineChart(props) {
+    var data = props.data || [];
+    var width = props.width || 400;
+    var height = props.height || 200;
+    var lines = props.lines || [];
+    var showGrid = props.showGrid !== false;
+    var showDots = props.showDots !== false;
+    var areaFill = props.areaFill;
 
-    // Add positive insights too
-    if (projectProgress > 0.4 && budgetUsage < 0.5) {
-      insights.push({
-        type: 'success',
-        category: 'Budget',
-        title: 'Budget On Track',
-        message: `Excellent budget management! Current spend rate is ${((budgetUsage / projectProgress) * 100).toFixed(0)}% of expected.`,
-        probability: 90
-      });
-    }
+    if (data.length === 0) return React.createElement('div', { className: 'chart-empty' }, 'No data');
 
-    return insights.sort((a, b) => b.probability - a.probability);
-  }
-};
+    var padding = { top: 20, right: 20, bottom: 30, left: 50 };
+    var chartWidth = width - padding.left - padding.right;
+    var chartHeight = height - padding.top - padding.bottom;
 
-// ============================================================================
-// SENTIMENT SCORE CALCULATOR
-// ============================================================================
-const SentimentCalculator = {
-  calculate(tasks, collaborators, history) {
-    let score = 50; // Base score
-
-    // Velocity trend (last 7 days vs previous 7)
-    const recent = history.slice(-7);
-    const previous = history.slice(-14, -7);
-    const recentAvgVelocity = recent.reduce((s, h) => s + h.velocity, 0) / recent.length;
-    const prevAvgVelocity = previous.reduce((s, h) => s + h.velocity, 0) / previous.length;
-    
-    if (recentAvgVelocity > prevAvgVelocity) {
-      score += 10; // Velocity increasing
-    } else if (recentAvgVelocity < prevAvgVelocity * 0.8) {
-      score -= 15; // Velocity dropping significantly
-    }
-
-    // On-time completion rate
-    const completedTasks = tasks.filter(t => t.status === 'done');
-    const onTime = completedTasks.filter(t => {
-      if (!t.endDate || !t.actualHours) return true;
-      return t.actualHours <= t.estimatedHours * 1.1;
+    // Calculate bounds
+    var allValues = [];
+    lines.forEach(function(line) {
+        data.forEach(function(d) {
+            if (typeof d[line.dataKey] === 'number') allValues.push(d[line.dataKey]);
+        });
     });
-    const onTimeRate = completedTasks.length > 0 ? onTime.length / completedTasks.length : 1;
-    score += (onTimeRate - 0.7) * 30;
+    var minY = Math.min.apply(null, allValues.length ? allValues : [0]) * 0.9;
+    var maxY = Math.max.apply(null, allValues.length ? allValues : [100]) * 1.1;
 
-    // Team load balance
-    const avgLoad = collaborators.reduce((s, c) => s + (c.currentLoad / c.capacity), 0) / collaborators.length;
-    if (avgLoad > 1) {
-      score -= (avgLoad - 1) * 20;
-    } else if (avgLoad < 0.8) {
-      score += 5;
+    var xScale = function(i) { return padding.left + (i / Math.max(data.length - 1, 1)) * chartWidth; };
+    var yScale = function(v) { return padding.top + chartHeight - ((v - minY) / (maxY - minY || 1)) * chartHeight; };
+
+    var elements = [];
+
+    // Grid lines
+    if (showGrid) {
+        for (var i = 0; i <= 5; i++) {
+            var y = padding.top + (i / 5) * chartHeight;
+            elements.push(React.createElement('line', {
+                key: 'grid-' + i,
+                x1: padding.left,
+                y1: y,
+                x2: padding.left + chartWidth,
+                y2: y,
+                stroke: 'rgba(255,255,255,0.1)',
+                strokeDasharray: '3 3'
+            }));
+        }
     }
 
-    // Blockers penalty
-    const blockedTasks = tasks.filter(t => t.blockers && t.blockers.length > 0);
-    score -= blockedTasks.length * 3;
+    // Lines and areas
+    lines.forEach(function(lineConfig, lineIndex) {
+        var points = [];
+        data.forEach(function(d, i) {
+            var val = d[lineConfig.dataKey];
+            if (typeof val === 'number') {
+                points.push({ x: xScale(i), y: yScale(val), value: val });
+            }
+        });
 
-    // Recent team morale
-    const recentMorale = recent.reduce((s, h) => s + h.teamMorale, 0) / recent.length;
-    score += (recentMorale - 70) * 0.3;
+        if (points.length === 0) return;
 
-    return {
-      score: Math.max(0, Math.min(100, Math.round(score))),
-      status: score >= 70 ? 'healthy' : score >= 50 ? 'warning' : 'critical',
-      trend: recentAvgVelocity > prevAvgVelocity ? 'up' : recentAvgVelocity < prevAvgVelocity ? 'down' : 'stable'
+        var pathD = 'M' + points.map(function(p) { return p.x + ',' + p.y; }).join(' L');
+        
+        // Area fill
+        if (areaFill || lineConfig.fill) {
+            var areaD = pathD + ' L' + points[points.length - 1].x + ',' + (padding.top + chartHeight) + ' L' + points[0].x + ',' + (padding.top + chartHeight) + ' Z';
+            elements.push(React.createElement('path', {
+                key: 'area-' + lineIndex,
+                d: areaD,
+                fill: lineConfig.color || '#00d4ff',
+                fillOpacity: 0.2
+            }));
+        }
+
+        // Line
+        elements.push(React.createElement('path', {
+            key: 'line-' + lineIndex,
+            d: pathD,
+            fill: 'none',
+            stroke: lineConfig.color || '#00d4ff',
+            strokeWidth: 2,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round'
+        }));
+
+        // Dots
+        if (showDots && points.length <= 30) {
+            points.forEach(function(p, pi) {
+                elements.push(React.createElement('circle', {
+                    key: 'dot-' + lineIndex + '-' + pi,
+                    cx: p.x,
+                    cy: p.y,
+                    r: 4,
+                    fill: lineConfig.color || '#00d4ff',
+                    stroke: '#050810',
+                    strokeWidth: 2
+                }));
+            });
+        }
+    });
+
+    // X-axis labels
+    var xLabels = [];
+    var labelStep = Math.ceil(data.length / 6);
+    data.forEach(function(d, i) {
+        if (i % labelStep === 0 || i === data.length - 1) {
+            xLabels.push(React.createElement('text', {
+                key: 'xlabel-' + i,
+                x: xScale(i),
+                y: height - 8,
+                textAnchor: 'middle',
+                fill: 'rgba(255,255,255,0.5)',
+                fontSize: 10
+            }, d.label || d.date || d.name || ''));
+        }
+    });
+
+    // Y-axis labels
+    var yLabels = [];
+    for (var i = 0; i <= 4; i++) {
+        var val = minY + (i / 4) * (maxY - minY);
+        yLabels.push(React.createElement('text', {
+            key: 'ylabel-' + i,
+            x: padding.left - 8,
+            y: yScale(val) + 4,
+            textAnchor: 'end',
+            fill: 'rgba(255,255,255,0.5)',
+            fontSize: 10
+        }, Math.round(val)));
+    }
+
+    return React.createElement('svg', { 
+        width: '100%', 
+        height: height, 
+        viewBox: '0 0 ' + width + ' ' + height,
+        preserveAspectRatio: 'xMidYMid meet',
+        className: 'chart-svg'
+    }, elements.concat(xLabels).concat(yLabels));
+}
+
+// Bar Chart
+function BarChart(props) {
+    var data = props.data || [];
+    var width = props.width || 400;
+    var height = props.height || 200;
+    var dataKey = props.dataKey || 'value';
+    var labelKey = props.labelKey || 'name';
+    var color = props.color || '#00d4ff';
+    var horizontal = props.horizontal;
+
+    if (data.length === 0) return React.createElement('div', { className: 'chart-empty' }, 'No data');
+
+    var padding = { top: 20, right: 20, bottom: 40, left: horizontal ? 100 : 50 };
+    var chartWidth = width - padding.left - padding.right;
+    var chartHeight = height - padding.top - padding.bottom;
+
+    var maxVal = Math.max.apply(null, data.map(function(d) { return d[dataKey] || 0; })) || 1;
+
+    var elements = [];
+
+    if (horizontal) {
+        var barHeight = (chartHeight / data.length) * 0.7;
+        var barGap = (chartHeight / data.length) * 0.3;
+
+        data.forEach(function(d, i) {
+            var val = d[dataKey] || 0;
+            var barWidth = (val / maxVal) * chartWidth;
+            var y = padding.top + i * (barHeight + barGap);
+            var barColor = d.color || color;
+
+            elements.push(React.createElement('rect', {
+                key: 'bar-' + i,
+                x: padding.left,
+                y: y,
+                width: barWidth,
+                height: barHeight,
+                fill: barColor,
+                rx: 4,
+                opacity: 0.8,
+                style: { transition: 'width 0.5s ease' }
+            }));
+
+            elements.push(React.createElement('text', {
+                key: 'label-' + i,
+                x: padding.left - 8,
+                y: y + barHeight / 2 + 4,
+                textAnchor: 'end',
+                fill: 'rgba(255,255,255,0.7)',
+                fontSize: 11
+            }, d[labelKey] || ''));
+
+            elements.push(React.createElement('text', {
+                key: 'value-' + i,
+                x: padding.left + barWidth + 8,
+                y: y + barHeight / 2 + 4,
+                textAnchor: 'start',
+                fill: barColor,
+                fontSize: 11,
+                fontWeight: 'bold'
+            }, val.toLocaleString()));
+        });
+    } else {
+        var barWidth = (chartWidth / data.length) * 0.6;
+        var barGap = (chartWidth / data.length) * 0.4;
+
+        data.forEach(function(d, i) {
+            var val = d[dataKey] || 0;
+            var barHeight = (val / maxVal) * chartHeight;
+            var x = padding.left + i * (barWidth + barGap) + barGap / 2;
+            var barColor = d.color || color;
+
+            elements.push(React.createElement('rect', {
+                key: 'bar-' + i,
+                x: x,
+                y: padding.top + chartHeight - barHeight,
+                width: barWidth,
+                height: barHeight,
+                fill: barColor,
+                rx: 4,
+                opacity: 0.8,
+                style: { transition: 'height 0.5s ease' }
+            }));
+
+            elements.push(React.createElement('text', {
+                key: 'label-' + i,
+                x: x + barWidth / 2,
+                y: height - 8,
+                textAnchor: 'middle',
+                fill: 'rgba(255,255,255,0.7)',
+                fontSize: 10
+            }, d[labelKey] || ''));
+        });
+    }
+
+    return React.createElement('svg', { 
+        width: '100%', 
+        height: height, 
+        viewBox: '0 0 ' + width + ' ' + height,
+        preserveAspectRatio: 'xMidYMid meet',
+        className: 'chart-svg'
+    }, elements);
+}
+
+// Donut/Pie Chart
+function DonutChart(props) {
+    var data = props.data || [];
+    var size = props.size || 200;
+    var donutWidth = props.donutWidth || 30;
+    var showLabels = props.showLabels !== false;
+    var centerLabel = props.centerLabel;
+    var centerValue = props.centerValue;
+
+    if (data.length === 0) return React.createElement('div', { className: 'chart-empty' }, 'No data');
+
+    var total = data.reduce(function(sum, d) { return sum + (d.value || 0); }, 0);
+    var radius = (size - donutWidth) / 2;
+    var innerRadius = radius - donutWidth;
+    var centerX = size / 2;
+    var centerY = size / 2;
+
+    var elements = [];
+    var currentAngle = -Math.PI / 2;
+
+    data.forEach(function(d, i) {
+        var value = d.value || 0;
+        var angle = (value / (total || 1)) * Math.PI * 2;
+        var startAngle = currentAngle;
+        var endAngle = currentAngle + angle;
+        currentAngle = endAngle;
+
+        var x1 = centerX + Math.cos(startAngle) * radius;
+        var y1 = centerY + Math.sin(startAngle) * radius;
+        var x2 = centerX + Math.cos(endAngle) * radius;
+        var y2 = centerY + Math.sin(endAngle) * radius;
+        var x3 = centerX + Math.cos(endAngle) * innerRadius;
+        var y3 = centerY + Math.sin(endAngle) * innerRadius;
+        var x4 = centerX + Math.cos(startAngle) * innerRadius;
+        var y4 = centerY + Math.sin(startAngle) * innerRadius;
+
+        var largeArc = angle > Math.PI ? 1 : 0;
+        var pathD = 'M' + x1 + ',' + y1 + ' A' + radius + ',' + radius + ' 0 ' + largeArc + ' 1 ' + x2 + ',' + y2 + 
+                    ' L' + x3 + ',' + y3 + ' A' + innerRadius + ',' + innerRadius + ' 0 ' + largeArc + ' 0 ' + x4 + ',' + y4 + ' Z';
+
+        elements.push(React.createElement('path', {
+            key: 'slice-' + i,
+            d: pathD,
+            fill: d.color || '#00d4ff',
+            stroke: '#050810',
+            strokeWidth: 2,
+            style: { transition: 'opacity 0.3s' },
+            opacity: 0.85
+        }));
+    });
+
+    // Center text
+    if (centerLabel || centerValue) {
+        elements.push(React.createElement('text', {
+            key: 'center-value',
+            x: centerX,
+            y: centerY - 5,
+            textAnchor: 'middle',
+            fill: '#fff',
+            fontSize: 24,
+            fontWeight: 'bold'
+        }, centerValue || ''));
+        elements.push(React.createElement('text', {
+            key: 'center-label',
+            x: centerX,
+            y: centerY + 18,
+            textAnchor: 'middle',
+            fill: 'rgba(255,255,255,0.6)',
+            fontSize: 12
+        }, centerLabel || ''));
+    }
+
+    return React.createElement('div', { className: 'donut-chart-container' },
+        React.createElement('svg', { 
+            width: size, 
+            height: size, 
+            viewBox: '0 0 ' + size + ' ' + size,
+            className: 'chart-svg'
+        }, elements),
+        showLabels && React.createElement('div', { className: 'donut-legend' },
+            data.map(function(d, i) {
+                return React.createElement('div', { key: i, className: 'legend-item' },
+                    React.createElement('span', { 
+                        className: 'legend-color', 
+                        style: { backgroundColor: d.color || '#00d4ff' } 
+                    }),
+                    React.createElement('span', { className: 'legend-label' }, d.name),
+                    React.createElement('span', { className: 'legend-value' }, Math.round((d.value / total) * 100) + '%')
+                );
+            })
+        )
+    );
+}
+
+// Sparkline
+function Sparkline(props) {
+    var data = props.data || [];
+    var width = props.width || 100;
+    var height = props.height || 30;
+    var color = props.color || '#00d4ff';
+    var showArea = props.showArea;
+
+    if (data.length < 2) return null;
+
+    var min = Math.min.apply(null, data);
+    var max = Math.max.apply(null, data);
+    var range = max - min || 1;
+
+    var points = data.map(function(v, i) {
+        var x = (i / (data.length - 1)) * width;
+        var y = height - ((v - min) / range) * (height - 4) - 2;
+        return x + ',' + y;
+    }).join(' L');
+
+    var pathD = 'M' + points;
+    var areaD = pathD + ' L' + width + ',' + height + ' L0,' + height + ' Z';
+
+    return React.createElement('svg', { width: width, height: height, className: 'sparkline' },
+        showArea && React.createElement('path', { d: areaD, fill: color, fillOpacity: 0.2 }),
+        React.createElement('path', { d: pathD, fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' })
+    );
+}
+
+// Progress Bar
+function ProgressBar(props) {
+    var value = props.value || 0;
+    var max = props.max || 100;
+    var color = props.color || '#00d4ff';
+    var height = props.height || 8;
+    var showLabel = props.showLabel;
+    var label = props.label;
+    var animated = props.animated !== false;
+
+    var percentage = Math.min((value / max) * 100, 100);
+
+    return React.createElement('div', { className: 'progress-bar-container' },
+        (showLabel || label) && React.createElement('div', { className: 'progress-bar-header' },
+            React.createElement('span', { className: 'progress-label' }, label || ''),
+            React.createElement('span', { className: 'progress-value' }, Math.round(percentage) + '%')
+        ),
+        React.createElement('div', { 
+            className: 'progress-bar-track', 
+            style: { height: height } 
+        },
+            React.createElement('div', { 
+                className: 'progress-bar-fill' + (animated ? ' animated' : ''), 
+                style: { 
+                    width: percentage + '%', 
+                    backgroundColor: color,
+                    height: height
+                } 
+            })
+        )
+    );
+}
+
+// ============================================================================
+// GLASS CARD COMPONENT
+// ============================================================================
+function GlassCard(props) {
+    var className = 'glass-card ' + (props.className || '');
+    var delay = props.delay || 0;
+    var noPadding = props.noPadding;
+    var onClick = props.onClick;
+    var style = props.style || {};
+
+    if (noPadding) style.padding = 0;
+
+    return React.createElement(motion.div, {
+        className: className,
+        style: style,
+        onClick: onClick,
+        initial: { opacity: 0, y: 20 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.5, delay: delay },
+        whileHover: onClick ? { scale: 1.02, y: -2 } : null
+    }, props.children);
+}
+
+// ============================================================================
+// ICON COMPONENT
+// ============================================================================
+function Icon(props) {
+    var name = props.name || '';
+    var size = props.size || 20;
+    var color = props.color || 'currentColor';
+    var className = props.className || '';
+
+    // Convert kebab-case to PascalCase
+    var componentName = name.split('-').map(function(s) { 
+        return s.charAt(0).toUpperCase() + s.slice(1); 
+    }).join('');
+
+    var IconComponent = (window.LucideIcons && window.LucideIcons[componentName]) || window[componentName];
+
+    if (IconComponent) {
+        return React.createElement(IconComponent, { 
+            size: size, 
+            color: color,
+            className: 'icon ' + className 
+        });
+    }
+
+    // Fallback emoji icons
+    var emojis = {
+        'dashboard': '📊', 'kanban': '📋', 'gantt': '📅', 'users': '👥',
+        'chart': '📈', 'settings': '⚙️', 'brain': '🧠', 'alert': '⚠️',
+        'check': '✅', 'clock': '⏰', 'calendar': '📆', 'star': '⭐',
+        'rocket': '🚀', 'target': '🎯', 'fire': '🔥', 'trending-up': '📈',
+        'trending-down': '📉', 'plus': '➕', 'x': '✖️', 'refresh': '🔄',
+        'save': '💾', 'filter': '🔍', 'search': '🔎', 'bell': '🔔',
+        'mail': '📧', 'folder': '📁', 'file': '📄', 'download': '⬇️',
+        'upload': '⬆️', 'link': '🔗', 'lock': '🔒', 'unlock': '🔓',
+        'eye': '👁️', 'edit': '✏️', 'trash': '🗑️', 'copy': '📋',
+        'activity': '📊', 'zap': '⚡', 'layers': '📚', 'grid': '▦',
+        'list': '📝', 'menu': '☰', 'more': '⋯', 'play': '▶️',
+        'pause': '⏸️', 'dollar': '💵', 'percent': '%', 'home': '🏠'
     };
-  }
-};
+
+    var emoji = emojis[name] || emojis[name.split('-')[0]] || '•';
+    return React.createElement('span', { 
+        className: 'icon emoji-icon ' + className,
+        style: { fontSize: size * 0.9, lineHeight: 1 }
+    }, emoji);
+}
 
 // ============================================================================
-// ICON COMPONENT (using Lucide)
+// STAT CARD COMPONENT
 // ============================================================================
-const Icon = ({ name, size = 20, className = '' }) => {
-  // Convert kebab-case to PascalCase
-  const componentName = name.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
-  
-  // Get the icon component from global LucideIcons
-  const IconComponent = window.LucideIcons?.[componentName] || window[componentName];
-  
-  if (IconComponent) {
-    return React.createElement(IconComponent, { size, className: `icon ${className}` });
-  }
-  
-  // Fallback: return empty span
-  return React.createElement('span', { className: `icon ${className}` });
-};
+function StatCard(props) {
+    var title = props.title;
+    var value = props.value;
+    var subtitle = props.subtitle;
+    var icon = props.icon;
+    var color = props.color || '#00d4ff';
+    var trend = props.trend;
+    var trendValue = props.trendValue;
+    var sparklineData = props.sparklineData;
+    var delay = props.delay || 0;
+    var large = props.large;
+    var onClick = props.onClick;
 
-// ============================================================================
-// SKELETON LOADER
-// ============================================================================
-const SkeletonLoader = ({ width = '100%', height = 20, rounded = 8 }) => {
-  return React.createElement(motion.div, {
-    className: 'skeleton',
-    style: { width, height, borderRadius: rounded },
-    animate: { opacity: [0.3, 0.6, 0.3] },
-    transition: { duration: 1.5, repeat: Infinity }
-  });
-};
-
-// ============================================================================
-// MAGNETIC BUTTON
-// ============================================================================
-const MagneticButton = ({ children, onClick, variant = 'default', className = '' }) => {
-  const buttonRef = useRef(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-
-  const handleMouseMove = (e) => {
-    const rect = buttonRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left - rect.width / 2) * 0.2;
-    const y = (e.clientY - rect.top - rect.height / 2) * 0.2;
-    setPosition({ x, y });
-  };
-
-  const handleMouseLeave = () => {
-    setPosition({ x: 0, y: 0 });
-  };
-
-  return React.createElement(motion.button, {
-    ref: buttonRef,
-    className: `magnetic-btn ${variant} ${className}`,
-    onClick,
-    onMouseMove: handleMouseMove,
-    onMouseLeave: handleMouseLeave,
-    animate: { x: position.x, y: position.y },
-    whileHover: { scale: 1.05 },
-    whileTap: { scale: 0.95 },
-    transition: { type: 'spring', stiffness: 300, damping: 20 }
-  }, children);
-};
-
-// ============================================================================
-// GLASSMORPHIC CARD
-// ============================================================================
-const GlassCard = ({ children, className = '', neonColor = null, delay = 0 }) => {
-  return React.createElement(motion.div, {
-    className: `glass-card ${className}`,
-    style: neonColor ? { '--neon-color': neonColor } : {},
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.5, delay }
-  }, children);
-};
-
-// ============================================================================
-// PROGRESS BAR WITH LIGHT REFLECTION
-// ============================================================================
-const GlowProgress = ({ value, max = 100, color = 'var(--neon-blue)', height = 8 }) => {
-  const percentage = Math.min(100, (value / max) * 100);
-  
-  return React.createElement('div', { className: 'glow-progress', style: { height } },
-    React.createElement(motion.div, {
-      className: 'glow-progress-bar',
-      style: { background: color },
-      initial: { width: 0 },
-      animate: { width: `${percentage}%` },
-      transition: { duration: 1, ease: 'easeOut' }
+    return React.createElement(GlassCard, { 
+        className: 'stat-card' + (large ? ' large' : '') + (onClick ? ' clickable' : ''),
+        delay: delay,
+        onClick: onClick
     },
-      React.createElement('div', { className: 'glow-progress-shine' })
-    )
-  );
-};
+        React.createElement('div', { className: 'stat-card-header' },
+            React.createElement('span', { className: 'stat-card-title' }, title),
+            icon && React.createElement('div', { 
+                className: 'stat-card-icon',
+                style: { color: color }
+            }, React.createElement(Icon, { name: icon, size: 20 }))
+        ),
+        React.createElement('div', { className: 'stat-card-value', style: { color: color } }, value),
+        (subtitle || trend !== undefined) && React.createElement('div', { className: 'stat-card-footer' },
+            subtitle && React.createElement('span', { className: 'stat-card-subtitle' }, subtitle),
+            trend !== undefined && React.createElement('span', { 
+                className: 'stat-card-trend ' + (trend >= 0 ? 'positive' : 'negative')
+            },
+                React.createElement(Icon, { name: trend >= 0 ? 'trending-up' : 'trending-down', size: 14 }),
+                ' ' + Math.abs(trend) + '%'
+            )
+        ),
+        sparklineData && React.createElement('div', { className: 'stat-card-sparkline' },
+            React.createElement(Sparkline, { data: sparklineData, color: color, width: 120, height: 30, showArea: true })
+        )
+    );
+}
 
 // ============================================================================
 // SIDEBAR COMPONENT
 // ============================================================================
-const Sidebar = ({ activeView, setActiveView, collapsed, setCollapsed }) => {
-  const menuItems = [
-    { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
-    { id: 'kanban', icon: 'kanban', label: 'Kanban' },
-    { id: 'gantt', icon: 'gantt-chart', label: 'Gantt' },
-    { id: 'workload', icon: 'users', label: 'Workload' },
-    { id: 'analytics', icon: 'bar-chart-3', label: 'Analytics' },
-    { id: 'settings', icon: 'settings', label: 'Settings' }
-  ];
+function Sidebar(props) {
+    var activeView = props.activeView;
+    var setActiveView = props.setActiveView;
+    var collapsed = props.collapsed;
+    var setCollapsed = props.setCollapsed;
+    var project = props.project;
 
-  return React.createElement(motion.aside, {
-    className: `sidebar ${collapsed ? 'collapsed' : ''}`,
-    animate: { width: collapsed ? 70 : 240 }
-  },
-    React.createElement('div', { className: 'sidebar-header' },
-      !collapsed && React.createElement('span', { className: 'sidebar-logo' }, '🚀 Project Hub'),
-      React.createElement(MagneticButton, {
-        variant: 'ghost',
-        onClick: () => setCollapsed(!collapsed)
-      }, React.createElement(Icon, { name: collapsed ? 'chevron-right' : 'chevron-left', size: 18 }))
-    ),
-    React.createElement('nav', { className: 'sidebar-nav' },
-      menuItems.map((item, i) => 
-        React.createElement(motion.button, {
-          key: item.id,
-          className: `sidebar-item ${activeView === item.id ? 'active' : ''}`,
-          onClick: () => setActiveView(item.id),
-          initial: { opacity: 0, x: -20 },
-          animate: { opacity: 1, x: 0 },
-          transition: { delay: i * 0.05 }
-        },
-          React.createElement(Icon, { name: item.icon, size: 20 }),
-          !collapsed && React.createElement('span', null, item.label)
-        )
-      )
-    )
-  );
-};
+    var navItems = [
+        { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
+        { id: 'kanban', icon: 'kanban', label: 'Kanban Board' },
+        { id: 'gantt', icon: 'gantt-chart', label: 'Timeline' },
+        { id: 'team', icon: 'users', label: 'Team' },
+        { id: 'budget', icon: 'pie-chart', label: 'Budget' },
+        { id: 'analytics', icon: 'bar-chart-2', label: 'Analytics' },
+        { id: 'activity', icon: 'activity', label: 'Activity' },
+        { id: 'settings', icon: 'settings', label: 'Settings' }
+    ];
 
-// ============================================================================
-// KANBAN BOARD
-// ============================================================================
-const KanbanBoard = ({ tasks, setTasks, collaborators }) => {
-  const columns = [
-    { id: 'backlog', title: 'Backlog', icon: 'inbox', color: 'var(--neon-gray)' },
-    { id: 'todo', title: 'To Do', icon: 'list-todo', color: 'var(--neon-blue)' },
-    { id: 'in-progress', title: 'In Progress', icon: 'loader', color: 'var(--neon-yellow)' },
-    { id: 'review', title: 'Review', icon: 'eye', color: 'var(--neon-purple)' },
-    { id: 'done', title: 'Done', icon: 'check-circle', color: 'var(--neon-green)' }
-  ];
-
-  const getColumnTasks = (columnId) => tasks.filter(t => t.status === columnId);
-  
-  const calculateColumnVelocity = (columnId) => {
-    const columnTasks = getColumnTasks(columnId);
-    const totalHours = columnTasks.reduce((sum, t) => sum + t.estimatedHours, 0);
-    return totalHours;
-  };
-
-  const handleDragEnd = (taskId, newStatus) => {
-    setTasks(prev => prev.map(t => 
-      t.id === taskId ? { ...t, status: newStatus } : t
-    ));
-  };
-
-  const getAssignee = (assigneeId) => collaborators.find(c => c.id === assigneeId);
-
-  const priorityColors = {
-    urgent: 'var(--neon-red)',
-    high: 'var(--neon-orange)',
-    medium: 'var(--neon-yellow)',
-    low: 'var(--neon-gray)'
-  };
-
-  return React.createElement('div', { className: 'kanban-board' },
-    columns.map((column, colIndex) => 
-      React.createElement(motion.div, {
-        key: column.id,
-        className: 'kanban-column',
-        initial: { opacity: 0, y: 30 },
-        animate: { opacity: 1, y: 0 },
-        transition: { delay: colIndex * 0.1 }
-      },
-        React.createElement('div', { 
-          className: 'kanban-column-header',
-          style: { borderColor: column.color }
-        },
-          React.createElement('div', { className: 'kanban-column-title' },
-            React.createElement(Icon, { name: column.icon, size: 18 }),
-            React.createElement('span', null, column.title),
-            React.createElement('span', { className: 'task-count' }, getColumnTasks(column.id).length)
-          ),
-          React.createElement('div', { className: 'kanban-column-velocity' },
-            React.createElement(Icon, { name: 'clock', size: 14 }),
-            React.createElement('span', null, `${calculateColumnVelocity(column.id)}h`)
-          )
-        ),
-        React.createElement('div', { className: 'kanban-tasks' },
-          getColumnTasks(column.id).map((task, taskIndex) => {
-            const assignee = getAssignee(task.assignee);
-            const hasBlocker = task.blockers && task.blockers.length > 0;
-            
-            return React.createElement(motion.div, {
-              key: task.id,
-              className: `kanban-task ${hasBlocker ? 'blocked' : ''}`,
-              draggable: true,
-              initial: { opacity: 0, scale: 0.9 },
-              animate: { opacity: 1, scale: 1 },
-              transition: { delay: taskIndex * 0.05 },
-              whileHover: { scale: 1.02, y: -2 }
-            },
-              hasBlocker && React.createElement('div', { className: 'blocker-indicator' },
-                React.createElement(Icon, { name: 'alert-triangle', size: 14 }),
-                'Blocked'
-              ),
-              React.createElement('div', { 
-                className: 'task-priority',
-                style: { background: priorityColors[task.priority] }
-              }),
-              React.createElement('h4', { className: 'task-title' }, task.title),
-              React.createElement('div', { className: 'task-tags' },
-                task.tags.slice(0, 2).map(tag => 
-                  React.createElement('span', { key: tag, className: 'task-tag' }, tag)
-                )
-              ),
-              React.createElement('div', { className: 'task-footer' },
-                assignee && React.createElement('div', { className: 'task-assignee' },
-                  React.createElement('img', { src: assignee.avatar, alt: assignee.name }),
-                  React.createElement('span', null, assignee.name.split(' ')[0])
-                ),
-                React.createElement('div', { className: 'task-hours' },
-                  React.createElement(Icon, { name: 'clock', size: 12 }),
-                  `${task.actualHours}/${task.estimatedHours}h`
-                )
-              )
-            );
-          })
-        )
-      )
-    )
-  );
-};
-
-// ============================================================================
-// GANTT CHART
-// ============================================================================
-const GanttChart = ({ tasks, collaborators }) => {
-  const [zoom, setZoom] = useState('week'); // day, week, month
-  const today = new Date();
-  
-  // Calculate date range
-  const allDates = tasks
-    .filter(t => t.startDate)
-    .flatMap(t => [new Date(t.startDate), t.endDate ? new Date(t.endDate) : new Date(t.startDate)]);
-  
-  const minDate = new Date(Math.min(...allDates, today));
-  const maxDate = new Date(Math.max(...allDates, today));
-  minDate.setDate(minDate.getDate() - 7);
-  maxDate.setDate(maxDate.getDate() + 14);
-
-  const getDateRange = () => {
-    const dates = [];
-    const current = new Date(minDate);
-    while (current <= maxDate) {
-      dates.push(new Date(current));
-      current.setDate(current.getDate() + 1);
-    }
-    return dates;
-  };
-
-  const dateRange = getDateRange();
-  const dayWidth = zoom === 'day' ? 40 : zoom === 'week' ? 20 : 8;
-
-  const getTaskPosition = (task) => {
-    if (!task.startDate) return null;
-    const start = new Date(task.startDate);
-    const end = task.endDate ? new Date(task.endDate) : new Date(task.startDate);
-    
-    const startOffset = Math.floor((start - minDate) / (1000 * 60 * 60 * 24));
-    const duration = Math.max(1, Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1);
-    
-    return {
-      left: startOffset * dayWidth,
-      width: duration * dayWidth
-    };
-  };
-
-  const getTodayPosition = () => {
-    return Math.floor((today - minDate) / (1000 * 60 * 60 * 24)) * dayWidth;
-  };
-
-  const filteredTasks = tasks.filter(t => t.startDate).sort((a, b) => 
-    new Date(a.startDate) - new Date(b.startDate)
-  );
-
-  const getAssignee = (id) => collaborators.find(c => c.id === id);
-
-  const statusColors = {
-    'backlog': 'var(--neon-gray)',
-    'todo': 'var(--neon-blue)',
-    'in-progress': 'var(--neon-yellow)',
-    'review': 'var(--neon-purple)',
-    'done': 'var(--neon-green)'
-  };
-
-  return React.createElement(GlassCard, { className: 'gantt-container' },
-    React.createElement('div', { className: 'gantt-header' },
-      React.createElement('h3', null, 
-        React.createElement(Icon, { name: 'gantt-chart', size: 22 }),
-        'Gantt Timeline'
-      ),
-      React.createElement('div', { className: 'gantt-controls' },
-        ['day', 'week', 'month'].map(z => 
-          React.createElement(MagneticButton, {
-            key: z,
-            variant: zoom === z ? 'primary' : 'ghost',
-            onClick: () => setZoom(z)
-          }, z.charAt(0).toUpperCase() + z.slice(1))
-        )
-      )
-    ),
-    React.createElement('div', { className: 'gantt-scroll' },
-      React.createElement('div', { className: 'gantt-timeline', style: { width: dateRange.length * dayWidth } },
-        // Date headers
-        React.createElement('div', { className: 'gantt-dates' },
-          dateRange.map((date, i) => {
-            const isToday = date.toDateString() === today.toDateString();
-            const showLabel = zoom === 'day' || (zoom === 'week' && date.getDay() === 1) || (zoom === 'month' && date.getDate() === 1);
-            
-            return React.createElement('div', {
-              key: i,
-              className: `gantt-date ${isToday ? 'today' : ''} ${date.getDay() === 0 || date.getDay() === 6 ? 'weekend' : ''}`,
-              style: { width: dayWidth }
-            }, showLabel && formatDate(date));
-          })
-        ),
-        // Today line
-        React.createElement('div', {
-          className: 'gantt-today-line',
-          style: { left: getTodayPosition() }
-        }),
-        // Tasks
-        React.createElement('div', { className: 'gantt-tasks' },
-          filteredTasks.map((task, i) => {
-            const pos = getTaskPosition(task);
-            if (!pos) return null;
-            const assignee = getAssignee(task.assignee);
-            
-            // Find dependencies
-            const deps = tasks.filter(t => task.dependencies.includes(t.id));
-            
-            return React.createElement(motion.div, {
-              key: task.id,
-              className: 'gantt-task-row',
-              initial: { opacity: 0, x: -20 },
-              animate: { opacity: 1, x: 0 },
-              transition: { delay: i * 0.03 }
-            },
-              React.createElement('div', { className: 'gantt-task-info' },
-                assignee && React.createElement('img', { 
-                  src: assignee.avatar, 
-                  alt: assignee.name,
-                  className: 'gantt-task-avatar'
-                }),
-                React.createElement('span', { className: 'gantt-task-title' }, 
-                  task.title.length > 25 ? task.title.slice(0, 25) + '...' : task.title
-                )
-              ),
-              React.createElement('div', { className: 'gantt-task-bar-container' },
-                React.createElement(motion.div, {
-                  className: 'gantt-task-bar',
-                  style: {
-                    left: pos.left,
-                    width: pos.width,
-                    background: statusColors[task.status]
-                  },
-                  whileHover: { scale: 1.05, y: -2 }
-                },
-                  React.createElement('div', { className: 'gantt-task-progress' },
-                    React.createElement('div', { 
-                      className: 'gantt-task-progress-fill',
-                      style: { width: `${(task.actualHours / task.estimatedHours) * 100}%` }
-                    })
-                  )
-                ),
-                // Dependency arrows
-                deps.map(dep => {
-                  const depPos = getTaskPosition(dep);
-                  if (!depPos) return null;
-                  
-                  return React.createElement('svg', {
-                    key: `${dep.id}-${task.id}`,
-                    className: 'gantt-dependency',
-                    style: {
-                      left: depPos.left + depPos.width,
-                      width: pos.left - (depPos.left + depPos.width)
-                    }
-                  },
-                    React.createElement('path', {
-                      d: `M 0 15 L ${pos.left - (depPos.left + depPos.width) - 5} 15`,
-                      stroke: 'var(--neon-cyan)',
-                      strokeWidth: 2,
-                      fill: 'none',
-                      markerEnd: 'url(#arrowhead)'
-                    })
-                  );
-                })
-              )
-            );
-          })
-        )
-      )
-    ),
-    // Arrow marker definition
-    React.createElement('svg', { style: { position: 'absolute', width: 0, height: 0 } },
-      React.createElement('defs', null,
-        React.createElement('marker', {
-          id: 'arrowhead',
-          markerWidth: 10,
-          markerHeight: 7,
-          refX: 9,
-          refY: 3.5,
-          orient: 'auto'
-        },
-          React.createElement('polygon', {
-            points: '0 0, 10 3.5, 0 7',
-            fill: 'var(--neon-cyan)'
-          })
-        )
-      )
-    )
-  );
-};
-
-// ============================================================================
-// WORKLOAD MATRIX
-// ============================================================================
-const WorkloadMatrix = ({ collaborators, tasks }) => {
-  const calculateWorkload = (collabId) => {
-    const assignedTasks = tasks.filter(t => t.assignee === collabId && t.status !== 'done');
-    const totalHours = assignedTasks.reduce((sum, t) => sum + (t.estimatedHours - t.actualHours), 0);
-    return totalHours;
-  };
-
-  const getLoadStatus = (current, capacity) => {
-    const ratio = current / capacity;
-    if (ratio > 1.1) return 'overload';
-    if (ratio > 0.9) return 'high';
-    if (ratio > 0.6) return 'optimal';
-    return 'low';
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      overload: 'var(--neon-red)',
-      high: 'var(--neon-orange)',
-      optimal: 'var(--neon-green)',
-      low: 'var(--neon-gray)'
-    };
-    return colors[status];
-  };
-
-  // Skills radar data
-  const allSkills = [...new Set(collaborators.flatMap(c => c.skills))];
-
-  return React.createElement(GlassCard, { className: 'workload-container' },
-    React.createElement('div', { className: 'workload-header' },
-      React.createElement('h3', null,
-        React.createElement(Icon, { name: 'users', size: 22 }),
-        'Resource Workload Matrix'
-      )
-    ),
-    React.createElement('div', { className: 'workload-grid' },
-      collaborators.map((collab, i) => {
-        const workload = calculateWorkload(collab.id);
-        const status = getLoadStatus(collab.currentLoad, collab.capacity);
-        const loadPercentage = (collab.currentLoad / collab.capacity) * 100;
-        
-        return React.createElement(motion.div, {
-          key: collab.id,
-          className: `workload-card ${status}`,
-          initial: { opacity: 0, scale: 0.9 },
-          animate: { opacity: 1, scale: 1 },
-          transition: { delay: i * 0.08 }
-        },
-          status === 'overload' && React.createElement(motion.div, {
-            className: 'burnout-alert',
-            animate: { opacity: [0.5, 1, 0.5] },
-            transition: { duration: 1.5, repeat: Infinity }
-          },
-            React.createElement(Icon, { name: 'alert-octagon', size: 16 }),
-            'BURNOUT RISK'
-          ),
-          React.createElement('div', { className: 'workload-card-header' },
-            React.createElement('img', { 
-              src: collab.avatar, 
-              alt: collab.name,
-              className: 'workload-avatar'
-            }),
-            React.createElement('div', { className: 'workload-info' },
-              React.createElement('h4', null, collab.name),
-              React.createElement('span', { className: 'workload-role' }, collab.role)
-            )
-          ),
-          React.createElement('div', { className: 'workload-stats' },
-            React.createElement('div', { className: 'workload-stat' },
-              React.createElement('span', { className: 'stat-label' }, 'Load'),
-              React.createElement('span', { 
-                className: 'stat-value',
-                style: { color: getStatusColor(status) }
-              }, `${collab.currentLoad}/${collab.capacity}h`)
+    return React.createElement('aside', { className: 'sidebar' + (collapsed ? ' collapsed' : '') },
+        React.createElement('div', { className: 'sidebar-header' },
+            React.createElement('div', { className: 'sidebar-logo' },
+                React.createElement('span', { className: 'logo-icon' }, '🚀'),
+                !collapsed && React.createElement('span', { className: 'logo-text' }, 'Project Hub')
             ),
-            React.createElement('div', { className: 'workload-stat' },
-              React.createElement('span', { className: 'stat-label' }, 'Remaining'),
-              React.createElement('span', { className: 'stat-value' }, `${workload}h`)
+            React.createElement('button', { 
+                className: 'sidebar-toggle',
+                onClick: function() { setCollapsed(!collapsed); }
+            }, collapsed ? '→' : '←')
+        ),
+        !collapsed && project && React.createElement('div', { className: 'sidebar-project' },
+            React.createElement('div', { className: 'project-name' }, project.name),
+            React.createElement('div', { className: 'project-sprint' }, 'Sprint ' + project.currentSprint)
+        ),
+        React.createElement('nav', { className: 'sidebar-nav' },
+            navItems.map(function(item) {
+                return React.createElement('button', {
+                    key: item.id,
+                    className: 'nav-item' + (activeView === item.id ? ' active' : ''),
+                    onClick: function() { setActiveView(item.id); },
+                    title: collapsed ? item.label : ''
+                },
+                    React.createElement(Icon, { name: item.icon, size: 20 }),
+                    !collapsed && React.createElement('span', null, item.label)
+                );
+            })
+        ),
+        React.createElement('div', { className: 'sidebar-footer' },
+            !collapsed && React.createElement('div', { className: 'sidebar-user' },
+                React.createElement('span', { className: 'user-avatar' }, '👤'),
+                React.createElement('div', { className: 'user-info' },
+                    React.createElement('span', { className: 'user-name' }, 'Admin'),
+                    React.createElement('span', { className: 'user-role' }, 'Project Owner')
+                )
             )
-          ),
-          React.createElement('div', { className: 'workload-bar' },
-            React.createElement(GlowProgress, {
-              value: loadPercentage,
-              max: 100,
-              color: getStatusColor(status),
-              height: 6
-            }),
-            React.createElement('span', { className: 'workload-percentage' }, `${loadPercentage.toFixed(0)}%`)
-          ),
-          React.createElement('div', { className: 'workload-skills' },
-            collab.skills.slice(0, 3).map(skill => 
-              React.createElement('span', { key: skill, className: 'skill-tag' }, skill)
-            )
-          )
-        );
-      })
-    )
-  );
-};
+        )
+    );
+}
 
 // ============================================================================
 // DASHBOARD VIEW
 // ============================================================================
-const DashboardView = ({ data, prediction, risks, sentiment }) => {
-  const { tasks, collaborators, financials, history, project } = data;
-  
-  // Calculate metrics
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const inProgressTasks = tasks.filter(t => t.status === 'in-progress').length;
-  const blockedTasks = tasks.filter(t => t.blockers && t.blockers.length > 0).length;
-  
-  const budgetUsed = ((financials.spent / financials.totalBudget) * 100).toFixed(1);
-  const progressPercent = ((completedTasks / totalTasks) * 100).toFixed(1);
+function DashboardView(props) {
+    var tasks = props.tasks;
+    var collaborators = props.collaborators;
+    var financials = props.financials;
+    var history = props.history;
+    var project = props.project;
+    var setActiveView = props.setActiveView;
 
-  // Prepare chart data
-  const progressChartData = history.slice(-30).map(h => ({
-    date: h.date.slice(5),
-    completed: h.tasksCompleted,
-    burndown: h.burndown,
-    velocity: h.velocity
-  }));
+    // Calculate metrics
+    var completedTasks = tasks.filter(function(t) { return t.status === 'done'; }).length;
+    var inProgressTasks = tasks.filter(function(t) { return t.status === 'in-progress'; }).length;
+    var blockedTasks = tasks.filter(function(t) { return t.status === 'blocked'; }).length;
+    var totalTasks = tasks.length;
+    var progress = Math.round((completedTasks / totalTasks) * 100);
 
-  // Add prediction curve
-  const predictionCurve = prediction ? PredictionEngine.generatePredictionCurve(tasks, history, 14) : [];
-  
-  const budgetChartData = financials.monthlyBurn.map(m => ({
-    month: m.month.split(' ')[0],
-    planned: m.planned / 1000,
-    actual: m.actual ? m.actual / 1000 : null
-  }));
+    var totalEstimate = tasks.reduce(function(sum, t) { return sum + (t.estimate || 0); }, 0);
+    var totalSpent = tasks.reduce(function(sum, t) { return sum + (t.spent || 0); }, 0);
 
-  // Team skills radar data
-  const skillsData = collaborators.reduce((acc, collab) => {
-    collab.skills.forEach(skill => {
-      const existing = acc.find(s => s.skill === skill);
-      if (existing) {
-        existing.count++;
-      } else {
-        acc.push({ skill, count: 1 });
-      }
+    var daysRemaining = calculateDaysRemaining(project.targetDate);
+    var overloadedMembers = collaborators.filter(function(c) { return c.currentLoad > c.capacity; }).length;
+
+    // Velocity data (last 14 days)
+    var velocityData = history.slice(-14).map(function(h) {
+        return { date: h.date.slice(5), velocity: h.velocity, completed: h.tasksCompleted };
     });
-    return acc;
-  }, []).slice(0, 8);
 
-  return React.createElement('div', { className: 'dashboard-view' },
-    // Header Stats
-    React.createElement('div', { className: 'bento-grid stats-grid' },
-      // Main Progress
-      React.createElement(GlassCard, { 
-        className: 'stat-card main-progress', 
-        neonColor: 'var(--neon-blue)',
-        delay: 0 
-      },
-        React.createElement('div', { className: 'stat-header' },
-          React.createElement(Icon, { name: 'trending-up', size: 24 }),
-          React.createElement('span', null, 'Project Progress')
-        ),
-        React.createElement('div', { className: 'stat-value large' }, `${progressPercent}%`),
-        React.createElement(GlowProgress, { 
-          value: parseFloat(progressPercent), 
-          color: 'var(--neon-blue)' 
-        }),
-        React.createElement('div', { className: 'stat-footer' },
-          `${completedTasks} of ${totalTasks} tasks completed`
-        )
-      ),
+    // Task distribution by status
+    var statusDistribution = [
+        { name: 'Backlog', value: tasks.filter(function(t) { return t.status === 'backlog'; }).length, color: '#6b7280' },
+        { name: 'To Do', value: tasks.filter(function(t) { return t.status === 'todo'; }).length, color: '#00d4ff' },
+        { name: 'In Progress', value: inProgressTasks, color: '#a855f7' },
+        { name: 'Review', value: tasks.filter(function(t) { return t.status === 'review'; }).length, color: '#facc15' },
+        { name: 'Done', value: completedTasks, color: '#22c55e' },
+        { name: 'Blocked', value: blockedTasks, color: '#ef4444' }
+    ].filter(function(s) { return s.value > 0; });
 
-      // Sentiment Score
-      React.createElement(GlassCard, { 
-        className: 'stat-card sentiment-card', 
-        neonColor: sentiment.status === 'healthy' ? 'var(--neon-green)' : 
-                   sentiment.status === 'warning' ? 'var(--neon-yellow)' : 'var(--neon-red)',
-        delay: 0.1
-      },
-        React.createElement('div', { className: 'stat-header' },
-          React.createElement(Icon, { name: 'heart-pulse', size: 24 }),
-          React.createElement('span', null, 'Project Health')
-        ),
-        React.createElement('div', { className: 'sentiment-gauge' },
-          React.createElement('div', { 
-            className: `sentiment-score ${sentiment.status}`,
-          }, sentiment.score),
-          React.createElement('div', { className: 'sentiment-trend' },
-            React.createElement(Icon, { 
-              name: sentiment.trend === 'up' ? 'trending-up' : 
-                    sentiment.trend === 'down' ? 'trending-down' : 'minus',
-              size: 18
+    // Priority distribution
+    var priorityData = [
+        { name: 'Critical', value: tasks.filter(function(t) { return t.priority === 'critical'; }).length, color: '#ef4444' },
+        { name: 'High', value: tasks.filter(function(t) { return t.priority === 'high'; }).length, color: '#f97316' },
+        { name: 'Medium', value: tasks.filter(function(t) { return t.priority === 'medium'; }).length, color: '#facc15' },
+        { name: 'Low', value: tasks.filter(function(t) { return t.priority === 'low'; }).length, color: '#22c55e' }
+    ];
+
+    // Budget data
+    var budgetUsed = Math.round((financials.spent / financials.totalBudget) * 100);
+
+    // Health score calculation
+    var healthScore = Math.round(
+        (progress * 0.3) + 
+        ((1 - blockedTasks / totalTasks) * 30) + 
+        ((1 - overloadedMembers / collaborators.length) * 20) + 
+        ((financials.remaining > 0 ? 1 : 0) * 20)
+    );
+
+    var healthColor = healthScore >= 70 ? '#22c55e' : healthScore >= 50 ? '#facc15' : '#ef4444';
+    var healthLabel = healthScore >= 70 ? 'Healthy' : healthScore >= 50 ? 'At Risk' : 'Critical';
+
+    return React.createElement('div', { className: 'dashboard-view' },
+        // Header Stats
+        React.createElement('div', { className: 'stats-grid' },
+            React.createElement(StatCard, {
+                title: 'Project Progress',
+                value: progress + '%',
+                subtitle: completedTasks + ' of ' + totalTasks + ' tasks',
+                icon: 'target',
+                color: '#00d4ff',
+                delay: 0.1,
+                sparklineData: history.slice(-30).map(function(h) { return h.tasksCompleted; })
             }),
-            sentiment.trend === 'up' ? 'Improving' : 
-            sentiment.trend === 'down' ? 'Declining' : 'Stable'
-          )
-        )
-      ),
-
-      // Budget
-      React.createElement(GlassCard, { 
-        className: 'stat-card', 
-        neonColor: 'var(--neon-purple)',
-        delay: 0.2 
-      },
-        React.createElement('div', { className: 'stat-header' },
-          React.createElement(Icon, { name: 'wallet', size: 24 }),
-          React.createElement('span', null, 'Budget Status')
-        ),
-        React.createElement('div', { className: 'stat-value' }, formatCurrency(financials.spent)),
-        React.createElement('div', { className: 'stat-subvalue' }, 
-          `of ${formatCurrency(financials.totalBudget)} (${budgetUsed}%)`
-        ),
-        React.createElement(GlowProgress, { 
-          value: parseFloat(budgetUsed), 
-          color: parseFloat(budgetUsed) > 80 ? 'var(--neon-red)' : 'var(--neon-purple)' 
-        })
-      ),
-
-      // Sprint
-      React.createElement(GlassCard, { 
-        className: 'stat-card', 
-        neonColor: 'var(--neon-cyan)',
-        delay: 0.3 
-      },
-        React.createElement('div', { className: 'stat-header' },
-          React.createElement(Icon, { name: 'zap', size: 24 }),
-          React.createElement('span', null, `Sprint ${project.sprintNumber}`)
-        ),
-        React.createElement('div', { className: 'stat-value' }, inProgressTasks),
-        React.createElement('div', { className: 'stat-subvalue' }, 'tasks in progress'),
-        React.createElement('div', { className: 'sprint-dates' },
-          `${formatDate(project.sprintStartDate)} → ${formatDate(project.sprintEndDate)}`
-        )
-      ),
-
-      // Blockers
-      React.createElement(GlassCard, { 
-        className: 'stat-card', 
-        neonColor: blockedTasks > 0 ? 'var(--neon-red)' : 'var(--neon-green)',
-        delay: 0.4 
-      },
-        React.createElement('div', { className: 'stat-header' },
-          React.createElement(Icon, { name: 'alert-triangle', size: 24 }),
-          React.createElement('span', null, 'Blockers')
-        ),
-        React.createElement('div', { 
-          className: 'stat-value',
-          style: { color: blockedTasks > 0 ? 'var(--neon-red)' : 'var(--neon-green)' }
-        }, blockedTasks),
-        React.createElement('div', { className: 'stat-subvalue' }, 
-          blockedTasks > 0 ? 'tasks blocked' : 'no blockers!'
-        )
-      ),
-
-      // Prediction (Time-Traveler)
-      React.createElement(GlassCard, { 
-        className: 'stat-card prediction-card', 
-        neonColor: 'var(--neon-pink)',
-        delay: 0.5 
-      },
-        React.createElement('div', { className: 'stat-header' },
-          React.createElement(Icon, { name: 'sparkles', size: 24 }),
-          React.createElement('span', null, 'AI Prediction')
-        ),
-        prediction ? React.createElement(React.Fragment, null,
-          React.createElement('div', { className: 'prediction-date' },
-            React.createElement(Icon, { name: 'calendar', size: 18 }),
-            prediction.date.toLocaleDateString('fr-FR', { 
-              day: 'numeric', 
-              month: 'long', 
-              year: 'numeric' 
-            })
-          ),
-          React.createElement('div', { className: 'prediction-details' },
-            React.createElement('span', null, `${prediction.daysRemaining} days remaining`),
-            React.createElement('span', { className: 'confidence' }, `${prediction.confidence}% confidence`)
-          ),
-          React.createElement('div', { className: 'prediction-formula' },
-            'T = T₀ + (Tasks ÷ V̄)'
-          )
-        ) : React.createElement(SkeletonLoader, { height: 60 })
-      )
-    ),
-
-    // Charts Row
-    React.createElement('div', { className: 'bento-grid charts-grid' },
-      // Progress & Burndown Chart
-      React.createElement(GlassCard, { className: 'chart-card wide', delay: 0.6 },
-        React.createElement('div', { className: 'chart-header' },
-          React.createElement('h3', null,
-            React.createElement(Icon, { name: 'line-chart', size: 20 }),
-            'Progress & Velocity Trend'
-          )
-        ),
-        React.createElement('div', { className: 'chart-container' },
-          React.createElement(Recharts.ResponsiveContainer, { width: '100%', height: 280 },
-            React.createElement(Recharts.ComposedChart, { data: progressChartData },
-              React.createElement(Recharts.CartesianGrid, { 
-                strokeDasharray: '3 3', 
-                stroke: 'rgba(255,255,255,0.1)' 
-              }),
-              React.createElement(Recharts.XAxis, { 
-                dataKey: 'date', 
-                stroke: 'rgba(255,255,255,0.5)',
-                fontSize: 11
-              }),
-              React.createElement(Recharts.YAxis, { 
-                stroke: 'rgba(255,255,255,0.5)',
-                fontSize: 11
-              }),
-              React.createElement(Recharts.Tooltip, { 
-                contentStyle: { 
-                  background: 'rgba(0,0,0,0.8)', 
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 8
-                }
-              }),
-              React.createElement(Recharts.Legend, null),
-              React.createElement(Recharts.Area, {
-                type: 'monotone',
-                dataKey: 'completed',
-                name: 'Completed',
-                fill: 'rgba(14,165,164,0.3)',
-                stroke: 'var(--neon-cyan)'
-              }),
-              React.createElement(Recharts.Line, {
-                type: 'monotone',
-                dataKey: 'burndown',
-                name: 'Burndown',
-                stroke: 'var(--neon-orange)',
-                strokeWidth: 2
-              }),
-              React.createElement(Recharts.Line, {
-                type: 'monotone',
-                dataKey: 'velocity',
-                name: 'Velocity',
-                stroke: 'var(--neon-purple)',
-                strokeWidth: 2,
-                strokeDasharray: '5 5'
-              })
-            )
-          )
-        )
-      ),
-
-      // Budget Chart
-      React.createElement(GlassCard, { className: 'chart-card', delay: 0.7 },
-        React.createElement('div', { className: 'chart-header' },
-          React.createElement('h3', null,
-            React.createElement(Icon, { name: 'bar-chart-3', size: 20 }),
-            'Budget Burn Rate'
-          )
-        ),
-        React.createElement('div', { className: 'chart-container' },
-          React.createElement(Recharts.ResponsiveContainer, { width: '100%', height: 220 },
-            React.createElement(Recharts.BarChart, { data: budgetChartData },
-              React.createElement(Recharts.CartesianGrid, { 
-                strokeDasharray: '3 3', 
-                stroke: 'rgba(255,255,255,0.1)' 
-              }),
-              React.createElement(Recharts.XAxis, { 
-                dataKey: 'month', 
-                stroke: 'rgba(255,255,255,0.5)',
-                fontSize: 11
-              }),
-              React.createElement(Recharts.YAxis, { 
-                stroke: 'rgba(255,255,255,0.5)',
-                fontSize: 11,
-                tickFormatter: (v) => `$${v}k`
-              }),
-              React.createElement(Recharts.Tooltip, { 
-                contentStyle: { 
-                  background: 'rgba(0,0,0,0.8)', 
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 8
-                },
-                formatter: (v) => [`$${v}k`, '']
-              }),
-              React.createElement(Recharts.Bar, {
-                dataKey: 'planned',
-                name: 'Planned',
-                fill: 'rgba(168,85,247,0.4)',
-                radius: [4, 4, 0, 0]
-              }),
-              React.createElement(Recharts.Bar, {
-                dataKey: 'actual',
-                name: 'Actual',
-                fill: 'var(--neon-purple)',
-                radius: [4, 4, 0, 0]
-              })
-            )
-          )
-        )
-      ),
-
-      // Team Skills Radar
-      React.createElement(GlassCard, { className: 'chart-card', delay: 0.8 },
-        React.createElement('div', { className: 'chart-header' },
-          React.createElement('h3', null,
-            React.createElement(Icon, { name: 'radar', size: 20 }),
-            'Team Skills Coverage'
-          )
-        ),
-        React.createElement('div', { className: 'chart-container' },
-          React.createElement(Recharts.ResponsiveContainer, { width: '100%', height: 220 },
-            React.createElement(Recharts.RadarChart, { data: skillsData },
-              React.createElement(Recharts.PolarGrid, { stroke: 'rgba(255,255,255,0.2)' }),
-              React.createElement(Recharts.PolarAngleAxis, { 
-                dataKey: 'skill',
-                stroke: 'rgba(255,255,255,0.6)',
-                fontSize: 10
-              }),
-              React.createElement(Recharts.PolarRadiusAxis, { 
-                stroke: 'rgba(255,255,255,0.3)',
-                fontSize: 10
-              }),
-              React.createElement(Recharts.Radar, {
-                dataKey: 'count',
-                stroke: 'var(--neon-cyan)',
-                fill: 'rgba(14,165,164,0.4)',
-                fillOpacity: 0.6
-              })
-            )
-          )
-        )
-      )
-    ),
-
-    // Risk Insights
-    React.createElement(GlassCard, { className: 'risks-card', delay: 0.9 },
-      React.createElement('div', { className: 'risks-header' },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'brain', size: 22 }),
-          'AI Risk Analysis'
-        )
-      ),
-      React.createElement('div', { className: 'risks-grid' },
-        risks.slice(0, 4).map((risk, i) => 
-          React.createElement(motion.div, {
-            key: i,
-            className: `risk-item ${risk.type}`,
-            initial: { opacity: 0, x: -20 },
-            animate: { opacity: 1, x: 0 },
-            transition: { delay: 1 + i * 0.1 }
-          },
-            React.createElement('div', { className: 'risk-header' },
-              React.createElement(Icon, { 
-                name: risk.type === 'danger' ? 'alert-octagon' : 
-                      risk.type === 'warning' ? 'alert-triangle' : 'check-circle',
-                size: 18
-              }),
-              React.createElement('span', { className: 'risk-category' }, risk.category),
-              React.createElement('span', { className: 'risk-probability' }, `${risk.probability}%`)
+            React.createElement(GlassCard, { className: 'stat-card health-card', delay: 0.15 },
+                React.createElement('div', { className: 'stat-card-header' },
+                    React.createElement('span', { className: 'stat-card-title' }, 'Project Health'),
+                    React.createElement(Icon, { name: 'activity', size: 20 })
+                ),
+                React.createElement(CircularProgress, {
+                    value: healthScore,
+                    max: 100,
+                    size: 90,
+                    strokeWidth: 8,
+                    color: healthColor,
+                    sublabel: healthLabel
+                })
             ),
-            React.createElement('h4', null, risk.title),
-            React.createElement('p', null, risk.message)
-          )
+            React.createElement(StatCard, {
+                title: 'Budget Status',
+                value: formatCurrency(financials.spent),
+                subtitle: 'of ' + formatCurrency(financials.totalBudget) + ' (' + budgetUsed + '%)',
+                icon: 'pie-chart',
+                color: budgetUsed > 80 ? '#ef4444' : budgetUsed > 60 ? '#facc15' : '#22c55e',
+                delay: 0.2,
+                onClick: function() { setActiveView('budget'); }
+            }),
+            React.createElement(StatCard, {
+                title: 'Sprint ' + project.currentSprint,
+                value: inProgressTasks,
+                subtitle: 'tasks in progress',
+                icon: 'zap',
+                color: '#a855f7',
+                delay: 0.25
+            }),
+            React.createElement(StatCard, {
+                title: 'Blockers',
+                value: blockedTasks,
+                subtitle: blockedTasks > 0 ? 'need attention' : 'none',
+                icon: 'alert-triangle',
+                color: blockedTasks > 0 ? '#ef4444' : '#22c55e',
+                delay: 0.3
+            }),
+            React.createElement(StatCard, {
+                title: 'Deadline',
+                value: daysRemaining + ' days',
+                subtitle: formatDate(project.targetDate),
+                icon: 'calendar',
+                color: daysRemaining < 7 ? '#ef4444' : daysRemaining < 14 ? '#facc15' : '#00d4ff',
+                delay: 0.35
+            })
+        ),
+
+        // Charts Row
+        React.createElement('div', { className: 'charts-row' },
+            React.createElement(GlassCard, { className: 'chart-card wide', delay: 0.4 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null,
+                        React.createElement(Icon, { name: 'trending-up', size: 20 }),
+                        ' Velocity Trend'
+                    ),
+                    React.createElement('div', { className: 'chart-legend' },
+                        React.createElement('span', { className: 'legend-item' },
+                            React.createElement('span', { className: 'legend-dot', style: { backgroundColor: '#00d4ff' } }),
+                            'Velocity'
+                        )
+                    )
+                ),
+                React.createElement('div', { className: 'chart-body' },
+                    React.createElement(LineChart, {
+                        data: velocityData,
+                        width: 600,
+                        height: 200,
+                        lines: [{ dataKey: 'velocity', color: '#00d4ff' }],
+                        areaFill: true
+                    })
+                )
+            ),
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.45 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null,
+                        React.createElement(Icon, { name: 'pie-chart', size: 20 }),
+                        ' Task Distribution'
+                    )
+                ),
+                React.createElement('div', { className: 'chart-body centered' },
+                    React.createElement(DonutChart, {
+                        data: statusDistribution,
+                        size: 180,
+                        donutWidth: 25,
+                        centerValue: totalTasks,
+                        centerLabel: 'Total'
+                    })
+                )
+            )
+        ),
+
+        // Team & Budget Row
+        React.createElement('div', { className: 'charts-row' },
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.5 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null,
+                        React.createElement(Icon, { name: 'users', size: 20 }),
+                        ' Team Workload'
+                    ),
+                    React.createElement('button', { 
+                        className: 'btn-link',
+                        onClick: function() { setActiveView('team'); }
+                    }, 'View All')
+                ),
+                React.createElement('div', { className: 'team-workload-mini' },
+                    collaborators.slice(0, 5).map(function(c) {
+                        var loadPercent = Math.round((c.currentLoad / c.capacity) * 100);
+                        var loadColor = loadPercent > 100 ? '#ef4444' : loadPercent > 85 ? '#facc15' : '#22c55e';
+                        return React.createElement('div', { key: c.id, className: 'workload-item' },
+                            React.createElement('div', { className: 'workload-user' },
+                                React.createElement('span', { className: 'user-avatar' }, c.avatar),
+                                React.createElement('span', { className: 'user-name' }, c.name.split(' ')[0])
+                            ),
+                            React.createElement(ProgressBar, {
+                                value: c.currentLoad,
+                                max: c.capacity,
+                                color: loadColor,
+                                height: 6
+                            }),
+                            React.createElement('span', { 
+                                className: 'workload-percent',
+                                style: { color: loadColor }
+                            }, loadPercent + '%')
+                        );
+                    })
+                )
+            ),
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.55 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null,
+                        React.createElement(Icon, { name: 'bar-chart-2', size: 20 }),
+                        ' Priority Breakdown'
+                    )
+                ),
+                React.createElement('div', { className: 'chart-body' },
+                    React.createElement(BarChart, {
+                        data: priorityData,
+                        width: 350,
+                        height: 180,
+                        dataKey: 'value',
+                        labelKey: 'name',
+                        horizontal: true
+                    })
+                )
+            ),
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.6 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null,
+                        React.createElement(Icon, { name: 'clock', size: 20 }),
+                        ' Time Tracking'
+                    )
+                ),
+                React.createElement('div', { className: 'time-stats' },
+                    React.createElement('div', { className: 'time-stat' },
+                        React.createElement('span', { className: 'time-label' }, 'Estimated'),
+                        React.createElement('span', { className: 'time-value' }, totalEstimate + 'h')
+                    ),
+                    React.createElement('div', { className: 'time-stat' },
+                        React.createElement('span', { className: 'time-label' }, 'Spent'),
+                        React.createElement('span', { className: 'time-value', style: { color: totalSpent > totalEstimate ? '#ef4444' : '#22c55e' } }, totalSpent + 'h')
+                    ),
+                    React.createElement('div', { className: 'time-stat' },
+                        React.createElement('span', { className: 'time-label' }, 'Efficiency'),
+                        React.createElement('span', { className: 'time-value' }, Math.round((totalEstimate / (totalSpent || 1)) * 100) + '%')
+                    ),
+                    React.createElement(ProgressBar, {
+                        value: totalSpent,
+                        max: totalEstimate * 1.2,
+                        color: totalSpent > totalEstimate ? '#ef4444' : '#00d4ff',
+                        height: 8,
+                        label: 'Time Budget'
+                    })
+                )
+            )
+        ),
+
+        // Upcoming Deadlines
+        React.createElement(GlassCard, { className: 'deadlines-card', delay: 0.65 },
+            React.createElement('div', { className: 'chart-header' },
+                React.createElement('h3', null,
+                    React.createElement(Icon, { name: 'calendar', size: 20 }),
+                    ' Upcoming Deadlines'
+                )
+            ),
+            React.createElement('div', { className: 'deadlines-list' },
+                tasks
+                    .filter(function(t) { return t.endDate && t.status !== 'done'; })
+                    .sort(function(a, b) { return new Date(a.endDate) - new Date(b.endDate); })
+                    .slice(0, 5)
+                    .map(function(task) {
+                        var days = calculateDaysRemaining(task.endDate);
+                        var isOverdue = days < 0;
+                        var isUrgent = days >= 0 && days <= 2;
+                        return React.createElement('div', { 
+                            key: task.id, 
+                            className: 'deadline-item' + (isOverdue ? ' overdue' : isUrgent ? ' urgent' : '')
+                        },
+                            React.createElement('div', { className: 'deadline-info' },
+                                React.createElement('span', { 
+                                    className: 'deadline-priority',
+                                    style: { backgroundColor: getPriorityColor(task.priority) }
+                                }),
+                                React.createElement('span', { className: 'deadline-title' }, task.title),
+                                React.createElement('span', { 
+                                    className: 'deadline-status',
+                                    style: { color: getStatusColor(task.status) }
+                                }, task.status.replace('-', ' '))
+                            ),
+                            React.createElement('div', { className: 'deadline-date' },
+                                React.createElement('span', null, formatDate(task.endDate)),
+                                React.createElement('span', { 
+                                    className: 'deadline-days',
+                                    style: { color: isOverdue ? '#ef4444' : isUrgent ? '#facc15' : '#6b7280' }
+                                }, isOverdue ? Math.abs(days) + 'd overdue' : days + 'd left')
+                            )
+                        );
+                    })
+            )
         )
-      )
-    )
-  );
-};
+    );
+}
 
 // ============================================================================
-// ANALYTICS VIEW
+// KANBAN VIEW
 // ============================================================================
-const AnalyticsView = ({ data }) => {
-  const { tasks, collaborators, financials, history } = data;
+function KanbanView(props) {
+    var tasks = props.tasks;
+    var setTasks = props.setTasks;
+    var collaborators = props.collaborators;
 
-  // Task distribution by status
-  const statusDistribution = [
-    { name: 'Backlog', value: tasks.filter(t => t.status === 'backlog').length, color: '#6b7280' },
-    { name: 'To Do', value: tasks.filter(t => t.status === 'todo').length, color: '#3b82f6' },
-    { name: 'In Progress', value: tasks.filter(t => t.status === 'in-progress').length, color: '#f59e0b' },
-    { name: 'Review', value: tasks.filter(t => t.status === 'review').length, color: '#a855f7' },
-    { name: 'Done', value: tasks.filter(t => t.status === 'done').length, color: '#22c55e' }
-  ];
+    var columns = [
+        { id: 'backlog', title: 'Backlog', color: '#6b7280' },
+        { id: 'todo', title: 'To Do', color: '#00d4ff' },
+        { id: 'in-progress', title: 'In Progress', color: '#a855f7' },
+        { id: 'review', title: 'Review', color: '#facc15' },
+        { id: 'done', title: 'Done', color: '#22c55e' }
+    ];
 
-  // Priority distribution
-  const priorityDistribution = [
-    { name: 'Urgent', value: tasks.filter(t => t.priority === 'urgent').length, color: '#ef4444' },
-    { name: 'High', value: tasks.filter(t => t.priority === 'high').length, color: '#f97316' },
-    { name: 'Medium', value: tasks.filter(t => t.priority === 'medium').length, color: '#eab308' },
-    { name: 'Low', value: tasks.filter(t => t.priority === 'low').length, color: '#6b7280' }
-  ];
+    var getAssignee = function(id) {
+        return collaborators.find(function(c) { return c.id === id; });
+    };
 
-  // Budget breakdown
-  const budgetBreakdown = Object.entries(financials.breakdown).map(([key, val]) => ({
-    name: key.charAt(0).toUpperCase() + key.slice(1),
-    budget: val.budget / 1000,
-    spent: val.spent / 1000
-  }));
+    var moveTask = function(taskId, newStatus) {
+        setTasks(tasks.map(function(t) {
+            if (t.id === taskId) {
+                return Object.assign({}, t, { status: newStatus });
+            }
+            return t;
+        }));
+    };
 
-  // Morale trend
-  const moraleTrend = history.slice(-30).map(h => ({
-    date: h.date.slice(5),
-    morale: h.teamMorale
-  }));
-
-  return React.createElement('div', { className: 'analytics-view' },
-    React.createElement('h2', { className: 'view-title' },
-      React.createElement(Icon, { name: 'bar-chart-3', size: 28 }),
-      'Analytics Dashboard'
-    ),
-    
-    React.createElement('div', { className: 'bento-grid analytics-grid' },
-      // Status Distribution Pie
-      React.createElement(GlassCard, { className: 'chart-card', delay: 0.1 },
-        React.createElement('h3', null, 
-          React.createElement(Icon, { name: 'pie-chart', size: 20 }),
-          'Task Status Distribution'
-        ),
-        React.createElement('div', { className: 'chart-container' },
-          React.createElement(Recharts.ResponsiveContainer, { width: '100%', height: 250 },
-            React.createElement(Recharts.PieChart, null,
-              React.createElement(Recharts.Pie, {
-                data: statusDistribution,
-                cx: '50%',
-                cy: '50%',
-                innerRadius: 50,
-                outerRadius: 80,
-                dataKey: 'value',
-                label: ({ name, value }) => `${name}: ${value}`
-              },
-                statusDistribution.map((entry, i) => 
-                  React.createElement(Recharts.Cell, { key: i, fill: entry.color })
+    return React.createElement('div', { className: 'kanban-view' },
+        React.createElement('div', { className: 'view-header' },
+            React.createElement('h2', null,
+                React.createElement(Icon, { name: 'kanban', size: 24 }),
+                ' Kanban Board'
+            ),
+            React.createElement('div', { className: 'view-actions' },
+                React.createElement('button', { className: 'btn btn-primary' },
+                    React.createElement(Icon, { name: 'plus', size: 16 }),
+                    ' Add Task'
                 )
-              ),
-              React.createElement(Recharts.Tooltip, {
-                contentStyle: { 
-                  background: 'rgba(0,0,0,0.8)', 
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 8
-                }
-              })
             )
-          )
-        )
-      ),
-
-      // Priority Distribution
-      React.createElement(GlassCard, { className: 'chart-card', delay: 0.2 },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'flag', size: 20 }),
-          'Priority Distribution'
         ),
-        React.createElement('div', { className: 'chart-container' },
-          React.createElement(Recharts.ResponsiveContainer, { width: '100%', height: 250 },
-            React.createElement(Recharts.PieChart, null,
-              React.createElement(Recharts.Pie, {
-                data: priorityDistribution,
-                cx: '50%',
-                cy: '50%',
-                innerRadius: 50,
-                outerRadius: 80,
-                dataKey: 'value',
-                label: ({ name, value }) => `${name}: ${value}`
-              },
-                priorityDistribution.map((entry, i) => 
-                  React.createElement(Recharts.Cell, { key: i, fill: entry.color })
-                )
-              ),
-              React.createElement(Recharts.Tooltip, {
-                contentStyle: { 
-                  background: 'rgba(0,0,0,0.8)', 
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 8
-                }
-              })
-            )
-          )
-        )
-      ),
-
-      // Budget Breakdown
-      React.createElement(GlassCard, { className: 'chart-card wide', delay: 0.3 },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'coins', size: 20 }),
-          'Budget Breakdown by Department'
-        ),
-        React.createElement('div', { className: 'chart-container' },
-          React.createElement(Recharts.ResponsiveContainer, { width: '100%', height: 280 },
-            React.createElement(Recharts.BarChart, { data: budgetBreakdown, layout: 'vertical' },
-              React.createElement(Recharts.CartesianGrid, { 
-                strokeDasharray: '3 3', 
-                stroke: 'rgba(255,255,255,0.1)' 
-              }),
-              React.createElement(Recharts.XAxis, { 
-                type: 'number',
-                stroke: 'rgba(255,255,255,0.5)',
-                tickFormatter: (v) => `$${v}k`
-              }),
-              React.createElement(Recharts.YAxis, { 
-                dataKey: 'name',
-                type: 'category',
-                stroke: 'rgba(255,255,255,0.5)',
-                width: 100
-              }),
-              React.createElement(Recharts.Tooltip, {
-                contentStyle: { 
-                  background: 'rgba(0,0,0,0.8)', 
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 8
+        React.createElement('div', { className: 'kanban-board' },
+            columns.map(function(column) {
+                var columnTasks = tasks.filter(function(t) { 
+                    return t.status === column.id || (column.id === 'in-progress' && t.status === 'blocked');
+                });
+                
+                return React.createElement('div', { 
+                    key: column.id, 
+                    className: 'kanban-column'
                 },
-                formatter: (v) => [`$${v}k`, '']
-              }),
-              React.createElement(Recharts.Legend, null),
-              React.createElement(Recharts.Bar, {
-                dataKey: 'budget',
-                name: 'Budget',
-                fill: 'rgba(168,85,247,0.4)',
-                radius: [0, 4, 4, 0]
-              }),
-              React.createElement(Recharts.Bar, {
-                dataKey: 'spent',
-                name: 'Spent',
-                fill: 'var(--neon-purple)',
-                radius: [0, 4, 4, 0]
-              })
-            )
-          )
+                    React.createElement('div', { 
+                        className: 'column-header',
+                        style: { borderColor: column.color }
+                    },
+                        React.createElement('span', { className: 'column-title' }, column.title),
+                        React.createElement('span', { className: 'column-count' }, columnTasks.length)
+                    ),
+                    React.createElement('div', { className: 'column-tasks' },
+                        columnTasks.map(function(task, index) {
+                            var assignee = getAssignee(task.assignee);
+                            var isBlocked = task.status === 'blocked';
+                            
+                            return React.createElement(motion.div, {
+                                key: task.id,
+                                className: 'kanban-card' + (isBlocked ? ' blocked' : ''),
+                                initial: { opacity: 0, y: 20 },
+                                animate: { opacity: 1, y: 0 },
+                                transition: { delay: index * 0.05 },
+                                whileHover: { scale: 1.02, y: -2 }
+                            },
+                                isBlocked && React.createElement('div', { className: 'blocked-badge' },
+                                    React.createElement(Icon, { name: 'alert-triangle', size: 12 }),
+                                    ' Blocked'
+                                ),
+                                React.createElement('div', { className: 'card-header' },
+                                    React.createElement('span', { 
+                                        className: 'priority-dot',
+                                        style: { backgroundColor: getPriorityColor(task.priority) }
+                                    }),
+                                    React.createElement('span', { className: 'category-tag' }, task.category)
+                                ),
+                                React.createElement('h4', { className: 'card-title' }, task.title),
+                                task.description && React.createElement('p', { className: 'card-description' }, 
+                                    task.description.length > 60 ? task.description.slice(0, 60) + '...' : task.description
+                                ),
+                                React.createElement(ProgressBar, {
+                                    value: task.progress,
+                                    max: 100,
+                                    color: column.color,
+                                    height: 4
+                                }),
+                                React.createElement('div', { className: 'card-footer' },
+                                    assignee && React.createElement('div', { className: 'card-assignee' },
+                                        React.createElement('span', { className: 'assignee-avatar' }, assignee.avatar),
+                                        React.createElement('span', { className: 'assignee-name' }, assignee.name.split(' ')[0])
+                                    ),
+                                    React.createElement('div', { className: 'card-meta' },
+                                        task.estimate && React.createElement('span', { className: 'meta-item' },
+                                            React.createElement(Icon, { name: 'clock', size: 12 }),
+                                            ' ' + task.spent + '/' + task.estimate + 'h'
+                                        )
+                                    )
+                                )
+                            );
+                        })
+                    )
+                );
+            })
         )
-      ),
+    );
+}
 
-      // Team Morale Trend
-      React.createElement(GlassCard, { className: 'chart-card wide', delay: 0.4 },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'smile', size: 20 }),
-          'Team Morale Trend (30 days)'
-        ),
-        React.createElement('div', { className: 'chart-container' },
-          React.createElement(Recharts.ResponsiveContainer, { width: '100%', height: 200 },
-            React.createElement(Recharts.AreaChart, { data: moraleTrend },
-              React.createElement(Recharts.CartesianGrid, { 
-                strokeDasharray: '3 3', 
-                stroke: 'rgba(255,255,255,0.1)' 
-              }),
-              React.createElement(Recharts.XAxis, { 
-                dataKey: 'date',
-                stroke: 'rgba(255,255,255,0.5)',
-                fontSize: 10
-              }),
-              React.createElement(Recharts.YAxis, { 
-                domain: [0, 100],
-                stroke: 'rgba(255,255,255,0.5)'
-              }),
-              React.createElement(Recharts.Tooltip, {
-                contentStyle: { 
-                  background: 'rgba(0,0,0,0.8)', 
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 8
-                }
-              }),
-              React.createElement(Recharts.Area, {
-                type: 'monotone',
-                dataKey: 'morale',
-                stroke: 'var(--neon-pink)',
-                fill: 'rgba(236,72,153,0.3)'
-              })
+// ============================================================================
+// TEAM VIEW
+// ============================================================================
+function TeamView(props) {
+    var collaborators = props.collaborators;
+    var tasks = props.tasks;
+
+    var getMemberTasks = function(memberId) {
+        return tasks.filter(function(t) { return t.assignee === memberId && t.status !== 'done'; });
+    };
+
+    return React.createElement('div', { className: 'team-view' },
+        React.createElement('div', { className: 'view-header' },
+            React.createElement('h2', null,
+                React.createElement(Icon, { name: 'users', size: 24 }),
+                ' Team Overview'
+            ),
+            React.createElement('div', { className: 'team-stats' },
+                React.createElement('span', { className: 'team-stat' },
+                    React.createElement('strong', null, collaborators.length),
+                    ' members'
+                ),
+                React.createElement('span', { className: 'team-stat available' },
+                    React.createElement('strong', null, collaborators.filter(function(c) { return c.status === 'available'; }).length),
+                    ' available'
+                ),
+                React.createElement('span', { className: 'team-stat overloaded' },
+                    React.createElement('strong', null, collaborators.filter(function(c) { return c.currentLoad > c.capacity; }).length),
+                    ' overloaded'
+                )
             )
-          )
+        ),
+        React.createElement('div', { className: 'team-grid' },
+            collaborators.map(function(member, index) {
+                var memberTasks = getMemberTasks(member.id);
+                var loadPercent = Math.round((member.currentLoad / member.capacity) * 100);
+                var isOverloaded = loadPercent > 100;
+                var statusColor = isOverloaded ? '#ef4444' : loadPercent > 85 ? '#facc15' : '#22c55e';
+
+                return React.createElement(GlassCard, { 
+                    key: member.id, 
+                    className: 'team-member-card',
+                    delay: index * 0.1
+                },
+                    React.createElement('div', { className: 'member-header' },
+                        React.createElement('div', { 
+                            className: 'member-avatar large',
+                            style: { borderColor: member.color }
+                        }, member.avatar),
+                        React.createElement('div', { className: 'member-info' },
+                            React.createElement('h3', { className: 'member-name' }, member.name),
+                            React.createElement('span', { className: 'member-role' }, member.role)
+                        ),
+                        React.createElement('div', { 
+                            className: 'member-status',
+                            style: { backgroundColor: statusColor }
+                        }, isOverloaded ? 'Overloaded' : loadPercent > 85 ? 'Busy' : 'Available')
+                    ),
+                    React.createElement('div', { className: 'member-workload' },
+                        React.createElement('div', { className: 'workload-header' },
+                            React.createElement('span', null, 'Workload'),
+                            React.createElement('span', { style: { color: statusColor } }, loadPercent + '%')
+                        ),
+                        React.createElement(ProgressBar, {
+                            value: member.currentLoad,
+                            max: member.capacity,
+                            color: statusColor,
+                            height: 8
+                        }),
+                        React.createElement('div', { className: 'workload-details' },
+                            React.createElement('span', null, member.currentLoad + 'h / ' + member.capacity + 'h per week')
+                        )
+                    ),
+                    React.createElement('div', { className: 'member-skills' },
+                        React.createElement('span', { className: 'skills-label' }, 'Skills'),
+                        React.createElement('div', { className: 'skills-list' },
+                            member.skills.map(function(skill) {
+                                return React.createElement('span', { key: skill, className: 'skill-tag' }, skill);
+                            })
+                        )
+                    ),
+                    React.createElement('div', { className: 'member-tasks' },
+                        React.createElement('span', { className: 'tasks-label' }, 'Active Tasks (' + memberTasks.length + ')'),
+                        React.createElement('div', { className: 'tasks-list' },
+                            memberTasks.slice(0, 3).map(function(task) {
+                                return React.createElement('div', { key: task.id, className: 'mini-task' },
+                                    React.createElement('span', { 
+                                        className: 'task-priority',
+                                        style: { backgroundColor: getPriorityColor(task.priority) }
+                                    }),
+                                    React.createElement('span', { className: 'task-title' }, 
+                                        task.title.length > 25 ? task.title.slice(0, 25) + '...' : task.title
+                                    ),
+                                    React.createElement('span', { 
+                                        className: 'task-status',
+                                        style: { color: getStatusColor(task.status) }
+                                    }, task.progress + '%')
+                                );
+                            }),
+                            memberTasks.length > 3 && React.createElement('div', { className: 'more-tasks' },
+                                '+' + (memberTasks.length - 3) + ' more'
+                            )
+                        )
+                    )
+                );
+            })
         )
-      )
-    )
-  );
-};
+    );
+}
+
+// ============================================================================
+// BUDGET VIEW
+// ============================================================================
+function BudgetView(props) {
+    var financials = props.financials;
+
+    var usedPercent = Math.round((financials.spent / financials.totalBudget) * 100);
+    var committedPercent = Math.round((financials.committed / financials.totalBudget) * 100);
+
+    return React.createElement('div', { className: 'budget-view' },
+        React.createElement('div', { className: 'view-header' },
+            React.createElement('h2', null,
+                React.createElement(Icon, { name: 'pie-chart', size: 24 }),
+                ' Budget Overview'
+            )
+        ),
+        
+        // Budget Summary Cards
+        React.createElement('div', { className: 'budget-summary' },
+            React.createElement(StatCard, {
+                title: 'Total Budget',
+                value: formatCurrency(financials.totalBudget),
+                icon: 'dollar',
+                color: '#00d4ff',
+                delay: 0.1
+            }),
+            React.createElement(StatCard, {
+                title: 'Spent',
+                value: formatCurrency(financials.spent),
+                subtitle: usedPercent + '% used',
+                icon: 'trending-down',
+                color: usedPercent > 80 ? '#ef4444' : '#facc15',
+                delay: 0.15
+            }),
+            React.createElement(StatCard, {
+                title: 'Committed',
+                value: formatCurrency(financials.committed),
+                subtitle: 'Pending expenses',
+                icon: 'clock',
+                color: '#a855f7',
+                delay: 0.2
+            }),
+            React.createElement(StatCard, {
+                title: 'Remaining',
+                value: formatCurrency(financials.remaining),
+                subtitle: financials.remaining < 0 ? 'Over budget!' : 'Available',
+                icon: 'check-circle',
+                color: financials.remaining > 0 ? '#22c55e' : '#ef4444',
+                delay: 0.25
+            })
+        ),
+
+        React.createElement('div', { className: 'budget-charts' },
+            // Category Breakdown
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.3 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null, 'Budget by Category')
+                ),
+                React.createElement('div', { className: 'category-breakdown' },
+                    financials.categories.map(function(cat) {
+                        var usedPct = Math.round((cat.spent / cat.budget) * 100);
+                        return React.createElement('div', { key: cat.name, className: 'category-item' },
+                            React.createElement('div', { className: 'category-header' },
+                                React.createElement('span', { 
+                                    className: 'category-color',
+                                    style: { backgroundColor: cat.color }
+                                }),
+                                React.createElement('span', { className: 'category-name' }, cat.name),
+                                React.createElement('span', { className: 'category-amounts' },
+                                    formatCurrency(cat.spent) + ' / ' + formatCurrency(cat.budget)
+                                )
+                            ),
+                            React.createElement(ProgressBar, {
+                                value: cat.spent,
+                                max: cat.budget,
+                                color: cat.color,
+                                height: 8
+                            })
+                        );
+                    })
+                )
+            ),
+
+            // Monthly Trend
+            React.createElement(GlassCard, { className: 'chart-card wide', delay: 0.35 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null, 'Monthly Spending vs Plan'),
+                    React.createElement('div', { className: 'chart-legend' },
+                        React.createElement('span', { className: 'legend-item' },
+                            React.createElement('span', { className: 'legend-dot', style: { backgroundColor: '#00d4ff' } }),
+                            'Planned'
+                        ),
+                        React.createElement('span', { className: 'legend-item' },
+                            React.createElement('span', { className: 'legend-dot', style: { backgroundColor: '#a855f7' } }),
+                            'Actual'
+                        )
+                    )
+                ),
+                React.createElement('div', { className: 'chart-body' },
+                    React.createElement(BarChart, {
+                        data: financials.monthly.map(function(m) {
+                            return { name: m.month, value: m.actual || m.planned, color: m.actual ? '#a855f7' : 'rgba(168,85,247,0.3)' };
+                        }),
+                        width: 500,
+                        height: 200,
+                        dataKey: 'value',
+                        labelKey: 'name'
+                    })
+                )
+            ),
+
+            // Donut Chart
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.4 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null, 'Allocation Overview')
+                ),
+                React.createElement('div', { className: 'chart-body centered' },
+                    React.createElement(DonutChart, {
+                        data: financials.categories.map(function(c) {
+                            return { name: c.name, value: c.budget, color: c.color };
+                        }),
+                        size: 200,
+                        donutWidth: 30,
+                        centerValue: formatCurrency(financials.totalBudget),
+                        centerLabel: 'Total'
+                    })
+                )
+            )
+        ),
+
+        // Burn Rate Alert
+        React.createElement(GlassCard, { 
+            className: 'alert-card ' + (financials.projectedOverrun > 0 ? 'warning' : 'success'),
+            delay: 0.45
+        },
+            React.createElement('div', { className: 'alert-icon' },
+                React.createElement(Icon, { name: financials.projectedOverrun > 0 ? 'alert-triangle' : 'check-circle', size: 32 })
+            ),
+            React.createElement('div', { className: 'alert-content' },
+                React.createElement('h4', null, 
+                    financials.projectedOverrun > 0 ? 'Budget Warning' : 'Budget On Track'
+                ),
+                React.createElement('p', null,
+                    financials.projectedOverrun > 0 
+                        ? 'At current burn rate (' + formatCurrency(financials.burnRate) + '/week), project is projected to exceed budget by ' + formatCurrency(financials.projectedOverrun)
+                        : 'Current spending is within budget. Keep up the good work!'
+                )
+            )
+        )
+    );
+}
+
+// ============================================================================
+// ACTIVITY VIEW
+// ============================================================================
+function ActivityView(props) {
+    var activities = props.activities;
+    var collaborators = props.collaborators;
+    var tasks = props.tasks;
+
+    var getUser = function(id) {
+        return collaborators.find(function(c) { return c.id === id; }) || { name: 'Unknown', avatar: '👤' };
+    };
+
+    var getTask = function(id) {
+        return tasks.find(function(t) { return t.id === id; });
+    };
+
+    var getActivityIcon = function(type) {
+        var icons = {
+            'task_completed': 'check-circle',
+            'task_started': 'play',
+            'comment': 'message-circle',
+            'review_requested': 'eye',
+            'blocked': 'alert-triangle',
+            'sprint_started': 'zap',
+            'milestone': 'flag'
+        };
+        return icons[type] || 'activity';
+    };
+
+    var getActivityColor = function(type) {
+        var colors = {
+            'task_completed': '#22c55e',
+            'task_started': '#00d4ff',
+            'comment': '#a855f7',
+            'review_requested': '#facc15',
+            'blocked': '#ef4444',
+            'sprint_started': '#ec4899',
+            'milestone': '#f97316'
+        };
+        return colors[type] || '#6b7280';
+    };
+
+    return React.createElement('div', { className: 'activity-view' },
+        React.createElement('div', { className: 'view-header' },
+            React.createElement('h2', null,
+                React.createElement(Icon, { name: 'activity', size: 24 }),
+                ' Activity Feed'
+            )
+        ),
+        React.createElement('div', { className: 'activity-timeline' },
+            activities.map(function(activity, index) {
+                var user = getUser(activity.user);
+                var task = activity.task ? getTask(activity.task) : null;
+                var color = getActivityColor(activity.type);
+
+                return React.createElement(motion.div, {
+                    key: activity.id,
+                    className: 'activity-item',
+                    initial: { opacity: 0, x: -20 },
+                    animate: { opacity: 1, x: 0 },
+                    transition: { delay: index * 0.1 }
+                },
+                    React.createElement('div', { 
+                        className: 'activity-icon',
+                        style: { backgroundColor: color }
+                    },
+                        React.createElement(Icon, { name: getActivityIcon(activity.type), size: 16 })
+                    ),
+                    React.createElement('div', { className: 'activity-content' },
+                        React.createElement('div', { className: 'activity-header' },
+                            React.createElement('span', { className: 'activity-user' },
+                                React.createElement('span', { className: 'user-avatar small' }, user.avatar),
+                                user.name
+                            ),
+                            React.createElement('span', { className: 'activity-message' }, activity.message)
+                        ),
+                        task && React.createElement('div', { className: 'activity-task' },
+                            React.createElement('span', { 
+                                className: 'task-priority',
+                                style: { backgroundColor: getPriorityColor(task.priority) }
+                            }),
+                            task.title
+                        ),
+                        React.createElement('span', { className: 'activity-time' }, formatDateTime(activity.timestamp))
+                    )
+                );
+            })
+        )
+    );
+}
 
 // ============================================================================
 // SETTINGS VIEW
 // ============================================================================
-const SettingsView = ({ onSync, syncStatus }) => {
-  return React.createElement('div', { className: 'settings-view' },
-    React.createElement('h2', { className: 'view-title' },
-      React.createElement(Icon, { name: 'settings', size: 28 }),
-      'Settings'
-    ),
-    
-    React.createElement('div', { className: 'settings-grid' },
-      React.createElement(GlassCard, { className: 'settings-card' },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'cloud', size: 20 }),
-          'Data Synchronization'
-        ),
-        React.createElement('p', null, 'Sync your project data with the Community Data API.'),
-        React.createElement('div', { className: 'sync-status' },
-          React.createElement('span', { 
-            className: `status-indicator ${syncStatus}`
-          }),
-          syncStatus === 'synced' ? 'All changes saved' :
-          syncStatus === 'syncing' ? 'Syncing...' :
-          syncStatus === 'error' ? 'Sync error' : 'Not synced'
-        ),
-        React.createElement(MagneticButton, {
-          variant: 'primary',
-          onClick: onSync
-        },
-          React.createElement(Icon, { name: 'refresh-cw', size: 16 }),
-          'Sync Now'
-        )
-      ),
+function SettingsView(props) {
+    var settings = props.settings;
+    var setSettings = props.setSettings;
 
-      React.createElement(GlassCard, { className: 'settings-card' },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'database', size: 20 }),
-          'Demo Data'
-        ),
-        React.createElement('p', null, 'This dashboard is running with demonstration data including 32 tasks, 8 team members, and 3 months of historical metrics.'),
-        React.createElement('div', { className: 'demo-stats' },
-          React.createElement('div', null, '📊 32 Tasks'),
-          React.createElement('div', null, '👥 8 Team Members'),
-          React.createElement('div', null, '💰 $250k Budget'),
-          React.createElement('div', null, '📅 90 Days History')
-        )
-      ),
+    var toggleSetting = function(key) {
+        var newSettings = Object.assign({}, settings);
+        newSettings[key] = !newSettings[key];
+        setSettings(newSettings);
+    };
 
-      React.createElement(GlassCard, { className: 'settings-card' },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'code', size: 20 }),
-          'API Endpoints'
+    return React.createElement('div', { className: 'settings-view' },
+        React.createElement('div', { className: 'view-header' },
+            React.createElement('h2', null,
+                React.createElement(Icon, { name: 'settings', size: 24 }),
+                ' Settings'
+            )
         ),
-        React.createElement('div', { className: 'api-endpoints' },
-          React.createElement('div', { className: 'endpoint' },
-            React.createElement('span', { className: 'method' }, 'GET'),
-            '/api/community/com.ezgalaxy.projecthub/tasks'
-          ),
-          React.createElement('div', { className: 'endpoint' },
-            React.createElement('span', { className: 'method' }, 'PUT'),
-            '/api/community/com.ezgalaxy.projecthub/tasks/{key}'
-          ),
-          React.createElement('div', { className: 'endpoint' },
-            React.createElement('span', { className: 'method' }, 'GET'),
-            '/api/community/com.ezgalaxy.projecthub/metrics'
-          )
+        React.createElement('div', { className: 'settings-grid' },
+            React.createElement(GlassCard, { className: 'settings-section', delay: 0.1 },
+                React.createElement('h3', null, 'Data Options'),
+                React.createElement('div', { className: 'setting-item' },
+                    React.createElement('div', { className: 'setting-info' },
+                        React.createElement('span', { className: 'setting-label' }, 'Demo Data'),
+                        React.createElement('span', { className: 'setting-description' }, 'Use sample data for demonstration')
+                    ),
+                    React.createElement('button', { 
+                        className: 'toggle-btn ' + (settings.useDemoData ? 'active' : ''),
+                        onClick: function() { toggleSetting('useDemoData'); }
+                    },
+                        React.createElement('span', { className: 'toggle-track' },
+                            React.createElement('span', { className: 'toggle-thumb' })
+                        )
+                    )
+                ),
+                React.createElement('div', { className: 'setting-item' },
+                    React.createElement('div', { className: 'setting-info' },
+                        React.createElement('span', { className: 'setting-label' }, 'Auto-sync'),
+                        React.createElement('span', { className: 'setting-description' }, 'Automatically sync data with server')
+                    ),
+                    React.createElement('button', { 
+                        className: 'toggle-btn ' + (settings.autoSync ? 'active' : ''),
+                        onClick: function() { toggleSetting('autoSync'); }
+                    },
+                        React.createElement('span', { className: 'toggle-track' },
+                            React.createElement('span', { className: 'toggle-thumb' })
+                        )
+                    )
+                )
+            ),
+            React.createElement(GlassCard, { className: 'settings-section', delay: 0.15 },
+                React.createElement('h3', null, 'Appearance'),
+                React.createElement('div', { className: 'setting-item' },
+                    React.createElement('div', { className: 'setting-info' },
+                        React.createElement('span', { className: 'setting-label' }, 'Animations'),
+                        React.createElement('span', { className: 'setting-description' }, 'Enable UI animations')
+                    ),
+                    React.createElement('button', { 
+                        className: 'toggle-btn ' + (settings.animations ? 'active' : ''),
+                        onClick: function() { toggleSetting('animations'); }
+                    },
+                        React.createElement('span', { className: 'toggle-track' },
+                            React.createElement('span', { className: 'toggle-thumb' })
+                        )
+                    )
+                ),
+                React.createElement('div', { className: 'setting-item' },
+                    React.createElement('div', { className: 'setting-info' },
+                        React.createElement('span', { className: 'setting-label' }, 'Compact Mode'),
+                        React.createElement('span', { className: 'setting-description' }, 'Reduce spacing and padding')
+                    ),
+                    React.createElement('button', { 
+                        className: 'toggle-btn ' + (settings.compactMode ? 'active' : ''),
+                        onClick: function() { toggleSetting('compactMode'); }
+                    },
+                        React.createElement('span', { className: 'toggle-track' },
+                            React.createElement('span', { className: 'toggle-thumb' })
+                        )
+                    )
+                )
+            ),
+            React.createElement(GlassCard, { className: 'settings-section', delay: 0.2 },
+                React.createElement('h3', null, 'Notifications'),
+                React.createElement('div', { className: 'setting-item' },
+                    React.createElement('div', { className: 'setting-info' },
+                        React.createElement('span', { className: 'setting-label' }, 'Task Reminders'),
+                        React.createElement('span', { className: 'setting-description' }, 'Get notified about upcoming deadlines')
+                    ),
+                    React.createElement('button', { 
+                        className: 'toggle-btn ' + (settings.taskReminders ? 'active' : ''),
+                        onClick: function() { toggleSetting('taskReminders'); }
+                    },
+                        React.createElement('span', { className: 'toggle-track' },
+                            React.createElement('span', { className: 'toggle-thumb' })
+                        )
+                    )
+                ),
+                React.createElement('div', { className: 'setting-item' },
+                    React.createElement('div', { className: 'setting-info' },
+                        React.createElement('span', { className: 'setting-label' }, 'Team Updates'),
+                        React.createElement('span', { className: 'setting-description' }, 'Notify on team activity')
+                    ),
+                    React.createElement('button', { 
+                        className: 'toggle-btn ' + (settings.teamUpdates ? 'active' : ''),
+                        onClick: function() { toggleSetting('teamUpdates'); }
+                    },
+                        React.createElement('span', { className: 'toggle-track' },
+                            React.createElement('span', { className: 'toggle-thumb' })
+                        )
+                    )
+                )
+            ),
+            React.createElement(GlassCard, { className: 'settings-section about-section', delay: 0.25 },
+                React.createElement('h3', null, 'About'),
+                React.createElement('div', { className: 'about-info' },
+                    React.createElement('div', { className: 'app-logo' }, '🚀'),
+                    React.createElement('h4', null, 'Project Hub'),
+                    React.createElement('p', null, 'Version 1.0.0'),
+                    React.createElement('p', { className: 'muted' }, 'Ultimate AI-Powered Project Management Dashboard'),
+                    React.createElement('p', { className: 'copyright' }, '© 2026 EZGalaxy')
+                )
+            )
         )
-      ),
+    );
+}
 
-      React.createElement(GlassCard, { className: 'settings-card wide' },
-        React.createElement('h3', null,
-          React.createElement(Icon, { name: 'info', size: 20 }),
-          'About Project Hub'
+// ============================================================================
+// GANTT VIEW (Simplified Timeline)
+// ============================================================================
+function GanttView(props) {
+    var tasks = props.tasks;
+    var collaborators = props.collaborators;
+
+    var getAssignee = function(id) {
+        return collaborators.find(function(c) { return c.id === id; });
+    };
+
+    // Filter tasks with dates
+    var scheduledTasks = tasks
+        .filter(function(t) { return t.startDate && t.endDate; })
+        .sort(function(a, b) { return new Date(a.startDate) - new Date(b.startDate); });
+
+    var minDate = scheduledTasks.length > 0 ? new Date(scheduledTasks[0].startDate) : new Date();
+    var maxDate = new Date(minDate);
+    maxDate.setDate(maxDate.getDate() + 45);
+
+    var totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24));
+
+    var getPosition = function(dateStr) {
+        var date = new Date(dateStr);
+        var days = Math.ceil((date - minDate) / (1000 * 60 * 60 * 24));
+        return (days / totalDays) * 100;
+    };
+
+    var getWidth = function(startStr, endStr) {
+        var start = new Date(startStr);
+        var end = new Date(endStr);
+        var days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        return (days / totalDays) * 100;
+    };
+
+    // Generate week markers
+    var weeks = [];
+    var currentDate = new Date(minDate);
+    while (currentDate < maxDate) {
+        weeks.push({
+            date: new Date(currentDate),
+            label: currentDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+        });
+        currentDate.setDate(currentDate.getDate() + 7);
+    }
+
+    return React.createElement('div', { className: 'gantt-view' },
+        React.createElement('div', { className: 'view-header' },
+            React.createElement('h2', null,
+                React.createElement(Icon, { name: 'gantt-chart', size: 24 }),
+                ' Project Timeline'
+            )
         ),
-        React.createElement('p', null, 
-          'Project Hub is an AI-powered project management dashboard featuring smart Kanban boards, Gantt charts with dependencies, resource workload matrices, predictive analytics, and risk analysis.'
-        ),
-        React.createElement('div', { className: 'features-list' },
-          React.createElement('div', { className: 'feature' },
-            React.createElement(Icon, { name: 'kanban', size: 16 }),
-            'Smart Kanban with velocity tracking'
-          ),
-          React.createElement('div', { className: 'feature' },
-            React.createElement(Icon, { name: 'gantt-chart', size: 16 }),
-            'HD Gantt with dependencies'
-          ),
-          React.createElement('div', { className: 'feature' },
-            React.createElement(Icon, { name: 'users', size: 16 }),
-            'Workload matrix with burnout alerts'
-          ),
-          React.createElement('div', { className: 'feature' },
-            React.createElement(Icon, { name: 'sparkles', size: 16 }),
-            'AI predictions & risk analysis'
-          ),
-          React.createElement('div', { className: 'feature' },
-            React.createElement(Icon, { name: 'line-chart', size: 16 }),
-            'Recharts visualizations'
-          ),
-          React.createElement('div', { className: 'feature' },
-            React.createElement(Icon, { name: 'cloud', size: 16 }),
-            'Community Data API sync'
-          )
+        React.createElement(GlassCard, { className: 'gantt-container', noPadding: true },
+            React.createElement('div', { className: 'gantt-header' },
+                React.createElement('div', { className: 'gantt-task-col' }, 'Task'),
+                React.createElement('div', { className: 'gantt-timeline-col' },
+                    React.createElement('div', { className: 'timeline-weeks' },
+                        weeks.map(function(week, i) {
+                            return React.createElement('div', { 
+                                key: i, 
+                                className: 'week-marker',
+                                style: { left: getPosition(week.date.toISOString()) + '%' }
+                            }, week.label);
+                        })
+                    )
+                )
+            ),
+            React.createElement('div', { className: 'gantt-body' },
+                scheduledTasks.map(function(task, index) {
+                    var assignee = getAssignee(task.assignee);
+                    var left = getPosition(task.startDate);
+                    var width = getWidth(task.startDate, task.endDate);
+                    var isBlocked = task.status === 'blocked';
+
+                    return React.createElement(motion.div, {
+                        key: task.id,
+                        className: 'gantt-row',
+                        initial: { opacity: 0, x: -20 },
+                        animate: { opacity: 1, x: 0 },
+                        transition: { delay: index * 0.05 }
+                    },
+                        React.createElement('div', { className: 'gantt-task-info' },
+                            React.createElement('span', { 
+                                className: 'priority-dot',
+                                style: { backgroundColor: getPriorityColor(task.priority) }
+                            }),
+                            React.createElement('span', { className: 'task-title' }, 
+                                task.title.length > 30 ? task.title.slice(0, 30) + '...' : task.title
+                            ),
+                            assignee && React.createElement('span', { className: 'task-assignee' }, assignee.avatar)
+                        ),
+                        React.createElement('div', { className: 'gantt-timeline' },
+                            React.createElement('div', { 
+                                className: 'gantt-bar' + (isBlocked ? ' blocked' : ''),
+                                style: { 
+                                    left: left + '%', 
+                                    width: Math.max(width, 2) + '%',
+                                    backgroundColor: getStatusColor(task.status)
+                                }
+                            },
+                                React.createElement('div', { 
+                                    className: 'gantt-progress',
+                                    style: { width: task.progress + '%' }
+                                })
+                            )
+                        )
+                    );
+                })
+            )
         )
-      )
-    )
-  );
-};
+    );
+}
+
+// ============================================================================
+// ANALYTICS VIEW
+// ============================================================================
+function AnalyticsView(props) {
+    var tasks = props.tasks;
+    var history = props.history;
+    var collaborators = props.collaborators;
+
+    // Burndown data
+    var burndownData = history.slice(-30).map(function(h) {
+        return { label: h.date.slice(5), value: h.burndown };
+    });
+
+    // Velocity trend
+    var velocityData = history.slice(-30).map(function(h) {
+        return { date: h.date.slice(5), velocity: h.velocity };
+    });
+
+    // Team morale trend
+    var moraleData = history.slice(-30).map(function(h) {
+        return { date: h.date.slice(5), morale: h.teamMorale };
+    });
+
+    // Task completion by category
+    var categoryData = [];
+    var categories = {};
+    tasks.forEach(function(t) {
+        if (!categories[t.category]) {
+            categories[t.category] = { total: 0, done: 0 };
+        }
+        categories[t.category].total++;
+        if (t.status === 'done') categories[t.category].done++;
+    });
+    for (var cat in categories) {
+        categoryData.push({
+            name: cat.charAt(0).toUpperCase() + cat.slice(1),
+            value: categories[cat].total,
+            completed: categories[cat].done,
+            color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')
+        });
+    }
+
+    return React.createElement('div', { className: 'analytics-view' },
+        React.createElement('div', { className: 'view-header' },
+            React.createElement('h2', null,
+                React.createElement(Icon, { name: 'bar-chart-2', size: 24 }),
+                ' Analytics & Insights'
+            )
+        ),
+        React.createElement('div', { className: 'analytics-grid' },
+            React.createElement(GlassCard, { className: 'chart-card wide', delay: 0.1 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null, 'Burndown Chart'),
+                    React.createElement('span', { className: 'chart-subtitle' }, 'Last 30 days')
+                ),
+                React.createElement('div', { className: 'chart-body' },
+                    React.createElement(LineChart, {
+                        data: burndownData,
+                        width: 600,
+                        height: 200,
+                        lines: [{ dataKey: 'value', color: '#00d4ff' }],
+                        areaFill: true
+                    })
+                )
+            ),
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.15 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null, 'Team Morale Trend')
+                ),
+                React.createElement('div', { className: 'chart-body' },
+                    React.createElement(LineChart, {
+                        data: moraleData,
+                        width: 400,
+                        height: 180,
+                        lines: [{ dataKey: 'morale', color: '#22c55e' }],
+                        areaFill: true
+                    })
+                )
+            ),
+            React.createElement(GlassCard, { className: 'chart-card', delay: 0.2 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null, 'Tasks by Category')
+                ),
+                React.createElement('div', { className: 'chart-body' },
+                    React.createElement(BarChart, {
+                        data: categoryData.map(function(c, i) {
+                            var colors = ['#00d4ff', '#a855f7', '#22c55e', '#facc15', '#ec4899', '#f97316'];
+                            return { name: c.name, value: c.value, color: colors[i % colors.length] };
+                        }),
+                        width: 350,
+                        height: 180,
+                        dataKey: 'value',
+                        labelKey: 'name',
+                        horizontal: true
+                    })
+                )
+            ),
+            React.createElement(GlassCard, { className: 'chart-card wide', delay: 0.25 },
+                React.createElement('div', { className: 'chart-header' },
+                    React.createElement('h3', null, 'Velocity Over Time'),
+                    React.createElement('div', { className: 'velocity-avg' },
+                        'Avg: ',
+                        React.createElement('strong', null, 
+                            (velocityData.reduce(function(s, d) { return s + d.velocity; }, 0) / velocityData.length).toFixed(1)
+                        ),
+                        ' pts/day'
+                    )
+                ),
+                React.createElement('div', { className: 'chart-body' },
+                    React.createElement(LineChart, {
+                        data: velocityData,
+                        width: 700,
+                        height: 200,
+                        lines: [{ dataKey: 'velocity', color: '#a855f7' }],
+                        showDots: false
+                    })
+                )
+            )
+        )
+    );
+}
 
 // ============================================================================
 // MAIN APPLICATION
 // ============================================================================
-const App = () => {
-  // State
-  const [activeView, setActiveView] = useState('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [tasks, setTasks] = useState(DEMO_DATA.tasks);
-  const [collaborators] = useState(DEMO_DATA.collaborators);
-  const [financials] = useState(DEMO_DATA.financials);
-  const [history] = useState(DEMO_DATA.history);
-  const [project] = useState(DEMO_DATA.project);
-  const [syncStatus, setSyncStatus] = useState('idle');
-  const [isLoading, setIsLoading] = useState(true);
+function App() {
+    var activeViewState = useState('dashboard');
+    var activeView = activeViewState[0];
+    var setActiveView = activeViewState[1];
 
-  // Computed values
-  const prediction = useMemo(() => 
-    PredictionEngine.predictCompletionDate(tasks, history),
-    [tasks, history]
-  );
+    var sidebarCollapsedState = useState(false);
+    var sidebarCollapsed = sidebarCollapsedState[0];
+    var setSidebarCollapsed = sidebarCollapsedState[1];
 
-  const risks = useMemo(() => 
-    RiskAnalyzer.analyzeProject(tasks, collaborators, financials, project),
-    [tasks, collaborators, financials, project]
-  );
+    var tasksState = useState(DEMO_DATA.tasks);
+    var tasks = tasksState[0];
+    var setTasks = tasksState[1];
 
-  const sentiment = useMemo(() => 
-    SentimentCalculator.calculate(tasks, collaborators, history),
-    [tasks, collaborators, history]
-  );
+    var collaboratorsState = useState(DEMO_DATA.collaborators);
+    var collaborators = collaboratorsState[0];
 
-  // Data object
-  const data = useMemo(() => ({
-    tasks, collaborators, financials, history, project
-  }), [tasks, collaborators, financials, history, project]);
+    var financialsState = useState(DEMO_DATA.financials);
+    var financials = financialsState[0];
 
-  // Sync with API
-  const syncWithAPI = useCallback(async () => {
-    setSyncStatus('syncing');
-    try {
-      // Save tasks
-      await api.saveRecord(CONFIG.COLLECTIONS.TASKS, 'all-tasks', { tasks });
-      
-      // Save metrics
-      const metrics = {
-        lastSync: new Date().toISOString(),
-        prediction,
-        sentiment,
-        risksCount: risks.length
-      };
-      await api.saveRecord(CONFIG.COLLECTIONS.METRICS, 'current', metrics);
-      
-      setSyncStatus('synced');
-      setTimeout(() => setSyncStatus('idle'), 3000);
-    } catch (error) {
-      console.error('Sync error:', error);
-      setSyncStatus('error');
+    var historyState = useState(DEMO_DATA.history);
+    var history = historyState[0];
+
+    var projectState = useState(DEMO_DATA.project);
+    var project = projectState[0];
+
+    var activitiesState = useState(DEMO_DATA.activities);
+    var activities = activitiesState[0];
+
+    var settingsState = useState({
+        useDemoData: true,
+        autoSync: true,
+        animations: true,
+        compactMode: false,
+        taskReminders: true,
+        teamUpdates: true
+    });
+    var settings = settingsState[0];
+    var setSettings = settingsState[1];
+
+    var loadingState = useState(true);
+    var isLoading = loadingState[0];
+    var setIsLoading = loadingState[1];
+
+    // Initial load
+    useEffect(function() {
+        setTimeout(function() {
+            setIsLoading(false);
+        }, 800);
+    }, []);
+
+    // Render loading
+    if (isLoading) {
+        return React.createElement('div', { className: 'loading-screen' },
+            React.createElement('div', { className: 'loading-logo' }, '🚀'),
+            React.createElement('h1', null, 'Project Hub'),
+            React.createElement('p', null, 'Loading your dashboard...'),
+            React.createElement('div', { className: 'loading-bar' },
+                React.createElement('div', { className: 'loading-progress' })
+            )
+        );
     }
-  }, [tasks, prediction, sentiment, risks]);
 
-  // Debounced sync
-  const debouncedSync = useMemo(
-    () => debounce(syncWithAPI, CONFIG.SYNC_DEBOUNCE),
-    [syncWithAPI]
-  );
-
-  // Auto-sync on task changes
-  useEffect(() => {
-    if (!isLoading) {
-      debouncedSync();
-    }
-  }, [tasks, debouncedSync, isLoading]);
-
-  // Initial load
-  useEffect(() => {
-    const init = async () => {
-      // Load authorization file
-      try {
-        const authResponse = await fetch('./ezgalaxy-authorization.json');
-        const auth = await authResponse.json();
-        console.log('[Project Hub] Authorization loaded:', auth.capabilities.map(c => c.name));
-      } catch (e) {
-        console.warn('[Project Hub] Could not load authorization file');
-      }
-
-      // Try to load saved data
-      try {
-        const saved = await api.getRecord(CONFIG.COLLECTIONS.TASKS, 'all-tasks');
-        if (saved && saved.data && saved.data.tasks) {
-          setTasks(saved.data.tasks);
+    // Render view
+    var renderView = function() {
+        switch(activeView) {
+            case 'dashboard':
+                return React.createElement(DashboardView, {
+                    tasks: tasks,
+                    collaborators: collaborators,
+                    financials: financials,
+                    history: history,
+                    project: project,
+                    setActiveView: setActiveView
+                });
+            case 'kanban':
+                return React.createElement(KanbanView, {
+                    tasks: tasks,
+                    setTasks: setTasks,
+                    collaborators: collaborators
+                });
+            case 'gantt':
+                return React.createElement(GanttView, {
+                    tasks: tasks,
+                    collaborators: collaborators
+                });
+            case 'team':
+                return React.createElement(TeamView, {
+                    collaborators: collaborators,
+                    tasks: tasks
+                });
+            case 'budget':
+                return React.createElement(BudgetView, {
+                    financials: financials
+                });
+            case 'analytics':
+                return React.createElement(AnalyticsView, {
+                    tasks: tasks,
+                    history: history,
+                    collaborators: collaborators
+                });
+            case 'activity':
+                return React.createElement(ActivityView, {
+                    activities: activities,
+                    collaborators: collaborators,
+                    tasks: tasks
+                });
+            case 'settings':
+                return React.createElement(SettingsView, {
+                    settings: settings,
+                    setSettings: setSettings
+                });
+            default:
+                return React.createElement(DashboardView, {
+                    tasks: tasks,
+                    collaborators: collaborators,
+                    financials: financials,
+                    history: history,
+                    project: project,
+                    setActiveView: setActiveView
+                });
         }
-      } catch (e) {
-        console.log('[Project Hub] Using demo data');
-      }
-
-      setIsLoading(false);
     };
 
-    // Simulate loading for smooth animation
-    setTimeout(init, 800);
-  }, []);
-
-  // Render loading state
-  if (isLoading) {
-    return React.createElement('div', { className: 'loading-screen' },
-      React.createElement('div', {
-        className: 'loading-logo',
-        style: { fontSize: '48px', animation: 'spin 2s linear infinite' }
-      }, '🚀'),
-      React.createElement('h1', null, 'Project Hub'),
-      React.createElement('p', null, 'Loading your dashboard...'),
-      React.createElement('div', { 
-        className: 'skeleton',
-        style: { width: 200, height: 4, borderRadius: 2 }
-      })
+    return React.createElement('div', { className: 'app' + (settings.compactMode ? ' compact' : '') },
+        React.createElement(Sidebar, {
+            activeView: activeView,
+            setActiveView: setActiveView,
+            collapsed: sidebarCollapsed,
+            setCollapsed: setSidebarCollapsed,
+            project: project
+        }),
+        React.createElement('main', { className: 'main-content' + (sidebarCollapsed ? ' expanded' : '') },
+            renderView()
+        )
     );
-  }
-
-  // Render main app
-  return React.createElement('div', { className: 'app' },
-    React.createElement(Sidebar, {
-      activeView,
-      setActiveView,
-      collapsed: sidebarCollapsed,
-      setCollapsed: setSidebarCollapsed
-    }),
-    React.createElement('main', { className: 'main-content' },
-      React.createElement(AnimatePresence, { mode: 'wait' },
-        activeView === 'dashboard' && React.createElement(motion.div, {
-          key: 'dashboard',
-          initial: { opacity: 0, x: 20 },
-          animate: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -20 }
-        }, React.createElement(DashboardView, { data, prediction, risks, sentiment })),
-
-        activeView === 'kanban' && React.createElement(motion.div, {
-          key: 'kanban',
-          initial: { opacity: 0, x: 20 },
-          animate: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -20 }
-        },
-          React.createElement('h2', { className: 'view-title' },
-            React.createElement(Icon, { name: 'kanban', size: 28 }),
-            'Smart Kanban Board'
-          ),
-          React.createElement(KanbanBoard, { tasks, setTasks, collaborators })
-        ),
-
-        activeView === 'gantt' && React.createElement(motion.div, {
-          key: 'gantt',
-          initial: { opacity: 0, x: 20 },
-          animate: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -20 }
-        },
-          React.createElement('h2', { className: 'view-title' },
-            React.createElement(Icon, { name: 'gantt-chart', size: 28 }),
-            'Gantt Timeline'
-          ),
-          React.createElement(GanttChart, { tasks, collaborators })
-        ),
-
-        activeView === 'workload' && React.createElement(motion.div, {
-          key: 'workload',
-          initial: { opacity: 0, x: 20 },
-          animate: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -20 }
-        },
-          React.createElement('h2', { className: 'view-title' },
-            React.createElement(Icon, { name: 'users', size: 28 }),
-            'Resource Workload'
-          ),
-          React.createElement(WorkloadMatrix, { collaborators, tasks })
-        ),
-
-        activeView === 'analytics' && React.createElement(motion.div, {
-          key: 'analytics',
-          initial: { opacity: 0, x: 20 },
-          animate: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -20 }
-        }, React.createElement(AnalyticsView, { data })),
-
-        activeView === 'settings' && React.createElement(motion.div, {
-          key: 'settings',
-          initial: { opacity: 0, x: 20 },
-          animate: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -20 }
-        }, React.createElement(SettingsView, { onSync: syncWithAPI, syncStatus }))
-      )
-    )
-  );
-};
+}
 
 // Mount application
-const root = ReactDOM.createRoot(document.getElementById('root'));
+var root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
