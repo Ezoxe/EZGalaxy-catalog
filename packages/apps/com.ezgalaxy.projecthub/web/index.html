@@ -5,31 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Project Hub - AI Dashboard</title>
   
-  <!-- React 18 -->
-  <script src="./vendor/react.production.min.js"></script>
-  <script src="./vendor/react-dom.production.min.js"></script>
-  
-  <!-- Recharts for data visualization -->
-  <script src="./vendor/recharts.min.js"></script>
-  
-  <!-- Framer Motion -->
-  <script src="./vendor/framer-motion.min.js"></script>
-  
-  <!-- Lucide Icons -->
-  <script src="./vendor/lucide.min.js"></script>
-  
-  <!-- Sortable for drag-and-drop -->
-  <script src="./vendor/sortable.min.js"></script>
-  
-  <!-- EZGalaxy Base Styles -->
-  <link rel="stylesheet" href="./ezgalaxy-base.css">
-  <link rel="stylesheet" href="./ezgalaxy-animations.css">
-  
   <!-- App Styles -->
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div class="loading-screen">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading Project Hub...</div>
+    </div>
+  </div>
+  
+  <!-- Core Libraries (order matters!) -->
+  <script src="./charts.js"></script>
+  <script src="./store.js"></script>
+  <script src="./components.js"></script>
+  <script src="./views.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
