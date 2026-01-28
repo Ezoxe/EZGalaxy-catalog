@@ -1,225 +1,217 @@
 /**
  * Project Hub - Views Module
- * All 8 views rendered with full interactivity
+ * All 8 views with full interactivity and animations
  */
 
 (function(global) {
     'use strict';
 
-    var el = UI.el;
-    var icon = UI.icon;
+    // Helper to create elements easily
+    function h(tag, attrs, children) {
+        var element = document.createElement(tag);
+        if (attrs) {
+            Object.keys(attrs).forEach(function(key) {
+                if (key === 'className') {
+                    element.className = attrs[key];
+                } else if (key === 'style' && typeof attrs[key] === 'object') {
+                    Object.keys(attrs[key]).forEach(function(k) {
+                        element.style[k] = attrs[key][k];
+                    });
+                } else if (key.startsWith('on') && typeof attrs[key] === 'function') {
+                    element.addEventListener(key.slice(2).toLowerCase(), attrs[key]);
+                } else {
+                    element.setAttribute(key, attrs[key]);
+                }
+            });
+        }
+        if (children !== undefined && children !== null) {
+            if (Array.isArray(children)) {
+                children.forEach(function(child) {
+                    if (child !== undefined && child !== null) {
+                        if (typeof child === 'string' || typeof child === 'number') {
+                            element.appendChild(document.createTextNode(String(child)));
+                        } else {
+                            element.appendChild(child);
+                        }
+                    }
+                });
+            } else if (typeof children === 'string' || typeof children === 'number') {
+                element.textContent = String(children);
+            } else {
+                element.appendChild(children);
+            }
+        }
+        return element;
+    }
+
+    // Status colors
+    var statusColors = {
+        'backlog': '#6b7280',
+        'todo': '#00d4ff',
+        'in-progress': '#a855f7',
+        'review': '#facc15',
+        'done': '#22c55e',
+        'blocked': '#ef4444'
+    };
+
+    var priorityColors = {
+        'critical': '#ef4444',
+        'high': '#f97316',
+        'medium': '#facc15',
+        'low': '#22c55e'
+    };
 
     // ========================================================================
     // DASHBOARD VIEW
     // ========================================================================
     function renderDashboard(container) {
         container.innerHTML = '';
-        var metrics = Store.getMetrics();
-        var state = Store.getState();
+        
+        try {
+            var metrics = Store.getMetrics();
+            var state = Store.getState();
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Dashboard'),
-                el('p', { className: 'view-subtitle' }, 'Project overview and key metrics')
-            ]),
-            el('div', { className: 'header-actions' }, [
-                el('button', { className: 'btn btn-primary', onClick: function() { UI.openTaskModal(null); } }, [
-                    icon('plus', 16),
-                    ' New Task'
-                ])
-            ])
-        ]);
-        container.appendChild(header);
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">🚀 Dashboard</h1><p class="view-subtitle">Project overview and real-time metrics</p></div>';
+            
+            var newTaskBtn = h('button', { className: 'btn btn-primary', onClick: function() { UI.openTaskModal(null); } });
+            newTaskBtn.innerHTML = '+ New Task';
+            var headerActions = h('div', { className: 'header-actions' });
+            headerActions.appendChild(newTaskBtn);
+            header.appendChild(headerActions);
+            container.appendChild(header);
 
-        // Stats Grid
-        var statsGrid = el('div', { className: 'stats-grid' });
-        statsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(4, 1fr);gap:20px;margin-bottom:30px;';
+            // Stats Grid
+            var statsGrid = h('div', { className: 'stats-grid', style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' } });
 
-        statsGrid.appendChild(UI.statCard({
-            title: 'Total Tasks',
-            value: metrics.totalTasks,
-            icon: 'kanban',
-            color: '#00d4ff',
-            subtitle: metrics.completed + ' completed',
-            delay: 0.1
-        }));
+            // Stat cards
+            var stats = [
+                { title: 'Total Tasks', value: metrics.totalTasks, color: '#00d4ff', icon: '📋', subtitle: metrics.completed + ' completed' },
+                { title: 'Completion', value: metrics.completionRate + '%', color: '#22c55e', icon: '🎯', trend: '+5.2%' },
+                { title: 'Budget Used', value: '$' + (state.financials.used / 1000).toFixed(0) + 'k', color: '#a855f7', icon: '💰', subtitle: Math.round(state.financials.used / state.financials.budget * 100) + '% of total' },
+                { title: 'Velocity', value: metrics.avgVelocity + ' pts', color: '#facc15', icon: '⚡', trend: '+8.5%' }
+            ];
 
-        statsGrid.appendChild(UI.statCard({
-            title: 'Completion Rate',
-            value: metrics.completionRate + '%',
-            icon: 'target',
-            color: '#22c55e',
-            trend: 5.2,
-            delay: 0.2
-        }));
-
-        statsGrid.appendChild(UI.statCard({
-            title: 'Budget Used',
-            value: UI.formatCurrency(state.financials.used),
-            icon: 'budget',
-            color: '#a855f7',
-            subtitle: Math.round(state.financials.used / state.financials.budget * 100) + '% of total',
-            delay: 0.3
-        }));
-
-        statsGrid.appendChild(UI.statCard({
-            title: 'Team Velocity',
-            value: metrics.avgVelocity + ' pts',
-            icon: 'zap',
-            color: '#facc15',
-            trend: 8.5,
-            sparklineData: state.history.slice(-14).map(function(h) { return h.velocity; }),
-            delay: 0.4
-        }));
-
-        container.appendChild(statsGrid);
-
-        // Main Charts Row
-        var chartsRow = el('div', { className: 'charts-row' });
-        chartsRow.style.cssText = 'display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:30px;';
-
-        // Velocity Chart
-        var velocityCard = el('div', { className: 'glass-card' });
-        velocityCard.style.padding = '24px';
-
-        var velocityHeader = el('div', { className: 'card-title' }, 'Team Velocity (Last 30 days)');
-        velocityCard.appendChild(velocityHeader);
-
-        var velocityChart = el('div', { className: 'chart-container' });
-        velocityChart.style.height = '280px';
-        velocityCard.appendChild(velocityChart);
-
-        setTimeout(function() {
-            Charts.line(velocityChart, state.history.slice(-30).map(function(h, i) {
-                return { x: i, y: h.velocity, label: h.date.split('-').slice(1).join('/') };
-            }), {
-                color: '#00d4ff',
-                showArea: true,
-                showDots: true,
-                showTooltip: true,
-                height: 260,
-                animate: true
+            stats.forEach(function(stat, i) {
+                var card = h('div', { className: 'glass-card stat-card', style: { padding: '24px', opacity: '0', transform: 'translateY(20px)', transition: 'all 0.5s ease ' + (i * 0.1) + 's' } });
+                card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">' +
+                    '<span style="font-size:12px;color:rgba(255,255,255,0.6);text-transform:uppercase;">' + stat.title + '</span>' +
+                    '<span style="font-size:24px;">' + stat.icon + '</span></div>' +
+                    '<div style="font-size:36px;font-weight:700;color:' + stat.color + ';margin-bottom:8px;">' + stat.value + '</div>' +
+                    '<div style="font-size:12px;color:rgba(255,255,255,0.5);">' + (stat.subtitle || '') + 
+                    (stat.trend ? '<span style="color:#22c55e;margin-left:8px;">' + stat.trend + '</span>' : '') + '</div>';
+                statsGrid.appendChild(card);
+                
+                setTimeout(function() {
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 50);
             });
-        }, 100);
 
-        chartsRow.appendChild(velocityCard);
+            container.appendChild(statsGrid);
 
-        // Tasks Distribution
-        var distCard = el('div', { className: 'glass-card' });
-        distCard.style.padding = '24px';
+            // Charts Row
+            var chartsRow = h('div', { style: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '30px' } });
 
-        var distHeader = el('div', { className: 'card-title' }, 'Tasks by Status');
-        distCard.appendChild(distHeader);
+            // Velocity Chart
+            var velocityCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            velocityCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.8);">📈 TEAM VELOCITY (30 DAYS)</div>';
+            var velocityChart = h('div', { style: { height: '280px', width: '100%' } });
+            velocityCard.appendChild(velocityChart);
+            chartsRow.appendChild(velocityCard);
 
-        var distChart = el('div', { className: 'chart-container' });
-        distChart.style.height = '280px';
-        distCard.appendChild(distChart);
+            // Task Distribution
+            var distCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            distCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.8);">📊 TASKS BY STATUS</div>';
+            var distChart = h('div', { style: { height: '280px', width: '100%' } });
+            distCard.appendChild(distChart);
+            chartsRow.appendChild(distCard);
 
-        var statusData = [
-            { label: 'Backlog', value: metrics.tasksByStatus.backlog, color: '#6b7280' },
-            { label: 'To Do', value: metrics.tasksByStatus.todo, color: '#00d4ff' },
-            { label: 'In Progress', value: metrics.tasksByStatus['in-progress'], color: '#a855f7' },
-            { label: 'Review', value: metrics.tasksByStatus.review, color: '#facc15' },
-            { label: 'Done', value: metrics.tasksByStatus.done, color: '#22c55e' },
-            { label: 'Blocked', value: metrics.tasksByStatus.blocked, color: '#ef4444' }
-        ].filter(function(s) { return s.value > 0; });
+            container.appendChild(chartsRow);
 
-        setTimeout(function() {
-            Charts.donut(distChart, statusData, {
-                size: 180,
-                thickness: 35,
-                showLabels: true,
-                showLegend: true,
-                animate: true
+            // Render charts after DOM is ready
+            setTimeout(function() {
+                var velocityData = state.history.slice(-30).map(function(h, i) {
+                    return { y: h.velocity, label: h.date.split('-').slice(1).join('/') };
+                });
+                Charts.line(velocityChart, velocityData, { color: '#00d4ff', showArea: true, showDots: true, animate: true });
+
+                var statusData = [
+                    { label: 'Backlog', value: metrics.tasksByStatus.backlog || 0, color: '#6b7280' },
+                    { label: 'To Do', value: metrics.tasksByStatus.todo || 0, color: '#00d4ff' },
+                    { label: 'In Progress', value: metrics.tasksByStatus['in-progress'] || 0, color: '#a855f7' },
+                    { label: 'Review', value: metrics.tasksByStatus.review || 0, color: '#facc15' },
+                    { label: 'Done', value: metrics.tasksByStatus.done || 0, color: '#22c55e' }
+                ].filter(function(s) { return s.value > 0; });
+                Charts.donut(distChart, statusData, { size: 160, thickness: 30, showLegend: true, animate: true });
+            }, 100);
+
+            // Bottom Section: Recent Tasks + Activity
+            var bottomRow = h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' } });
+
+            // Recent Tasks
+            var recentCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            recentCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.8);">📝 RECENT TASKS</div>';
+            
+            var recentList = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } });
+            var recentTasks = state.tasks.filter(function(t) { return t.status !== 'done'; }).slice(0, 5);
+            
+            recentTasks.forEach(function(task, i) {
+                var taskEl = h('div', { 
+                    className: 'task-item',
+                    style: { 
+                        display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', 
+                        background: 'rgba(255,255,255,0.03)', borderRadius: '10px', cursor: 'pointer',
+                        opacity: '0', transform: 'translateX(-20px)', transition: 'all 0.3s ease ' + (i * 0.05) + 's'
+                    },
+                    onClick: function() { UI.openTaskModal(task); }
+                });
+                var collab = Store.getCollaborator(task.assignee);
+                taskEl.innerHTML = '<div style="width:8px;height:8px;border-radius:50%;background:' + priorityColors[task.priority] + '"></div>' +
+                    '<div style="flex:1;"><div style="font-weight:500;">' + task.title + '</div>' +
+                    '<div style="font-size:11px;color:rgba(255,255,255,0.5);">' + task.category + ' • ' + task.progress + '%</div></div>' +
+                    '<span style="font-size:20px;">' + (collab ? collab.avatar : '👤') + '</span>';
+                recentList.appendChild(taskEl);
+                
+                setTimeout(function() {
+                    taskEl.style.opacity = '1';
+                    taskEl.style.transform = 'translateX(0)';
+                }, 100);
             });
-        }, 200);
+            recentCard.appendChild(recentList);
+            bottomRow.appendChild(recentCard);
 
-        chartsRow.appendChild(distCard);
-        container.appendChild(chartsRow);
-
-        // Bottom Row: Recent Tasks & Activity
-        var bottomRow = el('div', { className: 'bottom-row' });
-        bottomRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;';
-
-        // Recent Tasks
-        var recentCard = el('div', { className: 'glass-card' });
-        recentCard.style.padding = '24px';
-        recentCard.appendChild(el('div', { className: 'card-title' }, 'Recent Tasks'));
-
-        var recentList = el('div', { className: 'recent-tasks-list' });
-        recentList.style.cssText = 'display:flex;flex-direction:column;gap:12px;max-height:300px;overflow-y:auto;';
-
-        var recentTasks = state.tasks
-            .filter(function(t) { return t.status !== 'done'; })
-            .slice(0, 5);
-
-        recentTasks.forEach(function(task, i) {
-            var collaborator = Store.getCollaborator(task.assignee);
-            var item = el('div', { className: 'recent-task-item' });
-            item.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;cursor:pointer;transition:all 0.2s;opacity:0;transform:translateX(-20px);';
-            item.style.transitionDelay = (i * 0.1) + 's';
-
-            item.innerHTML = '<span class="priority-dot" style="background:' + UI.priorityColors[task.priority] + '"></span>' +
-                '<div style="flex:1"><div style="font-weight:500;margin-bottom:2px;">' + task.title + '</div>' +
-                '<div style="font-size:12px;color:rgba(255,255,255,0.5)">' + task.category + '</div></div>' +
-                '<span style="font-size:12px;color:rgba(255,255,255,0.5)">' + task.progress + '%</span>';
-
-            if (collaborator) {
-                var avatar = el('span', { className: 'avatar-small' }, collaborator.avatar);
-                avatar.style.cssText = 'font-size:16px;';
-                item.appendChild(avatar);
-            }
-
-            item.addEventListener('click', function() { UI.openTaskModal(task); });
-            item.addEventListener('mouseenter', function() { item.style.background = 'rgba(255,255,255,0.06)'; });
-            item.addEventListener('mouseleave', function() { item.style.background = 'rgba(255,255,255,0.03)'; });
-
-            recentList.appendChild(item);
-
-            requestAnimationFrame(function() {
-                item.style.opacity = '1';
-                item.style.transform = 'translateX(0)';
+            // Activity Feed
+            var activityCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            activityCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.8);">🔔 RECENT ACTIVITY</div>';
+            
+            var activityList = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } });
+            state.activities.slice(0, 5).forEach(function(activity, i) {
+                var actEl = h('div', { style: { 
+                    display: 'flex', gap: '12px', padding: '10px', 
+                    opacity: '0', transform: 'translateY(10px)', transition: 'all 0.3s ease ' + (i * 0.05) + 's'
+                }});
+                var typeIcons = { completed: '✅', created: '➕', moved: '➡️', comment: '💬', assigned: '👤' };
+                actEl.innerHTML = '<span style="font-size:16px;">' + (typeIcons[activity.type] || '📌') + '</span>' +
+                    '<div style="flex:1;"><div style="font-size:13px;">' + activity.user + ' ' + activity.action + '</div>' +
+                    '<div style="font-size:11px;color:rgba(255,255,255,0.4);">' + UI.formatDateTime(activity.timestamp) + '</div></div>';
+                activityList.appendChild(actEl);
+                
+                setTimeout(function() {
+                    actEl.style.opacity = '1';
+                    actEl.style.transform = 'translateY(0)';
+                }, 150);
             });
-        });
+            activityCard.appendChild(activityList);
+            bottomRow.appendChild(activityCard);
 
-        recentCard.appendChild(recentList);
-        bottomRow.appendChild(recentCard);
+            container.appendChild(bottomRow);
 
-        // Recent Activity
-        var activityCard = el('div', { className: 'glass-card' });
-        activityCard.style.padding = '24px';
-        activityCard.appendChild(el('div', { className: 'card-title' }, 'Recent Activity'));
-
-        var activityList = el('div', { className: 'activity-list' });
-        activityList.style.cssText = 'display:flex;flex-direction:column;gap:10px;max-height:300px;overflow-y:auto;';
-
-        state.activities.slice(0, 6).forEach(function(activity, i) {
-            var item = el('div', { className: 'activity-item' });
-            item.style.cssText = 'display:flex;gap:12px;padding:10px;opacity:0;transform:translateY(10px);transition:all 0.3s;';
-            item.style.transitionDelay = (i * 0.1) + 's';
-
-            var iconMap = { completed: 'check', created: 'plus', moved: 'arrow-right', comment: 'comment', assigned: 'team' };
-            var colorMap = { completed: '#22c55e', created: '#00d4ff', moved: '#a855f7', comment: '#facc15', assigned: '#f97316' };
-
-            item.innerHTML = '<div style="width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:' + colorMap[activity.type] + '"></div>' +
-                '<div style="flex:1"><div style="font-size:13px;margin-bottom:2px;">' + activity.user + ' ' + activity.action + '</div>' +
-                '<div style="font-size:11px;color:rgba(255,255,255,0.4)">' + UI.formatDateTime(activity.timestamp) + '</div></div>';
-
-            item.querySelector('div').appendChild(icon(iconMap[activity.type] || 'zap', 14));
-
-            activityList.appendChild(item);
-
-            requestAnimationFrame(function() {
-                item.style.opacity = '1';
-                item.style.transform = 'translateY(0)';
-            });
-        });
-
-        activityCard.appendChild(activityList);
-        bottomRow.appendChild(activityCard);
-
-        container.appendChild(bottomRow);
+        } catch (e) {
+            console.error('Dashboard render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading dashboard: ' + e.message + '</div>';
+        }
     }
 
     // ========================================================================
@@ -227,273 +219,477 @@
     // ========================================================================
     function renderKanban(container) {
         container.innerHTML = '';
-        var state = Store.getState();
-        var filters = state.filters;
+        
+        try {
+            var state = Store.getState();
+            var filters = state.filters;
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Kanban Board'),
-                el('p', { className: 'view-subtitle' }, 'Drag and drop to organize tasks')
-            ]),
-            el('div', { className: 'header-actions' }, [
-                el('button', { className: 'btn btn-primary', onClick: function() { UI.openTaskModal(null); } }, [
-                    icon('plus', 16),
-                    ' New Task'
-                ])
-            ])
-        ]);
-        container.appendChild(header);
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">📋 Kanban Board</h1><p class="view-subtitle">Drag and drop to organize your workflow</p></div>';
+            
+            var newTaskBtn = h('button', { className: 'btn btn-primary', onClick: function() { UI.openTaskModal(null); } });
+            newTaskBtn.innerHTML = '+ New Task';
+            var headerActions = h('div', { className: 'header-actions' });
+            headerActions.appendChild(newTaskBtn);
+            header.appendChild(headerActions);
+            container.appendChild(header);
 
-        // Filter Bar
-        container.appendChild(UI.filterBar(filters, function(key, value) {
-            Store.setFilter(key, value);
-        }));
+            // Filters
+            var filterBar = h('div', { style: { display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' } });
+            
+            // Priority filter
+            var priorityFilter = h('select', { className: 'filter-select', style: { padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' } });
+            priorityFilter.innerHTML = '<option value="all">All Priorities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>';
+            priorityFilter.value = filters.priority || 'all';
+            priorityFilter.addEventListener('change', function() { Store.setFilter('priority', this.value); });
+            filterBar.appendChild(priorityFilter);
 
-        // Kanban Board
-        var board = el('div', { className: 'kanban-board' });
-        board.style.cssText = 'display:grid;grid-template-columns:repeat(5, 1fr);gap:20px;overflow-x:auto;padding-bottom:20px;';
-
-        var statuses = [
-            { id: 'backlog', label: 'Backlog', color: '#6b7280' },
-            { id: 'todo', label: 'To Do', color: '#00d4ff' },
-            { id: 'in-progress', label: 'In Progress', color: '#a855f7' },
-            { id: 'review', label: 'Review', color: '#facc15' },
-            { id: 'done', label: 'Done', color: '#22c55e' }
-        ];
-
-        var tasks = Store.getFilteredTasks();
-
-        statuses.forEach(function(status) {
-            var column = el('div', { 
-                className: 'kanban-column',
-                dataset: { status: status.id }
+            // Assignee filter
+            var assigneeFilter = h('select', { style: { padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' } });
+            assigneeFilter.innerHTML = '<option value="all">All Members</option>';
+            state.collaborators.forEach(function(c) {
+                assigneeFilter.innerHTML += '<option value="' + c.id + '">' + c.avatar + ' ' + c.name + '</option>';
             });
-            column.style.cssText = 'min-width:280px;max-width:320px;background:rgba(255,255,255,0.02);border-radius:16px;padding:16px;';
+            assigneeFilter.value = filters.assignee || 'all';
+            assigneeFilter.addEventListener('change', function() { Store.setFilter('assignee', this.value); });
+            filterBar.appendChild(assigneeFilter);
 
-            // Column Header
-            var colHeader = el('div', { className: 'column-header' });
-            colHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ' + status.color + ';';
+            container.appendChild(filterBar);
 
-            var statusTasks = tasks.filter(function(t) { return t.status === status.id; });
+            // Kanban Board
+            var board = h('div', { className: 'kanban-board', style: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', overflowX: 'auto' } });
 
-            colHeader.appendChild(el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } }, [
-                el('span', { style: { width: '10px', height: '10px', borderRadius: '50%', background: status.color } }),
-                el('span', { style: { fontWeight: '600' } }, status.label),
-                el('span', { className: 'count-badge', style: { background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '10px', fontSize: '12px' } }, statusTasks.length)
-            ]));
+            var columns = [
+                { id: 'backlog', label: 'Backlog', color: '#6b7280', icon: '📥' },
+                { id: 'todo', label: 'To Do', color: '#00d4ff', icon: '📝' },
+                { id: 'in-progress', label: 'In Progress', color: '#a855f7', icon: '🔄' },
+                { id: 'review', label: 'Review', color: '#facc15', icon: '👀' },
+                { id: 'done', label: 'Done', color: '#22c55e', icon: '✅' }
+            ];
 
-            var addBtn = el('button', { 
-                className: 'btn-icon',
-                onClick: function() {
-                    var task = { status: status.id };
-                    UI.openTaskModal(task);
-                }
-            }, [icon('plus', 16)]);
-            colHeader.appendChild(addBtn);
+            var tasks = Store.getFilteredTasks();
 
-            column.appendChild(colHeader);
+            columns.forEach(function(col) {
+                var colTasks = tasks.filter(function(t) { return t.status === col.id; });
+                
+                var column = h('div', { 
+                    className: 'kanban-column',
+                    'data-status': col.id,
+                    style: { minWidth: '260px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', padding: '16px' }
+                });
 
-            // Cards Container
-            var cardsContainer = el('div', { 
-                className: 'kanban-cards',
-                dataset: { status: status.id }
+                // Column Header
+                var colHeader = h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '2px solid ' + col.color } });
+                colHeader.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<span>' + col.icon + '</span><span style="font-weight:600;">' + col.label + '</span>' +
+                    '<span style="background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:10px;font-size:11px;">' + colTasks.length + '</span></div>';
+                
+                var addBtn = h('button', { 
+                    style: { background: 'transparent', border: 'none', color: col.color, cursor: 'pointer', fontSize: '18px' },
+                    onClick: function() { UI.openTaskModal({ status: col.id }); }
+                });
+                addBtn.innerHTML = '+';
+                colHeader.appendChild(addBtn);
+                column.appendChild(colHeader);
+
+                // Cards Container (drop zone)
+                var cardsContainer = h('div', { 
+                    className: 'kanban-cards',
+                    'data-status': col.id,
+                    style: { display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '200px', padding: '4px', transition: 'background 0.2s' }
+                });
+
+                // Render task cards
+                colTasks.forEach(function(task, i) {
+                    var card = createKanbanCard(task, i);
+                    cardsContainer.appendChild(card);
+                });
+
+                // Drop zone events
+                cardsContainer.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    cardsContainer.style.background = 'rgba(' + hexToRgb(col.color) + ',0.1)';
+                });
+                cardsContainer.addEventListener('dragleave', function() {
+                    cardsContainer.style.background = 'transparent';
+                });
+                cardsContainer.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    cardsContainer.style.background = 'transparent';
+                    var taskId = e.dataTransfer.getData('text/plain');
+                    if (taskId) {
+                        Store.moveTask(taskId, col.id);
+                        UI.toast('Task moved to ' + col.label, 'success');
+                    }
+                });
+
+                column.appendChild(cardsContainer);
+                board.appendChild(column);
             });
-            cardsContainer.style.cssText = 'display:flex;flex-direction:column;gap:12px;min-height:200px;';
 
-            statusTasks.forEach(function(task, i) {
-                var card = UI.taskCard(task, { draggable: true });
-                card.style.transitionDelay = (i * 0.05) + 's';
-                cardsContainer.appendChild(card);
-            });
+            container.appendChild(board);
 
-            // Drop zone
-            cardsContainer.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                cardsContainer.style.background = 'rgba(' + (status.id === 'done' ? '34,197,94' : status.id === 'in-progress' ? '168,85,247' : '0,212,255') + ',0.1)';
-            });
+        } catch (e) {
+            console.error('Kanban render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading Kanban: ' + e.message + '</div>';
+        }
+    }
 
-            cardsContainer.addEventListener('dragleave', function(e) {
-                cardsContainer.style.background = 'transparent';
-            });
+    function hexToRgb(hex) {
+        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? parseInt(result[1], 16) + ',' + parseInt(result[2], 16) + ',' + parseInt(result[3], 16) : '0,0,0';
+    }
 
-            cardsContainer.addEventListener('drop', function(e) {
-                e.preventDefault();
-                cardsContainer.style.background = 'transparent';
-                var taskId = e.dataTransfer.getData('text/plain');
-                if (taskId) {
-                    Store.moveTask(taskId, status.id);
-                    UI.toast('Task moved to ' + status.label, 'success');
-                }
-            });
-
-            column.appendChild(cardsContainer);
-            board.appendChild(column);
+    function createKanbanCard(task, index) {
+        var collab = Store.getCollaborator(task.assignee);
+        var isBlocked = task.status === 'blocked';
+        
+        var card = h('div', { 
+            className: 'kanban-card' + (isBlocked ? ' blocked' : ''),
+            draggable: 'true',
+            'data-task-id': task.id,
+            style: { 
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', 
+                borderRadius: '12px', padding: '16px', cursor: 'grab',
+                opacity: '0', transform: 'translateY(20px)', transition: 'all 0.3s ease ' + (index * 0.05) + 's'
+            }
         });
 
-        container.appendChild(board);
+        if (isBlocked) {
+            card.style.borderColor = '#ef4444';
+            card.style.boxShadow = '0 0 15px rgba(239,68,68,0.2)';
+        }
+
+        card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+            '<span style="width:8px;height:8px;border-radius:50%;background:' + priorityColors[task.priority] + '"></span>' +
+            '<span style="font-size:10px;padding:3px 8px;background:rgba(255,255,255,0.05);border-radius:6px;text-transform:uppercase;">' + task.category + '</span></div>' +
+            '<div style="font-weight:500;margin-bottom:8px;line-height:1.4;">' + task.title + '</div>' +
+            '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-bottom:12px;overflow:hidden;">' +
+            '<div style="height:100%;width:' + task.progress + '%;background:' + statusColors[task.status] + ';transition:width 0.5s;"></div></div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<span style="font-size:18px;">' + (collab ? collab.avatar : '👤') + '</span>' +
+            '<div style="font-size:11px;color:rgba(255,255,255,0.5);">🕐 ' + (task.spent || 0) + '/' + (task.estimate || 0) + 'h</div></div>';
+
+        // Drag events
+        card.addEventListener('dragstart', function(e) {
+            e.dataTransfer.setData('text/plain', task.id);
+            card.style.opacity = '0.5';
+            card.style.transform = 'rotate(3deg)';
+        });
+        card.addEventListener('dragend', function() {
+            card.style.opacity = '1';
+            card.style.transform = 'rotate(0)';
+        });
+
+        // Click to edit
+        card.addEventListener('click', function(e) {
+            if (!e.target.closest('button')) {
+                UI.openTaskModal(task);
+            }
+        });
+
+        // Animate in
+        setTimeout(function() {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 50);
+
+        return card;
     }
 
     // ========================================================================
-    // TIMELINE VIEW
+    // TIMELINE VIEW - Enhanced with arrows, drag & drop, animations
     // ========================================================================
     function renderTimeline(container) {
         container.innerHTML = '';
-        var state = Store.getState();
+        
+        try {
+            var state = Store.getState();
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Timeline'),
-                el('p', { className: 'view-subtitle' }, 'Gantt chart view of project schedule')
-            ]),
-            el('div', { className: 'header-actions' }, [
-                el('button', { className: 'btn', onClick: function() { renderTimeline(container); } }, [
-                    icon('refresh', 16),
-                    ' Refresh'
-                ]),
-                el('button', { className: 'btn btn-primary', onClick: function() { UI.openTaskModal(null); } }, [
-                    icon('plus', 16),
-                    ' New Task'
-                ])
-            ])
-        ]);
-        container.appendChild(header);
-
-        // Timeline Container
-        var timelineCard = el('div', { className: 'glass-card' });
-        timelineCard.style.padding = '24px';
-        timelineCard.style.overflow = 'auto';
-
-        // Calculate date range
-        var today = new Date();
-        var startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 7);
-        var endDate = new Date(today);
-        endDate.setDate(endDate.getDate() + 60);
-
-        var totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-        var dayWidth = 30;
-
-        // Header with dates
-        var ganttHeader = el('div', { className: 'gantt-header' });
-        ganttHeader.style.cssText = 'display:flex;position:sticky;top:0;background:rgba(10,15,26,0.95);z-index:10;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:10px;margin-bottom:10px;';
-
-        var labelCol = el('div', { style: { width: '250px', flexShrink: 0, fontWeight: 600 } }, 'Task');
-        ganttHeader.appendChild(labelCol);
-
-        var datesContainer = el('div', { style: { display: 'flex' } });
-        for (var d = 0; d < totalDays; d++) {
-            var date = new Date(startDate);
-            date.setDate(date.getDate() + d);
-            var dayEl = el('div', { style: { width: dayWidth + 'px', textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.5)' } });
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">📅 Timeline</h1><p class="view-subtitle">Interactive Gantt chart with dependencies</p></div>';
             
-            if (d === 0 || date.getDate() === 1) {
-                dayEl.style.fontWeight = '600';
-                dayEl.style.color = '#fff';
-                dayEl.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            } else if (date.getDate() % 5 === 0) {
-                dayEl.textContent = date.getDate();
-            }
+            var headerActions = h('div', { className: 'header-actions', style: { display: 'flex', gap: '12px' } });
+            var zoomInBtn = h('button', { className: 'btn', onClick: function() { zoomTimeline(1.2); } });
+            zoomInBtn.innerHTML = '🔍+ Zoom In';
+            var zoomOutBtn = h('button', { className: 'btn', onClick: function() { zoomTimeline(0.8); } });
+            zoomOutBtn.innerHTML = '🔍- Zoom Out';
+            var todayBtn = h('button', { className: 'btn btn-primary', onClick: function() { scrollToToday(); } });
+            todayBtn.innerHTML = '📍 Today';
+            headerActions.appendChild(zoomInBtn);
+            headerActions.appendChild(zoomOutBtn);
+            headerActions.appendChild(todayBtn);
+            header.appendChild(headerActions);
+            container.appendChild(header);
 
-            // Today marker
-            if (date.toDateString() === today.toDateString()) {
-                dayEl.style.color = '#00d4ff';
-                dayEl.style.fontWeight = '600';
-            }
+            // Timeline settings
+            var dayWidth = 40;
+            var rowHeight = 60;
+            var today = new Date();
+            var startDate = new Date(today);
+            startDate.setDate(startDate.getDate() - 14);
+            var endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + 60);
+            var totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
 
-            datesContainer.appendChild(dayEl);
+            // Filter tasks with dates
+            var tasksWithDates = state.tasks.filter(function(t) { return t.startDate && t.endDate; });
+
+            // Main container
+            var timelineWrapper = h('div', { className: 'glass-card', style: { padding: '0', overflow: 'hidden', position: 'relative' } });
+            
+            // SVG for dependency arrows
+            var svgContainer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svgContainer.setAttribute('class', 'dependency-arrows');
+            svgContainer.style.cssText = 'position:absolute;top:0;left:250px;width:' + (totalDays * dayWidth) + 'px;height:' + (tasksWithDates.length * rowHeight + 80) + 'px;pointer-events:none;z-index:10;';
+            
+            // Arrow marker definition
+            var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            defs.innerHTML = '<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#00d4ff"/></marker>';
+            svgContainer.appendChild(defs);
+            
+            // Scrollable area
+            var scrollArea = h('div', { 
+                id: 'timeline-scroll',
+                style: { overflowX: 'auto', overflowY: 'auto', maxHeight: '600px' } 
+            });
+
+            // Header with dates
+            var headerRow = h('div', { style: { display: 'flex', position: 'sticky', top: '0', background: 'rgba(10,15,26,0.98)', zIndex: '20', borderBottom: '1px solid rgba(255,255,255,0.1)' } });
+            
+            var labelCol = h('div', { style: { width: '250px', flexShrink: '0', padding: '16px', fontWeight: '600', background: 'rgba(10,15,26,0.98)' } });
+            labelCol.innerHTML = '📌 Tasks';
+            headerRow.appendChild(labelCol);
+
+            var datesRow = h('div', { style: { display: 'flex', padding: '8px 0' } });
+            for (var d = 0; d < totalDays; d++) {
+                var date = new Date(startDate);
+                date.setDate(date.getDate() + d);
+                var isToday = date.toDateString() === today.toDateString();
+                var isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                
+                var dayEl = h('div', { style: { 
+                    width: dayWidth + 'px', textAlign: 'center', fontSize: '10px', 
+                    color: isToday ? '#00d4ff' : isWeekend ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.5)',
+                    fontWeight: isToday ? '700' : '400'
+                }});
+                
+                if (d === 0 || date.getDate() === 1) {
+                    dayEl.innerHTML = '<div style="font-weight:600;">' + date.toLocaleDateString('en-US', { month: 'short' }) + '</div>' + date.getDate();
+                } else if (date.getDate() % 5 === 0) {
+                    dayEl.textContent = date.getDate();
+                }
+                datesRow.appendChild(dayEl);
+            }
+            headerRow.appendChild(datesRow);
+            scrollArea.appendChild(headerRow);
+
+            // Task rows
+            var tasksContainer = h('div', { style: { position: 'relative' } });
+            
+            tasksWithDates.forEach(function(task, i) {
+                var row = createTimelineRow(task, i, startDate, dayWidth, rowHeight, totalDays, today, tasksWithDates);
+                tasksContainer.appendChild(row);
+            });
+
+            scrollArea.appendChild(tasksContainer);
+            timelineWrapper.appendChild(svgContainer);
+            timelineWrapper.appendChild(scrollArea);
+            container.appendChild(timelineWrapper);
+
+            // Draw dependency arrows after render
+            setTimeout(function() {
+                drawDependencyArrows(svgContainer, tasksWithDates, startDate, dayWidth, rowHeight);
+            }, 300);
+
+            // Legend
+            var legend = h('div', { className: 'glass-card', style: { padding: '16px', marginTop: '20px', display: 'flex', gap: '24px', flexWrap: 'wrap' } });
+            legend.innerHTML = '<div style="font-weight:600;margin-right:16px;">Legend:</div>';
+            Object.keys(statusColors).forEach(function(status) {
+                legend.innerHTML += '<div style="display:flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border-radius:4px;background:' + statusColors[status] + '"></span><span style="font-size:13px;text-transform:capitalize;">' + status.replace('-', ' ') + '</span></div>';
+            });
+            legend.innerHTML += '<div style="display:flex;align-items:center;gap:8px;margin-left:auto;"><span style="color:#00d4ff;">→</span><span style="font-size:13px;">Dependency</span></div>';
+            container.appendChild(legend);
+
+            // Store zoom functions
+            window.zoomTimeline = function(factor) {
+                dayWidth = Math.max(20, Math.min(80, dayWidth * factor));
+                renderTimeline(container);
+            };
+            
+            window.scrollToToday = function() {
+                var scroll = document.getElementById('timeline-scroll');
+                var todayOffset = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24)) * dayWidth;
+                if (scroll) scroll.scrollLeft = todayOffset - 300;
+            };
+
+        } catch (e) {
+            console.error('Timeline render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading Timeline: ' + e.message + '</div>';
         }
-        ganttHeader.appendChild(datesContainer);
-        timelineCard.appendChild(ganttHeader);
+    }
 
-        // Tasks
-        var tasksWithDates = state.tasks.filter(function(t) { return t.startDate && t.endDate; });
+    function createTimelineRow(task, index, startDate, dayWidth, rowHeight, totalDays, today, allTasks) {
+        var collab = Store.getCollaborator(task.assignee);
+        var taskStart = new Date(task.startDate);
+        var taskEnd = new Date(task.endDate);
+        var startOffset = Math.max(0, Math.ceil((taskStart - startDate) / (1000 * 60 * 60 * 24)));
+        var duration = Math.ceil((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) + 1;
+        var todayOffset = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
 
-        tasksWithDates.forEach(function(task, i) {
-            var row = el('div', { className: 'gantt-row' });
-            row.style.cssText = 'display:flex;align-items:center;min-height:50px;border-bottom:1px solid rgba(255,255,255,0.05);opacity:0;transform:translateX(-20px);transition:all 0.3s;cursor:pointer;';
-            row.style.transitionDelay = (i * 0.05) + 's';
-
-            // Task label
-            var label = el('div', { style: { width: '250px', flexShrink: 0, paddingRight: '16px' } });
-            label.innerHTML = '<div style="font-weight:500;margin-bottom:2px;">' + task.title + '</div>' +
-                '<div style="font-size:11px;color:rgba(255,255,255,0.5);">' + 
-                (Store.getCollaborator(task.assignee)?.name || 'Unassigned') + '</div>';
-
-            row.appendChild(label);
-
-            // Timeline bar container
-            var barContainer = el('div', { style: { display: 'flex', position: 'relative', height: '30px' } });
-            barContainer.style.width = (totalDays * dayWidth) + 'px';
-
-            // Calculate bar position
-            var taskStart = new Date(task.startDate);
-            var taskEnd = new Date(task.endDate);
-            var startOffset = Math.max(0, Math.ceil((taskStart - startDate) / (1000 * 60 * 60 * 24)));
-            var duration = Math.ceil((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) + 1;
-
-            var bar = el('div', { className: 'gantt-bar' });
-            bar.style.cssText = 'position:absolute;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;transition:all 0.2s;';
-            bar.style.left = (startOffset * dayWidth) + 'px';
-            bar.style.width = (duration * dayWidth - 4) + 'px';
-            bar.style.background = 'linear-gradient(90deg, ' + UI.statusColors[task.status] + ', ' + UI.statusColors[task.status] + 'aa)';
-            bar.style.boxShadow = '0 2px 10px ' + UI.statusColors[task.status] + '40';
-
-            // Progress overlay
-            var progressBar = el('div');
-            progressBar.style.cssText = 'position:absolute;left:0;top:0;height:100%;background:rgba(255,255,255,0.2);border-radius:6px;transition:width 0.5s;';
-            progressBar.style.width = task.progress + '%';
-            bar.appendChild(progressBar);
-
-            bar.appendChild(el('span', { style: { position: 'relative', zIndex: 1 } }, task.progress + '%'));
-
-            bar.addEventListener('click', function() { UI.openTaskModal(task); });
-            bar.addEventListener('mouseenter', function() { bar.style.transform = 'scale(1.05)'; });
-            bar.addEventListener('mouseleave', function() { bar.style.transform = 'scale(1)'; });
-
-            barContainer.appendChild(bar);
-
-            // Today line
-            var todayOffset = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
-            var todayLine = el('div');
-            todayLine.style.cssText = 'position:absolute;width:2px;height:30px;background:#00d4ff;left:' + (todayOffset * dayWidth) + 'px;';
-            barContainer.appendChild(todayLine);
-
-            row.appendChild(barContainer);
-
-            // Dependencies (visual lines)
-            if (task.dependencies && task.dependencies.length > 0) {
-                var depBadge = el('div');
-                depBadge.style.cssText = 'position:absolute;left:' + (startOffset * dayWidth - 12) + 'px;top:8px;';
-                depBadge.appendChild(icon('link', 12));
-                barContainer.appendChild(depBadge);
+        var row = h('div', { 
+            className: 'timeline-row',
+            'data-task-id': task.id,
+            style: { 
+                display: 'flex', minHeight: rowHeight + 'px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                opacity: '0', transform: 'translateX(-30px)', transition: 'all 0.4s ease ' + (index * 0.05) + 's'
             }
+        });
 
-            row.addEventListener('click', function() { UI.openTaskModal(task); });
+        // Task label
+        var label = h('div', { style: { 
+            width: '250px', flexShrink: '0', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px',
+            background: 'rgba(10,15,26,0.5)', position: 'sticky', left: '0', zIndex: '5'
+        }});
+        label.innerHTML = '<span style="font-size:20px;">' + (collab ? collab.avatar : '👤') + '</span>' +
+            '<div style="flex:1;min-width:0;"><div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + task.title + '</div>' +
+            '<div style="font-size:11px;color:rgba(255,255,255,0.5);">' + (collab ? collab.name : 'Unassigned') + '</div></div>';
+        row.appendChild(label);
 
-            timelineCard.appendChild(row);
+        // Timeline area
+        var timeline = h('div', { style: { 
+            position: 'relative', width: (totalDays * dayWidth) + 'px', height: '100%', display: 'flex', alignItems: 'center'
+        }});
 
-            requestAnimationFrame(function() {
-                row.style.opacity = '1';
-                row.style.transform = 'translateX(0)';
+        // Today line
+        if (todayOffset >= 0 && todayOffset < totalDays) {
+            var todayLine = h('div', { style: {
+                position: 'absolute', left: (todayOffset * dayWidth) + 'px', top: '0', bottom: '0',
+                width: '2px', background: 'linear-gradient(to bottom, #00d4ff, transparent)',
+                zIndex: '3'
+            }});
+            timeline.appendChild(todayLine);
+        }
+
+        // Task bar (draggable)
+        var bar = h('div', { 
+            className: 'gantt-bar',
+            draggable: 'true',
+            'data-task-id': task.id,
+            style: {
+                position: 'absolute', left: (startOffset * dayWidth + 2) + 'px', 
+                width: (duration * dayWidth - 4) + 'px', height: '32px',
+                background: 'linear-gradient(135deg, ' + statusColors[task.status] + ', ' + statusColors[task.status] + 'aa)',
+                borderRadius: '8px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 15px ' + statusColors[task.status] + '40',
+                transition: 'transform 0.2s, box-shadow 0.2s', overflow: 'hidden', zIndex: '4'
+            }
+        });
+
+        // Progress inside bar
+        bar.innerHTML = '<div style="position:absolute;left:0;top:0;height:100%;width:' + task.progress + '%;background:rgba(255,255,255,0.2);transition:width 0.5s;"></div>' +
+            '<span style="position:relative;font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.5);">' + task.progress + '%</span>';
+
+        // Dependency indicators
+        if (task.dependencies && task.dependencies.length > 0) {
+            var depIndicator = h('div', { style: {
+                position: 'absolute', left: '-8px', top: '50%', transform: 'translateY(-50%)',
+                width: '16px', height: '16px', background: '#00d4ff', borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', zIndex: '5'
+            }});
+            depIndicator.innerHTML = '🔗';
+            bar.appendChild(depIndicator);
+        }
+
+        // Hover effects
+        bar.addEventListener('mouseenter', function() {
+            bar.style.transform = 'scaleY(1.2)';
+            bar.style.boxShadow = '0 6px 25px ' + statusColors[task.status] + '60';
+            bar.style.zIndex = '10';
+        });
+        bar.addEventListener('mouseleave', function() {
+            bar.style.transform = 'scaleY(1)';
+            bar.style.boxShadow = '0 4px 15px ' + statusColors[task.status] + '40';
+            bar.style.zIndex = '4';
+        });
+
+        // Click to edit
+        bar.addEventListener('click', function() {
+            UI.openTaskModal(task);
+        });
+
+        // Drag to reschedule
+        bar.addEventListener('dragstart', function(e) {
+            e.dataTransfer.setData('text/plain', JSON.stringify({ id: task.id, type: 'timeline' }));
+            bar.style.opacity = '0.6';
+        });
+        bar.addEventListener('dragend', function() {
+            bar.style.opacity = '1';
+        });
+
+        timeline.appendChild(bar);
+        row.appendChild(timeline);
+
+        // Animate in
+        setTimeout(function() {
+            row.style.opacity = '1';
+            row.style.transform = 'translateX(0)';
+        }, 50);
+
+        return row;
+    }
+
+    function drawDependencyArrows(svg, tasks, startDate, dayWidth, rowHeight) {
+        // Clear existing paths
+        var existingPaths = svg.querySelectorAll('path.dep-arrow');
+        existingPaths.forEach(function(p) { p.remove(); });
+
+        tasks.forEach(function(task, targetIndex) {
+            if (!task.dependencies || task.dependencies.length === 0) return;
+
+            var taskStart = new Date(task.startDate);
+            var targetX = Math.ceil((taskStart - startDate) / (1000 * 60 * 60 * 24)) * dayWidth;
+            var targetY = targetIndex * rowHeight + rowHeight / 2 + 50; // +50 for header
+
+            task.dependencies.forEach(function(depId) {
+                var sourceTask = tasks.find(function(t) { return t.id === depId; });
+                if (!sourceTask) return;
+
+                var sourceIndex = tasks.indexOf(sourceTask);
+                var sourceEnd = new Date(sourceTask.endDate);
+                var sourceX = Math.ceil((sourceEnd - startDate) / (1000 * 60 * 60 * 24)) * dayWidth + dayWidth;
+                var sourceY = sourceIndex * rowHeight + rowHeight / 2 + 50;
+
+                // Create curved path
+                var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                var midX = (sourceX + targetX) / 2;
+                var controlOffset = Math.abs(targetIndex - sourceIndex) * 20;
+                
+                var d = 'M ' + sourceX + ' ' + sourceY + 
+                        ' C ' + (sourceX + controlOffset) + ' ' + sourceY + 
+                        ', ' + (targetX - controlOffset) + ' ' + targetY + 
+                        ', ' + targetX + ' ' + targetY;
+                
+                path.setAttribute('d', d);
+                path.setAttribute('class', 'dep-arrow');
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', '#00d4ff');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('stroke-dasharray', '5,5');
+                path.setAttribute('marker-end', 'url(#arrowhead)');
+                path.style.opacity = '0';
+                path.style.transition = 'opacity 0.5s ease ' + (targetIndex * 0.1) + 's';
+                
+                svg.appendChild(path);
+
+                // Animate in
+                setTimeout(function() {
+                    path.style.opacity = '0.7';
+                }, 100);
             });
         });
-
-        container.appendChild(timelineCard);
-
-        // Legend
-        var legend = el('div', { className: 'glass-card' });
-        legend.style.cssText = 'padding:16px;margin-top:20px;display:flex;gap:24px;flex-wrap:wrap;';
-
-        Object.keys(UI.statusColors).forEach(function(status) {
-            var item = el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } });
-            item.appendChild(el('span', { style: { width: '16px', height: '16px', borderRadius: '4px', background: UI.statusColors[status] } }));
-            item.appendChild(el('span', { style: { fontSize: '13px' } }, status.replace('-', ' ')));
-            legend.appendChild(item);
-        });
-
-        container.appendChild(legend);
     }
 
     // ========================================================================
@@ -501,108 +697,105 @@
     // ========================================================================
     function renderTeam(container) {
         container.innerHTML = '';
-        var state = Store.getState();
-        var metrics = Store.getMetrics();
+        
+        try {
+            var state = Store.getState();
+            var metrics = Store.getMetrics();
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Team'),
-                el('p', { className: 'view-subtitle' }, 'Workload matrix and team performance')
-            ])
-        ]);
-        container.appendChild(header);
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">👥 Team</h1><p class="view-subtitle">Workload matrix and performance insights</p></div>';
+            container.appendChild(header);
 
-        // Team Stats
-        var statsRow = el('div', { className: 'stats-grid' });
-        statsRow.style.cssText = 'display:grid;grid-template-columns:repeat(4, 1fr);gap:20px;margin-bottom:30px;';
-
-        statsRow.appendChild(UI.statCard({ title: 'Team Size', value: state.collaborators.length, icon: 'team', color: '#00d4ff', delay: 0.1 }));
-        statsRow.appendChild(UI.statCard({ title: 'Active Tasks', value: metrics.inProgress + metrics.review, icon: 'kanban', color: '#a855f7', delay: 0.2 }));
-        statsRow.appendChild(UI.statCard({ title: 'Avg Workload', value: Math.round(state.collaborators.reduce(function(sum, c) { return sum + c.workload; }, 0) / state.collaborators.length) + '%', icon: 'target', color: '#facc15', delay: 0.3 }));
-        statsRow.appendChild(UI.statCard({ title: 'Blocked Tasks', value: metrics.blocked, icon: 'alert', color: '#ef4444', delay: 0.4 }));
-
-        container.appendChild(statsRow);
-
-        // Team Grid
-        var teamGrid = el('div', { className: 'team-grid' });
-        teamGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:20px;';
-
-        state.collaborators.forEach(function(member, i) {
-            var memberTasks = state.tasks.filter(function(t) { return t.assignee === member.id; });
-            var inProgress = memberTasks.filter(function(t) { return t.status === 'in-progress'; }).length;
-            var completed = memberTasks.filter(function(t) { return t.status === 'done'; }).length;
-
-            var card = el('div', { className: 'glass-card team-card' });
-            card.style.cssText = 'padding:24px;opacity:0;transform:translateY(30px);transition:all 0.5s cubic-bezier(0.4, 0, 0.2, 1);cursor:pointer;';
-            card.style.transitionDelay = (i * 0.1) + 's';
-
-            // Avatar and name
-            var headerEl = el('div', { style: { display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' } });
+            // Stats Row
+            var statsRow = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' } });
             
-            var avatarEl = el('div', { style: { fontSize: '48px', width: '70px', height: '70px', background: 'rgba(255,255,255,0.05)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, member.avatar);
-            
-            var infoEl = el('div', { style: { flex: 1 } });
-            infoEl.innerHTML = '<div style="font-size:18px;font-weight:600;margin-bottom:4px;">' + member.name + '</div>' +
-                '<div style="font-size:13px;color:rgba(255,255,255,0.5)">' + member.role + '</div>' +
-                '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;"></div>';
+            var teamStats = [
+                { title: 'Team Size', value: state.collaborators.length, icon: '👥', color: '#00d4ff' },
+                { title: 'Active Tasks', value: metrics.inProgress + metrics.review, icon: '🔄', color: '#a855f7' },
+                { title: 'Avg Workload', value: Math.round(state.collaborators.reduce(function(sum, c) { return sum + c.workload; }, 0) / state.collaborators.length) + '%', icon: '📊', color: '#facc15' },
+                { title: 'Overloaded', value: metrics.overloadedMembers, icon: '⚠️', color: '#ef4444' }
+            ];
 
-            member.skills.slice(0, 3).forEach(function(skill) {
-                var skillTag = el('span', { style: { fontSize: '11px', padding: '3px 8px', background: 'rgba(0,212,255,0.1)', borderRadius: '10px', color: '#00d4ff' } }, skill);
-                infoEl.querySelector('div:last-child').appendChild(skillTag);
+            teamStats.forEach(function(stat, i) {
+                var card = h('div', { className: 'glass-card', style: { 
+                    padding: '20px', opacity: '0', transform: 'translateY(20px)', 
+                    transition: 'all 0.5s ease ' + (i * 0.1) + 's' 
+                }});
+                card.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:12px;">' +
+                    '<span style="font-size:12px;color:rgba(255,255,255,0.6);text-transform:uppercase;">' + stat.title + '</span>' +
+                    '<span style="font-size:20px;">' + stat.icon + '</span></div>' +
+                    '<div style="font-size:32px;font-weight:700;color:' + stat.color + ';">' + stat.value + '</div>';
+                statsRow.appendChild(card);
+                setTimeout(function() {
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 50);
+            });
+            container.appendChild(statsRow);
+
+            // Team Grid
+            var teamGrid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' } });
+
+            state.collaborators.forEach(function(member, i) {
+                var memberTasks = state.tasks.filter(function(t) { return t.assignee === member.id; });
+                var inProgress = memberTasks.filter(function(t) { return t.status === 'in-progress'; }).length;
+                var completed = memberTasks.filter(function(t) { return t.status === 'done'; }).length;
+                var isOverloaded = member.workload > 100;
+
+                var card = h('div', { className: 'glass-card team-card', style: { 
+                    padding: '24px', cursor: 'pointer',
+                    opacity: '0', transform: 'translateY(30px)', transition: 'all 0.5s ease ' + (i * 0.08) + 's',
+                    border: isOverloaded ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(255,255,255,0.05)'
+                }});
+
+                // Avatar and info
+                card.innerHTML = '<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">' +
+                    '<div style="font-size:48px;width:70px;height:70px;background:rgba(255,255,255,0.05);border-radius:50%;display:flex;align-items:center;justify-content:center;">' + member.avatar + '</div>' +
+                    '<div style="flex:1;"><div style="font-size:18px;font-weight:600;margin-bottom:4px;">' + member.name + '</div>' +
+                    '<div style="font-size:13px;color:rgba(255,255,255,0.5);">' + member.role + '</div>' +
+                    '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">' + 
+                    member.skills.slice(0, 3).map(function(s) { return '<span style="font-size:10px;padding:3px 8px;background:rgba(0,212,255,0.1);border-radius:10px;color:#00d4ff;">' + s + '</span>'; }).join('') +
+                    '</div></div></div>';
+
+                // Workload bar
+                var workloadColor = member.workload > 100 ? '#ef4444' : member.workload > 80 ? '#facc15' : '#22c55e';
+                card.innerHTML += '<div style="margin-bottom:16px;">' +
+                    '<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;">' +
+                    '<span>Workload</span><span style="color:' + workloadColor + ';">' + member.workload + '%</span></div>' +
+                    '<div style="height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">' +
+                    '<div style="height:100%;width:' + Math.min(member.workload, 100) + '%;background:' + workloadColor + ';transition:width 1s ease;border-radius:4px;"></div></div></div>';
+
+                // Stats grid
+                card.innerHTML += '<div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;text-align:center;">' +
+                    '<div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;"><div style="font-size:20px;font-weight:600;color:#a855f7;">' + inProgress + '</div><div style="font-size:11px;color:rgba(255,255,255,0.5);">Active</div></div>' +
+                    '<div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;"><div style="font-size:20px;font-weight:600;color:#22c55e;">' + completed + '</div><div style="font-size:11px;color:rgba(255,255,255,0.5);">Done</div></div>' +
+                    '<div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;"><div style="font-size:20px;font-weight:600;color:#00d4ff;">' + memberTasks.length + '</div><div style="font-size:11px;color:rgba(255,255,255,0.5);">Total</div></div></div>';
+
+                // Hover effect
+                card.addEventListener('mouseenter', function() {
+                    card.style.transform = 'translateY(-5px)';
+                    card.style.boxShadow = '0 20px 40px rgba(0,0,0,0.4)';
+                });
+                card.addEventListener('mouseleave', function() {
+                    card.style.transform = 'translateY(0)';
+                    card.style.boxShadow = '';
+                });
+
+                teamGrid.appendChild(card);
+
+                setTimeout(function() {
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 50);
             });
 
-            headerEl.appendChild(avatarEl);
-            headerEl.appendChild(infoEl);
-            card.appendChild(headerEl);
+            container.appendChild(teamGrid);
 
-            // Workload bar
-            var workloadContainer = el('div', { style: { marginBottom: '16px' } });
-            workloadContainer.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;"><span>Workload</span><span>' + member.workload + '%</span></div>';
-            
-            var progressEl = el('div');
-            Charts.progress(progressEl, member.workload, {
-                color: member.workload > 80 ? '#ef4444' : member.workload > 60 ? '#facc15' : '#22c55e',
-                height: 6,
-                animate: true
-            });
-            workloadContainer.appendChild(progressEl);
-            card.appendChild(workloadContainer);
-
-            // Stats
-            var statsEl = el('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', textAlign: 'center' } });
-            
-            [
-                { label: 'Active', value: inProgress, color: '#a855f7' },
-                { label: 'Completed', value: completed, color: '#22c55e' },
-                { label: 'Total', value: memberTasks.length, color: '#00d4ff' }
-            ].forEach(function(stat) {
-                var statEl = el('div', { style: { padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px' } });
-                statEl.innerHTML = '<div style="font-size:20px;font-weight:600;color:' + stat.color + ';">' + stat.value + '</div>' +
-                    '<div style="font-size:11px;color:rgba(255,255,255,0.5)">' + stat.label + '</div>';
-                statsEl.appendChild(statEl);
-            });
-
-            card.appendChild(statsEl);
-
-            card.addEventListener('mouseenter', function() {
-                card.style.transform = 'translateY(-5px)';
-                card.style.boxShadow = '0 20px 40px rgba(0,0,0,0.4)';
-            });
-            card.addEventListener('mouseleave', function() {
-                card.style.transform = 'translateY(0)';
-                card.style.boxShadow = '';
-            });
-
-            teamGrid.appendChild(card);
-
-            requestAnimationFrame(function() {
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
-            });
-        });
-
-        container.appendChild(teamGrid);
+        } catch (e) {
+            console.error('Team render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading Team: ' + e.message + '</div>';
+        }
     }
 
     // ========================================================================
@@ -610,111 +803,102 @@
     // ========================================================================
     function renderBudget(container) {
         container.innerHTML = '';
-        var state = Store.getState();
-        var fin = state.financials;
+        
+        try {
+            var state = Store.getState();
+            var fin = state.financials;
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Budget'),
-                el('p', { className: 'view-subtitle' }, 'Financial overview and burn rate analysis')
-            ])
-        ]);
-        container.appendChild(header);
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">💰 Budget</h1><p class="view-subtitle">Financial analytics and burn rate tracking</p></div>';
+            container.appendChild(header);
 
-        // Stats
-        var statsRow = el('div', { className: 'stats-grid' });
-        statsRow.style.cssText = 'display:grid;grid-template-columns:repeat(4, 1fr);gap:20px;margin-bottom:30px;';
+            // Stats
+            var remaining = fin.budget - fin.used;
+            var percentUsed = Math.round(fin.used / fin.budget * 100);
 
-        var remaining = fin.budget - fin.used;
-        var percentUsed = Math.round(fin.used / fin.budget * 100);
+            var statsRow = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' } });
+            var budgetStats = [
+                { title: 'Total Budget', value: '$' + (fin.budget / 1000).toFixed(0) + 'k', icon: '💵', color: '#00d4ff' },
+                { title: 'Spent', value: '$' + (fin.used / 1000).toFixed(0) + 'k', icon: '📉', color: percentUsed > 80 ? '#ef4444' : '#facc15', sub: percentUsed + '% used' },
+                { title: 'Remaining', value: '$' + (remaining / 1000).toFixed(0) + 'k', icon: '💎', color: '#22c55e' },
+                { title: 'Burn Rate', value: '$' + (fin.burnRate / 1000).toFixed(0) + 'k/mo', icon: '🔥', color: '#a855f7' }
+            ];
 
-        statsRow.appendChild(UI.statCard({ title: 'Total Budget', value: UI.formatCurrency(fin.budget), icon: 'budget', color: '#00d4ff', delay: 0.1 }));
-        statsRow.appendChild(UI.statCard({ title: 'Spent', value: UI.formatCurrency(fin.used), icon: 'trending-down', color: percentUsed > 80 ? '#ef4444' : '#facc15', subtitle: percentUsed + '% of budget', delay: 0.2 }));
-        statsRow.appendChild(UI.statCard({ title: 'Remaining', value: UI.formatCurrency(remaining), icon: 'trending-up', color: '#22c55e', delay: 0.3 }));
-        statsRow.appendChild(UI.statCard({ title: 'Burn Rate', value: UI.formatCurrency(fin.burnRate) + '/mo', icon: 'zap', color: '#a855f7', delay: 0.4 }));
-
-        container.appendChild(statsRow);
-
-        // Charts Row
-        var chartsRow = el('div', { className: 'charts-row' });
-        chartsRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:30px;';
-
-        // Budget Breakdown
-        var breakdownCard = el('div', { className: 'glass-card' });
-        breakdownCard.style.padding = '24px';
-        breakdownCard.appendChild(el('div', { className: 'card-title' }, 'Budget Breakdown'));
-
-        var breakdownChart = el('div');
-        breakdownChart.style.height = '280px';
-        breakdownCard.appendChild(breakdownChart);
-
-        setTimeout(function() {
-            Charts.donut(breakdownChart, fin.breakdown.map(function(b) {
-                return { label: b.category, value: b.amount, color: b.color };
-            }), { size: 180, thickness: 40, showLabels: true, showLegend: true, animate: true });
-        }, 100);
-
-        chartsRow.appendChild(breakdownCard);
-
-        // Burn Rate Trend
-        var burnCard = el('div', { className: 'glass-card' });
-        burnCard.style.padding = '24px';
-        burnCard.appendChild(el('div', { className: 'card-title' }, 'Monthly Burn Rate'));
-
-        var burnChart = el('div');
-        burnChart.style.height = '280px';
-        burnCard.appendChild(burnChart);
-
-        var burnData = [
-            { x: 0, y: 42000, label: 'Jan' },
-            { x: 1, y: 45000, label: 'Feb' },
-            { x: 2, y: 48000, label: 'Mar' },
-            { x: 3, y: 52000, label: 'Apr' },
-            { x: 4, y: 47000, label: 'May' },
-            { x: 5, y: 55000, label: 'Jun' }
-        ];
-
-        setTimeout(function() {
-            Charts.bar(burnChart, burnData, { color: '#a855f7', showTooltip: true, horizontal: false, height: 250, animate: true });
-        }, 200);
-
-        chartsRow.appendChild(burnCard);
-        container.appendChild(chartsRow);
-
-        // Expense List
-        var expenseCard = el('div', { className: 'glass-card' });
-        expenseCard.style.padding = '24px';
-        expenseCard.appendChild(el('div', { className: 'card-title' }, 'Expense Details'));
-
-        var expenseTable = el('div');
-        expenseTable.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
-
-        fin.breakdown.forEach(function(item, i) {
-            var row = el('div', { style: { display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', opacity: 0, transform: 'translateX(-20px)', transition: 'all 0.3s' } });
-            row.style.transitionDelay = (i * 0.1) + 's';
-
-            row.innerHTML = '<div style="width:12px;height:12px;borderRadius:50%;background:' + item.color + '"></div>' +
-                '<div style="flex:1;font-weight:500;">' + item.category + '</div>' +
-                '<div style="font-family:monospace;font-size:15px;">' + UI.formatCurrency(item.amount) + '</div>';
-
-            // Progress bar
-            var pct = Math.round(item.amount / fin.budget * 100);
-            var progContainer = el('div', { style: { width: '100px' } });
-            Charts.progress(progContainer, pct, { color: item.color, height: 4 });
-            row.appendChild(progContainer);
-            row.appendChild(el('span', { style: { fontSize: '12px', color: 'rgba(255,255,255,0.5)', width: '40px', textAlign: 'right' } }, pct + '%'));
-
-            expenseTable.appendChild(row);
-
-            requestAnimationFrame(function() {
-                row.style.opacity = '1';
-                row.style.transform = 'translateX(0)';
+            budgetStats.forEach(function(stat, i) {
+                var card = h('div', { className: 'glass-card', style: { 
+                    padding: '20px', opacity: '0', transform: 'scale(0.9)', 
+                    transition: 'all 0.4s ease ' + (i * 0.1) + 's' 
+                }});
+                card.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:12px;">' +
+                    '<span style="font-size:12px;color:rgba(255,255,255,0.6);text-transform:uppercase;">' + stat.title + '</span>' +
+                    '<span style="font-size:20px;">' + stat.icon + '</span></div>' +
+                    '<div style="font-size:28px;font-weight:700;color:' + stat.color + ';">' + stat.value + '</div>' +
+                    (stat.sub ? '<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px;">' + stat.sub + '</div>' : '');
+                statsRow.appendChild(card);
+                setTimeout(function() { card.style.opacity = '1'; card.style.transform = 'scale(1)'; }, 50);
             });
-        });
+            container.appendChild(statsRow);
 
-        expenseCard.appendChild(expenseTable);
-        container.appendChild(expenseCard);
+            // Charts Row
+            var chartsRow = h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' } });
+
+            // Breakdown Donut
+            var breakdownCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            breakdownCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.8);">📊 BUDGET BREAKDOWN</div>';
+            var breakdownChart = h('div', { style: { height: '280px' } });
+            breakdownCard.appendChild(breakdownChart);
+            chartsRow.appendChild(breakdownCard);
+
+            // Monthly Burn
+            var burnCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            burnCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.8);">📈 MONTHLY BURN RATE</div>';
+            var burnChart = h('div', { style: { height: '280px' } });
+            burnCard.appendChild(burnChart);
+            chartsRow.appendChild(burnCard);
+
+            container.appendChild(chartsRow);
+
+            // Render charts
+            setTimeout(function() {
+                Charts.donut(breakdownChart, fin.breakdown.map(function(b) {
+                    return { label: b.category, value: b.amount, color: b.color };
+                }), { size: 160, thickness: 35, showLegend: true, animate: true });
+
+                var monthlyData = fin.monthly.map(function(m, i) {
+                    return { y: m.actual || m.planned, label: m.month };
+                });
+                Charts.bar(burnChart, monthlyData, { color: '#a855f7', animate: true });
+            }, 200);
+
+            // Expense Details
+            var expenseCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            expenseCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.8);">📋 EXPENSE DETAILS</div>';
+            
+            var expenseList = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } });
+            fin.breakdown.forEach(function(item, i) {
+                var pct = Math.round(item.amount / fin.budget * 100);
+                var row = h('div', { style: { 
+                    display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', 
+                    background: 'rgba(255,255,255,0.02)', borderRadius: '12px',
+                    opacity: '0', transform: 'translateX(-20px)', transition: 'all 0.3s ease ' + (i * 0.1) + 's'
+                }});
+                row.innerHTML = '<div style="width:12px;height:12px;border-radius:50%;background:' + item.color + ';"></div>' +
+                    '<div style="flex:1;font-weight:500;">' + item.category + '</div>' +
+                    '<div style="font-family:monospace;font-size:15px;color:' + item.color + ';">$' + item.amount.toLocaleString() + '</div>' +
+                    '<div style="width:100px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">' +
+                    '<div style="height:100%;width:' + pct + '%;background:' + item.color + ';"></div></div>' +
+                    '<div style="width:40px;text-align:right;font-size:12px;color:rgba(255,255,255,0.5);">' + pct + '%</div>';
+                expenseList.appendChild(row);
+                setTimeout(function() { row.style.opacity = '1'; row.style.transform = 'translateX(0)'; }, 100);
+            });
+            expenseCard.appendChild(expenseList);
+            container.appendChild(expenseCard);
+
+        } catch (e) {
+            console.error('Budget render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading Budget: ' + e.message + '</div>';
+        }
     }
 
     // ========================================================================
@@ -722,133 +906,93 @@
     // ========================================================================
     function renderAnalytics(container) {
         container.innerHTML = '';
-        var state = Store.getState();
-        var metrics = Store.getMetrics();
+        
+        try {
+            var state = Store.getState();
+            var metrics = Store.getMetrics();
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Analytics'),
-                el('p', { className: 'view-subtitle' }, 'AI-powered insights and predictions')
-            ])
-        ]);
-        container.appendChild(header);
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">📊 Analytics</h1><p class="view-subtitle">AI-powered insights and predictive analysis</p></div>';
+            container.appendChild(header);
 
-        // AI Insights Cards
-        var insightsGrid = el('div');
-        insightsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;margin-bottom:30px;';
+            // AI Insights
+            var insightsGrid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' } });
 
-        var insights = [
-            { 
-                title: '🎯 Completion Prediction', 
-                value: '87%',
-                description: 'Probability of completing sprint on time',
-                color: '#22c55e',
-                recommendation: 'Current velocity suggests successful completion. Consider taking on 2 more tasks.'
-            },
-            { 
-                title: '⚠️ Risk Score', 
-                value: '32',
-                description: 'Overall project risk assessment (0-100)',
-                color: '#facc15',
-                recommendation: '2 tasks blocking progress. Priority: resolve API integration issue.'
-            },
-            { 
-                title: '📊 Team Sentiment', 
-                value: '8.2/10',
-                description: 'Based on velocity trends and task completion',
-                color: '#00d4ff',
-                recommendation: 'Team morale is high. Recent velocity increase indicates good momentum.'
-            }
-        ];
+            var insights = [
+                { title: '🎯 Sprint Success', value: '87%', color: '#22c55e', desc: 'Probability of completing on time', rec: 'Velocity trends positive. Consider taking 2 more tasks.' },
+                { title: '⚠️ Risk Score', value: '32/100', color: '#facc15', desc: 'Overall project risk level', rec: '2 blocked tasks affecting progress. Prioritize resolution.' },
+                { title: '😊 Team Sentiment', value: '8.2/10', color: '#00d4ff', desc: 'Based on completion rates', rec: 'Morale is high! Maintain current momentum.' }
+            ];
 
-        insights.forEach(function(insight, i) {
-            var card = el('div', { className: 'glass-card' });
-            card.style.cssText = 'padding:24px;opacity:0;transform:scale(0.9);transition:all 0.5s cubic-bezier(0.4, 0, 0.2, 1);';
-            card.style.transitionDelay = (i * 0.1) + 's';
-
-            card.innerHTML = '<div style="font-size:14px;margin-bottom:12px;color:rgba(255,255,255,0.7);">' + insight.title + '</div>' +
-                '<div style="font-size:42px;font-weight:700;color:' + insight.color + ';margin-bottom:8px;">' + insight.value + '</div>' +
-                '<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:16px;">' + insight.description + '</div>' +
-                '<div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:12px;border-left:3px solid ' + insight.color + ';">' +
-                '<strong>AI Recommendation:</strong><br>' + insight.recommendation + '</div>';
-
-            insightsGrid.appendChild(card);
-
-            requestAnimationFrame(function() {
-                card.style.opacity = '1';
-                card.style.transform = 'scale(1)';
+            insights.forEach(function(insight, i) {
+                var card = h('div', { className: 'glass-card', style: { 
+                    padding: '24px', opacity: '0', transform: 'scale(0.9)', 
+                    transition: 'all 0.5s ease ' + (i * 0.15) + 's' 
+                }});
+                card.innerHTML = '<div style="font-size:14px;margin-bottom:16px;color:rgba(255,255,255,0.7);">' + insight.title + '</div>' +
+                    '<div style="font-size:48px;font-weight:700;color:' + insight.color + ';margin-bottom:8px;">' + insight.value + '</div>' +
+                    '<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:16px;">' + insight.desc + '</div>' +
+                    '<div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:12px;border-left:3px solid ' + insight.color + ';">' +
+                    '<strong>AI Recommendation:</strong><br>' + insight.rec + '</div>';
+                insightsGrid.appendChild(card);
+                setTimeout(function() { card.style.opacity = '1'; card.style.transform = 'scale(1)'; }, 50);
             });
-        });
+            container.appendChild(insightsGrid);
 
-        container.appendChild(insightsGrid);
+            // Charts Row
+            var chartsRow = h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' } });
 
-        // Charts
-        var chartsRow = el('div');
-        chartsRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:30px;';
+            // Velocity Trend
+            var velocityCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            velocityCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;">📈 VELOCITY TREND</div>';
+            var velocityChart = h('div', { style: { height: '260px' } });
+            velocityCard.appendChild(velocityChart);
+            chartsRow.appendChild(velocityCard);
 
-        // Velocity Trend
-        var velocityCard = el('div', { className: 'glass-card' });
-        velocityCard.style.padding = '24px';
-        velocityCard.appendChild(el('div', { className: 'card-title' }, 'Velocity Trend Analysis'));
+            // Priority Distribution
+            var priorityCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            priorityCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;">🎯 PRIORITY DISTRIBUTION</div>';
+            var priorityChart = h('div', { style: { height: '260px' } });
+            priorityCard.appendChild(priorityChart);
+            chartsRow.appendChild(priorityCard);
 
-        var velocityChart = el('div');
-        velocityChart.style.height = '280px';
-        velocityCard.appendChild(velocityChart);
+            container.appendChild(chartsRow);
 
-        setTimeout(function() {
-            Charts.line(velocityChart, state.history.slice(-30).map(function(h, i) {
-                return { x: i, y: h.velocity, label: h.date.split('-').slice(1).join('/') };
-            }), { color: '#00d4ff', showArea: true, showDots: true, showTooltip: true, height: 260, animate: true });
-        }, 100);
+            // Render charts
+            setTimeout(function() {
+                Charts.line(velocityChart, state.history.slice(-30).map(function(h) {
+                    return { y: h.velocity, label: h.date.split('-').slice(1).join('/') };
+                }), { color: '#00d4ff', showArea: true, animate: true });
 
-        chartsRow.appendChild(velocityCard);
+                Charts.donut(priorityChart, [
+                    { label: 'Critical', value: state.tasks.filter(function(t) { return t.priority === 'critical'; }).length, color: '#ef4444' },
+                    { label: 'High', value: state.tasks.filter(function(t) { return t.priority === 'high'; }).length, color: '#f97316' },
+                    { label: 'Medium', value: state.tasks.filter(function(t) { return t.priority === 'medium'; }).length, color: '#facc15' },
+                    { label: 'Low', value: state.tasks.filter(function(t) { return t.priority === 'low'; }).length, color: '#22c55e' }
+                ], { size: 140, thickness: 25, showLegend: true, animate: true });
+            }, 200);
 
-        // Priority Distribution
-        var priorityCard = el('div', { className: 'glass-card' });
-        priorityCard.style.padding = '24px';
-        priorityCard.appendChild(el('div', { className: 'card-title' }, 'Priority Distribution'));
+            // Category Performance
+            var categoryCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            categoryCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;">📊 COMPLETION BY CATEGORY</div>';
+            var categoryChart = h('div', { style: { height: '220px' } });
+            categoryCard.appendChild(categoryChart);
+            container.appendChild(categoryCard);
 
-        var priorityChart = el('div');
-        priorityChart.style.height = '280px';
-        priorityCard.appendChild(priorityChart);
+            setTimeout(function() {
+                var categories = ['feature', 'bugfix', 'improvement', 'documentation', 'testing', 'devops'];
+                Charts.bar(categoryChart, categories.map(function(cat) {
+                    var catTasks = state.tasks.filter(function(t) { return t.category === cat; });
+                    var done = catTasks.filter(function(t) { return t.status === 'done'; }).length;
+                    return { y: catTasks.length > 0 ? Math.round(done / catTasks.length * 100) : 0, label: cat };
+                }), { color: '#a855f7', horizontal: true, animate: true });
+            }, 300);
 
-        var priorityData = [
-            { label: 'Critical', value: state.tasks.filter(function(t) { return t.priority === 'critical'; }).length, color: '#ef4444' },
-            { label: 'High', value: state.tasks.filter(function(t) { return t.priority === 'high'; }).length, color: '#f97316' },
-            { label: 'Medium', value: state.tasks.filter(function(t) { return t.priority === 'medium'; }).length, color: '#facc15' },
-            { label: 'Low', value: state.tasks.filter(function(t) { return t.priority === 'low'; }).length, color: '#22c55e' }
-        ];
-
-        setTimeout(function() {
-            Charts.donut(priorityChart, priorityData, { size: 160, thickness: 30, showLabels: true, showLegend: true, animate: true });
-        }, 200);
-
-        chartsRow.appendChild(priorityCard);
-        container.appendChild(chartsRow);
-
-        // Task Completion by Category
-        var categoryCard = el('div', { className: 'glass-card' });
-        categoryCard.style.padding = '24px';
-        categoryCard.appendChild(el('div', { className: 'card-title' }, 'Completion Rate by Category'));
-
-        var categoryChart = el('div');
-        categoryChart.style.height = '250px';
-        categoryCard.appendChild(categoryChart);
-
-        var categories = ['feature', 'bugfix', 'improvement', 'documentation', 'testing', 'devops'];
-        var categoryData = categories.map(function(cat, i) {
-            var catTasks = state.tasks.filter(function(t) { return t.category === cat; });
-            var completed = catTasks.filter(function(t) { return t.status === 'done'; }).length;
-            var rate = catTasks.length > 0 ? Math.round(completed / catTasks.length * 100) : 0;
-            return { x: i, y: rate, label: cat };
-        });
-
-        setTimeout(function() {
-            Charts.bar(categoryChart, categoryData, { color: '#a855f7', horizontal: true, height: 220, showTooltip: true, animate: true });
-        }, 300);
-
-        container.appendChild(categoryCard);
+        } catch (e) {
+            console.error('Analytics render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading Analytics: ' + e.message + '</div>';
+        }
     }
 
     // ========================================================================
@@ -856,137 +1000,99 @@
     // ========================================================================
     function renderActivity(container) {
         container.innerHTML = '';
-        var state = Store.getState();
+        
+        try {
+            var state = Store.getState();
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Activity'),
-                el('p', { className: 'view-subtitle' }, 'Real-time project activity feed')
-            ]),
-            el('div', { className: 'header-actions' }, [
-                el('button', { className: 'btn', onClick: function() { renderActivity(container); } }, [
-                    icon('refresh', 16),
-                    ' Refresh'
-                ])
-            ])
-        ]);
-        container.appendChild(header);
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">🔔 Activity</h1><p class="view-subtitle">Real-time project activity feed</p></div>';
+            var refreshBtn = h('button', { className: 'btn', onClick: function() { renderActivity(container); } });
+            refreshBtn.innerHTML = '🔄 Refresh';
+            var headerActions = h('div', { className: 'header-actions' });
+            headerActions.appendChild(refreshBtn);
+            header.appendChild(headerActions);
+            container.appendChild(header);
 
-        // Main content
-        var contentRow = el('div');
-        contentRow.style.cssText = 'display:grid;grid-template-columns:2fr 1fr;gap:20px;';
+            // Main Layout
+            var mainLayout = h('div', { style: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' } });
 
-        // Activity Timeline
-        var timelineCard = el('div', { className: 'glass-card' });
-        timelineCard.style.padding = '24px';
-        timelineCard.appendChild(el('div', { className: 'card-title' }, 'Activity Timeline'));
+            // Activity Timeline
+            var timelineCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            timelineCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:20px;">📋 ACTIVITY TIMELINE</div>';
+            
+            var timeline = h('div', { style: { position: 'relative', paddingLeft: '30px' } });
+            var line = h('div', { style: { position: 'absolute', left: '8px', top: '0', bottom: '0', width: '2px', background: 'linear-gradient(to bottom, #00d4ff, #a855f7, transparent)' } });
+            timeline.appendChild(line);
 
-        var timeline = el('div', { className: 'activity-timeline' });
-        timeline.style.cssText = 'position:relative;padding-left:30px;';
+            state.activities.forEach(function(activity, i) {
+                var item = h('div', { style: { 
+                    position: 'relative', paddingBottom: '24px',
+                    opacity: '0', transform: 'translateX(-20px)', transition: 'all 0.4s ease ' + (i * 0.08) + 's'
+                }});
 
-        // Vertical line
-        var line = el('div');
-        line.style.cssText = 'position:absolute;left:8px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom, #00d4ff, transparent);';
-        timeline.appendChild(line);
+                var typeColors = { completed: '#22c55e', created: '#00d4ff', moved: '#a855f7', comment: '#facc15', assigned: '#f97316' };
+                var typeIcons = { completed: '✅', created: '➕', moved: '➡️', comment: '💬', assigned: '👤' };
 
-        state.activities.forEach(function(activity, i) {
-            var item = el('div', { className: 'timeline-item' });
-            item.style.cssText = 'position:relative;padding:16px 0;opacity:0;transform:translateX(-20px);transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1);';
-            item.style.transitionDelay = (i * 0.1) + 's';
+                item.innerHTML = '<div style="position:absolute;left:-26px;width:16px;height:16px;border-radius:50%;background:' + (typeColors[activity.type] || '#00d4ff') + ';box-shadow:0 0 10px ' + (typeColors[activity.type] || '#00d4ff') + '40;"></div>' +
+                    '<div class="glass-card" style="padding:16px;">' +
+                    '<div style="display:flex;justify-content:space-between;margin-bottom:8px;">' +
+                    '<span style="font-weight:500;">' + (typeIcons[activity.type] || '📌') + ' ' + activity.user + '</span>' +
+                    '<span style="font-size:11px;color:rgba(255,255,255,0.4);">' + UI.formatDateTime(activity.timestamp) + '</span></div>' +
+                    '<div style="color:rgba(255,255,255,0.8);">' + activity.action + '</div>' +
+                    (activity.task ? '<div style="margin-top:10px;padding:10px;background:rgba(0,212,255,0.05);border-radius:8px;font-size:13px;color:#00d4ff;cursor:pointer;">📋 ' + activity.task + '</div>' : '') +
+                    '</div>';
 
-            var iconColors = { completed: '#22c55e', created: '#00d4ff', moved: '#a855f7', comment: '#facc15', assigned: '#f97316' };
-            var iconNames = { completed: 'check', created: 'plus', moved: 'arrow-right', comment: 'comment', assigned: 'team' };
-
-            // Dot
-            var dot = el('div');
-            dot.style.cssText = 'position:absolute;left:-26px;top:20px;width:16px;height:16px;border-radius:50%;background:' + iconColors[activity.type] + ';display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px ' + iconColors[activity.type] + '40;';
-            item.appendChild(dot);
-
-            // Content
-            var content = el('div', { className: 'glass-card' });
-            content.style.cssText = 'padding:16px;';
-            content.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-                '<span style="font-weight:500;">' + activity.user + '</span>' +
-                '<span style="font-size:12px;color:rgba(255,255,255,0.4);">' + UI.formatDateTime(activity.timestamp) + '</span></div>' +
-                '<div style="color:rgba(255,255,255,0.8);">' + activity.action + '</div>';
-
-            if (activity.task) {
-                var taskLink = el('div');
-                taskLink.style.cssText = 'margin-top:10px;padding:10px;background:rgba(0,212,255,0.05);border-radius:8px;cursor:pointer;transition:all 0.2s;';
-                taskLink.innerHTML = '<span style="color:#00d4ff;font-size:13px;">' + activity.task + '</span>';
-                taskLink.addEventListener('mouseenter', function() { taskLink.style.background = 'rgba(0,212,255,0.1)'; });
-                taskLink.addEventListener('mouseleave', function() { taskLink.style.background = 'rgba(0,212,255,0.05)'; });
-                content.appendChild(taskLink);
-            }
-
-            item.appendChild(content);
-            timeline.appendChild(item);
-
-            requestAnimationFrame(function() {
-                item.style.opacity = '1';
-                item.style.transform = 'translateX(0)';
+                timeline.appendChild(item);
+                setTimeout(function() { item.style.opacity = '1'; item.style.transform = 'translateX(0)'; }, 100);
             });
-        });
 
-        timelineCard.appendChild(timeline);
-        contentRow.appendChild(timelineCard);
+            timelineCard.appendChild(timeline);
+            mainLayout.appendChild(timelineCard);
 
-        // Stats Sidebar
-        var sidebar = el('div');
-        sidebar.style.cssText = 'display:flex;flex-direction:column;gap:20px;';
+            // Sidebar Stats
+            var sidebar = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '20px' } });
 
-        // Activity by Type
-        var typeCard = el('div', { className: 'glass-card' });
-        typeCard.style.padding = '24px';
-        typeCard.appendChild(el('div', { className: 'card-title' }, 'Activity by Type'));
+            // Activity by Type
+            var typeCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            typeCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;">📊 BY TYPE</div>';
+            var typeChart = h('div', { style: { height: '180px' } });
+            typeCard.appendChild(typeChart);
+            sidebar.appendChild(typeCard);
 
-        var typeData = {};
-        state.activities.forEach(function(a) {
-            typeData[a.type] = (typeData[a.type] || 0) + 1;
-        });
-
-        var typeChart = el('div');
-        typeChart.style.height = '200px';
-        typeCard.appendChild(typeChart);
-
-        setTimeout(function() {
-            var chartData = Object.keys(typeData).map(function(type) {
-                var colors = { completed: '#22c55e', created: '#00d4ff', moved: '#a855f7', comment: '#facc15', assigned: '#f97316' };
-                return { label: type, value: typeData[type], color: colors[type] || '#00d4ff' };
+            // Top Contributors
+            var contribCard = h('div', { className: 'glass-card', style: { padding: '24px' } });
+            contribCard.innerHTML = '<div style="font-size:14px;font-weight:600;margin-bottom:16px;">🏆 TOP CONTRIBUTORS</div>';
+            
+            var contribs = {};
+            state.activities.forEach(function(a) { contribs[a.user] = (contribs[a.user] || 0) + 1; });
+            
+            Object.keys(contribs).sort(function(a, b) { return contribs[b] - contribs[a]; }).slice(0, 5).forEach(function(user, i) {
+                var row = h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', marginBottom: '8px' } });
+                row.innerHTML = '<span style="font-size:12px;color:rgba(255,255,255,0.5);width:20px;">#' + (i + 1) + '</span>' +
+                    '<span style="flex:1;">' + user + '</span>' +
+                    '<span style="font-weight:600;color:#00d4ff;">' + contribs[user] + '</span>';
+                contribCard.appendChild(row);
             });
-            Charts.donut(typeChart, chartData, { size: 120, thickness: 25, showLegend: true, animate: true });
-        }, 100);
+            sidebar.appendChild(contribCard);
 
-        sidebar.appendChild(typeCard);
+            mainLayout.appendChild(sidebar);
+            container.appendChild(mainLayout);
 
-        // Top Contributors
-        var contribCard = el('div', { className: 'glass-card' });
-        contribCard.style.padding = '24px';
-        contribCard.appendChild(el('div', { className: 'card-title' }, 'Top Contributors'));
+            // Render type chart
+            setTimeout(function() {
+                var typeData = {};
+                state.activities.forEach(function(a) { typeData[a.type] = (typeData[a.type] || 0) + 1; });
+                Charts.donut(typeChart, Object.keys(typeData).map(function(type) {
+                    var colors = { completed: '#22c55e', created: '#00d4ff', moved: '#a855f7', comment: '#facc15', assigned: '#f97316' };
+                    return { label: type, value: typeData[type], color: colors[type] || '#00d4ff' };
+                }), { size: 100, thickness: 20, showLegend: true, animate: true });
+            }, 200);
 
-        var contribs = {};
-        state.activities.forEach(function(a) {
-            contribs[a.user] = (contribs[a.user] || 0) + 1;
-        });
-
-        var contribList = el('div');
-        contribList.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
-
-        Object.keys(contribs).sort(function(a, b) { return contribs[b] - contribs[a]; }).slice(0, 5).forEach(function(user, i) {
-            var row = el('div');
-            row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;';
-            row.innerHTML = '<span style="font-size:12px;color:rgba(255,255,255,0.5);width:20px;">#' + (i + 1) + '</span>' +
-                '<span style="flex:1;">' + user + '</span>' +
-                '<span style="font-weight:600;color:#00d4ff;">' + contribs[user] + '</span>';
-            contribList.appendChild(row);
-        });
-
-        contribCard.appendChild(contribList);
-        sidebar.appendChild(contribCard);
-
-        contentRow.appendChild(sidebar);
-        container.appendChild(contentRow);
+        } catch (e) {
+            console.error('Activity render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading Activity: ' + e.message + '</div>';
+        }
     }
 
     // ========================================================================
@@ -994,168 +1100,135 @@
     // ========================================================================
     function renderSettings(container) {
         container.innerHTML = '';
-        var state = Store.getState();
-        var settings = state.settings;
+        
+        try {
+            var state = Store.getState();
+            var settings = state.settings;
 
-        // Header
-        var header = el('div', { className: 'view-header' }, [
-            el('div', {}, [
-                el('h1', { className: 'view-title' }, 'Settings'),
-                el('p', { className: 'view-subtitle' }, 'Customize your project hub experience')
-            ])
-        ]);
-        container.appendChild(header);
+            // Header
+            var header = h('div', { className: 'view-header' });
+            header.innerHTML = '<div><h1 class="view-title">⚙️ Settings</h1><p class="view-subtitle">Customize your experience</p></div>';
+            container.appendChild(header);
 
-        // Settings Sections
-        var sectionsGrid = el('div');
-        sectionsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(2, 1fr);gap:20px;';
+            // Settings Grid
+            var settingsGrid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' } });
 
-        // Theme Settings
-        var themeCard = createSettingsSection('🎨 Appearance', [
-            { type: 'toggle', key: 'darkMode', label: 'Dark Mode', description: 'Enable dark theme', value: settings.darkMode },
-            { type: 'toggle', key: 'animations', label: 'Animations', description: 'Enable UI animations', value: settings.animations },
-            { type: 'toggle', key: 'compactMode', label: 'Compact Mode', description: 'Reduce padding and spacing', value: settings.compactMode },
-            { type: 'select', key: 'accentColor', label: 'Accent Color', options: [
-                { value: '#00d4ff', label: 'Cyan' },
-                { value: '#a855f7', label: 'Purple' },
-                { value: '#22c55e', label: 'Green' },
-                { value: '#f97316', label: 'Orange' },
-                { value: '#ef4444', label: 'Red' }
-            ], value: settings.accentColor || '#00d4ff' }
-        ]);
-        sectionsGrid.appendChild(themeCard);
+            // Appearance
+            var appearanceCard = createSettingsCard('🎨 Appearance', [
+                { key: 'darkMode', label: 'Dark Mode', desc: 'Enable dark theme', type: 'toggle', value: settings.darkMode !== false },
+                { key: 'animations', label: 'Animations', desc: 'Enable UI animations', type: 'toggle', value: settings.animations !== false },
+                { key: 'compactMode', label: 'Compact Mode', desc: 'Reduce spacing', type: 'toggle', value: settings.compactMode === true }
+            ]);
+            settingsGrid.appendChild(appearanceCard);
 
-        // Notification Settings
-        var notifCard = createSettingsSection('🔔 Notifications', [
-            { type: 'toggle', key: 'notifications', label: 'Enable Notifications', description: 'Show desktop notifications', value: settings.notifications },
-            { type: 'toggle', key: 'emailDigest', label: 'Email Digest', description: 'Receive daily email summary', value: settings.emailDigest },
-            { type: 'toggle', key: 'soundEnabled', label: 'Sound Effects', description: 'Play sounds for notifications', value: settings.soundEnabled },
-            { type: 'select', key: 'notifyFrequency', label: 'Notification Frequency', options: [
-                { value: 'instant', label: 'Instant' },
-                { value: 'hourly', label: 'Hourly' },
-                { value: 'daily', label: 'Daily' }
-            ], value: settings.notifyFrequency || 'instant' }
-        ]);
-        sectionsGrid.appendChild(notifCard);
+            // Notifications
+            var notifCard = createSettingsCard('🔔 Notifications', [
+                { key: 'notifications', label: 'Push Notifications', desc: 'Desktop notifications', type: 'toggle', value: settings.notifications !== false },
+                { key: 'emailDigest', label: 'Email Digest', desc: 'Daily summary', type: 'toggle', value: settings.emailDigest === true },
+                { key: 'soundEnabled', label: 'Sound Effects', desc: 'Audio feedback', type: 'toggle', value: settings.soundEnabled !== false }
+            ]);
+            settingsGrid.appendChild(notifCard);
 
-        // Kanban Settings
-        var kanbanCard = createSettingsSection('📋 Kanban Board', [
-            { type: 'toggle', key: 'kanbanDragEnabled', label: 'Drag & Drop', description: 'Enable card dragging', value: settings.kanbanDragEnabled !== false },
-            { type: 'toggle', key: 'showProgress', label: 'Show Progress', description: 'Display progress bars on cards', value: settings.showProgress !== false },
-            { type: 'toggle', key: 'showAssignee', label: 'Show Assignee', description: 'Display assignee on cards', value: settings.showAssignee !== false },
-            { type: 'select', key: 'defaultView', label: 'Default Column', options: [
-                { value: 'all', label: 'All Columns' },
-                { value: 'mine', label: 'My Tasks' },
-                { value: 'blocked', label: 'Blocked Only' }
-            ], value: settings.defaultView || 'all' }
-        ]);
-        sectionsGrid.appendChild(kanbanCard);
+            // Kanban
+            var kanbanCard = createSettingsCard('📋 Kanban Board', [
+                { key: 'kanbanDragEnabled', label: 'Drag & Drop', desc: 'Enable card dragging', type: 'toggle', value: settings.kanbanDragEnabled !== false },
+                { key: 'showProgress', label: 'Show Progress', desc: 'Progress bars on cards', type: 'toggle', value: settings.showProgress !== false },
+                { key: 'showAssignee', label: 'Show Assignee', desc: 'Avatars on cards', type: 'toggle', value: settings.showAssignee !== false }
+            ]);
+            settingsGrid.appendChild(kanbanCard);
 
-        // Data Settings
-        var dataCard = createSettingsSection('💾 Data & Privacy', [
-            { type: 'toggle', key: 'autoSave', label: 'Auto Save', description: 'Automatically save changes', value: settings.autoSave !== false },
-            { type: 'toggle', key: 'analytics', label: 'Usage Analytics', description: 'Help improve the product', value: settings.analytics },
-            { type: 'button', label: 'Export Data', description: 'Download all project data', action: function() {
-                var data = JSON.stringify(Store.getState(), null, 2);
-                var blob = new Blob([data], { type: 'application/json' });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = 'project-hub-data.json';
-                a.click();
-                UI.toast('Data exported successfully!', 'success');
-            }},
-            { type: 'button', label: 'Reset to Defaults', description: 'Reset all settings', danger: true, action: function() {
-                if (confirm('Are you sure you want to reset all settings?')) {
-                    Store.resetSettings();
-                    renderSettings(container);
-                    UI.toast('Settings reset to defaults', 'success');
-                }
-            }}
-        ]);
-        sectionsGrid.appendChild(dataCard);
+            // Data
+            var dataCard = createSettingsCard('💾 Data & Export', [
+                { key: 'autoSave', label: 'Auto Save', desc: 'Save changes automatically', type: 'toggle', value: settings.autoSave !== false },
+                { key: 'export', label: 'Export Data', desc: 'Download project data', type: 'button', action: function() {
+                    var data = JSON.stringify(Store.getState(), null, 2);
+                    var blob = new Blob([data], { type: 'application/json' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url; a.download = 'project-hub-data.json'; a.click();
+                    UI.toast('Data exported!', 'success');
+                }},
+                { key: 'reset', label: 'Reset Settings', desc: 'Restore defaults', type: 'button', danger: true, action: function() {
+                    if (confirm('Reset all settings?')) {
+                        Store.resetSettings();
+                        renderSettings(container);
+                        UI.toast('Settings reset!', 'success');
+                    }
+                }}
+            ]);
+            settingsGrid.appendChild(dataCard);
 
-        container.appendChild(sectionsGrid);
+            container.appendChild(settingsGrid);
+
+        } catch (e) {
+            console.error('Settings render error:', e);
+            container.innerHTML = '<div class="error-state">Error loading Settings: ' + e.message + '</div>';
+        }
     }
 
-    function createSettingsSection(title, items) {
-        var card = el('div', { className: 'glass-card' });
-        card.style.cssText = 'padding:24px;';
-
-        card.appendChild(el('h3', { style: { marginBottom: '20px', fontSize: '16px' } }, title));
-
-        var list = el('div');
-        list.style.cssText = 'display:flex;flex-direction:column;gap:16px;';
+    function createSettingsCard(title, items) {
+        var card = h('div', { className: 'glass-card', style: { padding: '24px' } });
+        card.innerHTML = '<div style="font-size:16px;font-weight:600;margin-bottom:20px;">' + title + '</div>';
 
         items.forEach(function(item) {
-            var row = el('div');
-            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px;transition:all 0.2s;';
+            var row = h('div', { style: { 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', marginBottom: '10px'
+            }});
 
-            var labelCol = el('div');
-            labelCol.innerHTML = '<div style="font-weight:500;margin-bottom:2px;">' + item.label + '</div>' +
-                (item.description ? '<div style="font-size:12px;color:rgba(255,255,255,0.5);">' + item.description + '</div>' : '');
-
-            row.appendChild(labelCol);
+            var labelDiv = h('div');
+            labelDiv.innerHTML = '<div style="font-weight:500;margin-bottom:2px;">' + item.label + '</div>' +
+                '<div style="font-size:12px;color:rgba(255,255,255,0.5);">' + item.desc + '</div>';
+            row.appendChild(labelDiv);
 
             if (item.type === 'toggle') {
-                var toggle = el('label', { className: 'toggle-switch' });
-                toggle.style.cssText = 'position:relative;width:44px;height:24px;cursor:pointer;';
-
-                var input = el('input', { type: 'checkbox' });
+                var toggle = h('label', { style: { position: 'relative', width: '44px', height: '24px', cursor: 'pointer' } });
+                var input = h('input', { type: 'checkbox' });
                 input.checked = item.value;
                 input.style.cssText = 'opacity:0;width:0;height:0;position:absolute;';
-
-                var slider = el('span');
-                slider.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:' + (item.value ? '#00d4ff' : 'rgba(255,255,255,0.1)') + ';border-radius:24px;transition:all 0.3s;';
-
-                var knob = el('span');
-                knob.style.cssText = 'position:absolute;top:2px;left:' + (item.value ? '22px' : '2px') + ';width:20px;height:20px;background:#fff;border-radius:50%;transition:all 0.3s;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
-
+                
+                var slider = h('span', { style: { 
+                    position: 'absolute', top: '0', left: '0', right: '0', bottom: '0',
+                    background: item.value ? '#00d4ff' : 'rgba(255,255,255,0.1)',
+                    borderRadius: '24px', transition: 'all 0.3s'
+                }});
+                var knob = h('span', { style: {
+                    position: 'absolute', top: '2px', left: item.value ? '22px' : '2px',
+                    width: '20px', height: '20px', background: '#fff', borderRadius: '50%',
+                    transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }});
                 slider.appendChild(knob);
                 toggle.appendChild(input);
                 toggle.appendChild(slider);
 
                 input.addEventListener('change', function() {
-                    var newValue = input.checked;
-                    slider.style.background = newValue ? '#00d4ff' : 'rgba(255,255,255,0.1)';
-                    knob.style.left = newValue ? '22px' : '2px';
-                    Store.updateSettings(item.key, newValue);
-                    UI.toast('Setting updated', 'success');
+                    var checked = input.checked;
+                    slider.style.background = checked ? '#00d4ff' : 'rgba(255,255,255,0.1)';
+                    knob.style.left = checked ? '22px' : '2px';
+                    Store.updateSettings(item.key, checked);
+                    UI.toast('Setting updated!', 'success');
                 });
 
                 row.appendChild(toggle);
-            } else if (item.type === 'select') {
-                var select = el('select', { className: 'settings-select' });
-                select.style.cssText = 'padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:13px;cursor:pointer;outline:none;';
-
-                item.options.forEach(function(opt) {
-                    var option = el('option', { value: opt.value }, opt.label);
-                    if (opt.value === item.value) option.selected = true;
-                    select.appendChild(option);
-                });
-
-                select.addEventListener('change', function() {
-                    Store.updateSettings(item.key, select.value);
-                    UI.toast('Setting updated', 'success');
-                });
-
-                row.appendChild(select);
             } else if (item.type === 'button') {
-                var btn = el('button', { className: 'btn' + (item.danger ? ' btn-danger' : ''), onClick: item.action }, item.label);
-                if (item.danger) {
-                    btn.style.cssText += 'background:rgba(239,68,68,0.1);border-color:#ef4444;color:#ef4444;';
-                }
+                var btn = h('button', { 
+                    className: 'btn',
+                    style: item.danger ? { background: 'rgba(239,68,68,0.1)', borderColor: '#ef4444', color: '#ef4444' } : {},
+                    onClick: item.action
+                });
+                btn.textContent = item.label;
                 row.appendChild(btn);
             }
 
-            list.appendChild(row);
+            card.appendChild(row);
         });
 
-        card.appendChild(list);
         return card;
     }
 
-    // Export views
+    // ========================================================================
+    // EXPORT VIEWS
+    // ========================================================================
     global.Views = {
         dashboard: renderDashboard,
         kanban: renderKanban,
