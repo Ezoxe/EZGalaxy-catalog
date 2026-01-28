@@ -1862,14 +1862,16 @@ const App = () => {
   // Render loading state
   if (isLoading) {
     return React.createElement('div', { className: 'loading-screen' },
-      React.createElement(motion.div, {
+      React.createElement('div', {
         className: 'loading-logo',
-        animate: { rotate: 360 },
-        transition: { duration: 2, repeat: Infinity, ease: 'linear' }
+        style: { fontSize: '48px', animation: 'spin 2s linear infinite' }
       }, '🚀'),
       React.createElement('h1', null, 'Project Hub'),
       React.createElement('p', null, 'Loading your dashboard...'),
-      React.createElement(SkeletonLoader, { width: 200, height: 4 })
+      React.createElement('div', { 
+        className: 'skeleton',
+        style: { width: 200, height: 4, borderRadius: 2 }
+      })
     );
   }
 
