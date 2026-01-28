@@ -556,19 +556,18 @@ const SentimentCalculator = {
 // ICON COMPONENT (using Lucide)
 // ============================================================================
 const Icon = ({ name, size = 20, className = '' }) => {
-  const ref = useRef(null);
+  // Convert kebab-case to PascalCase
+  const componentName = name.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
   
-  useEffect(() => {
-    if (ref.current && window.lucide) {
-      ref.current.innerHTML = '';
-      const icon = window.lucide.icons[name];
-      if (icon) {
-        ref.current.innerHTML = icon.toSvg({ width: size, height: size });
-      }
-    }
-  }, [name, size]);
+  // Get the icon component from global LucideIcons
+  const IconComponent = window.LucideIcons?.[componentName] || window[componentName];
   
-  return React.createElement('span', { ref, className: `icon ${className}` });
+  if (IconComponent) {
+    return React.createElement(IconComponent, { size, className: `icon ${className}` });
+  }
+  
+  // Fallback: return empty span
+  return React.createElement('span', { className: `icon ${className}` });
 };
 
 // ============================================================================
