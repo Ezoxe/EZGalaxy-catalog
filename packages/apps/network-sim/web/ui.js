@@ -130,8 +130,10 @@ function showEmailPreview(packet, intercepted) {
     + packet.data.body.replace(/\n/g, '<br>') + '</div>'
     + (packet.data.encrypted ? '<div style="margin-top:10px;color:var(--accent-cyan);font-size:0.75rem">🔒 Chiffré - protégé</div>' : '');
   const rect = document.getElementById('canvasContainer').getBoundingClientRect();
-  p.style.left = Math.min(packet.x + 40, rect.width - 300) + 'px';
-  p.style.top = Math.max(20, packet.y - 80) + 'px';
+  const screenPx = (packet.x - viewportX) * zoomLevel;
+  const screenPy = (packet.y - viewportY) * zoomLevel;
+  p.style.left = Math.min(screenPx + 40, rect.width - 300) + 'px';
+  p.style.top = Math.max(20, screenPy - 80) + 'px';
   document.getElementById('canvasContainer').appendChild(p);
   setTimeout(() => p.remove(), 5000);
 }

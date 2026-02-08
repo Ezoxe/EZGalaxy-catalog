@@ -13,8 +13,8 @@ let particles = [];
 // ─────────── Grid (optimized: only visible area) ───────────
 function drawGrid() {
   const gridSize = 40;
-  const worldLeft = -viewportX / zoomLevel;
-  const worldTop = -viewportY / zoomLevel;
+  const worldLeft = viewportX;
+  const worldTop = viewportY;
   const worldRight = worldLeft + canvas.width / zoomLevel;
   const worldBottom = worldTop + canvas.height / zoomLevel;
 
@@ -400,8 +400,8 @@ function updateNodeElements() {
     if (!el) { createNodeElement(node); el = document.getElementById('node-' + node.id); }
     if (!el) return;
 
-    const sx = (node.x * zoomLevel + viewportX) * scaleX;
-    const sy = (node.y * zoomLevel + viewportY) * scaleY;
+    const sx = (node.x - viewportX) * zoomLevel * scaleX;
+    const sy = (node.y - viewportY) * zoomLevel * scaleY;
     const vs = baseSize * zoomLevel * scaleX;
 
     el.style.left = (sx - vs / 2) + 'px';
@@ -452,8 +452,8 @@ function createRingEffect(node, color) {
   const ring = document.createElement('div');
   ring.className = 'ring-effect';
   ring.style.borderColor = color;
-  const sx = (node.x * zoomLevel + viewportX) * scaleX;
-  const sy = (node.y * zoomLevel + viewportY) * scaleY;
+  const sx = (node.x - viewportX) * zoomLevel * scaleX;
+  const sy = (node.y - viewportY) * zoomLevel * scaleY;
   const size = 70 * zoomLevel;
   ring.style.left = (sx - size / 2) + 'px';
   ring.style.top = (sy - size / 2) + 'px';
