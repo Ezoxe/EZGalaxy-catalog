@@ -161,19 +161,167 @@ function stopSYNFlood() {
   addLog('info', 'SYN Flood arrêté');
 }
 
-// ─────────── Phishing ───────────
+// ─────────── Phishing (multi-stage kill chain) ───────────
 function startPhishing() {
-  if (!activeAttacks.phishing) {
-    const attacker = nodes.find(n => n.type === 'attacker');
-    const target = nodes.find(n => n.type === 'computer');
-    if (!attacker || !target) { addLog('warning', 'Phishing nécessite Attaquant + PC'); return; }
-    activeAttacks.phishing = true;
-    document.querySelector('[data-attack="phishing"]')?.classList.add('active');
-    document.getElementById('attackStatus').style.display = 'flex';
-    addLog('attack', '🎣 Phishing envoyé à ' + target.name);
-    createPacket(attacker, target, 'phishing');
-    setTimeout(() => { activeAttacks.phishing = false; document.querySelector('[data-attack="phishing"]')?.classList.remove('active'); checkAttackStatus(); }, 3000);
+  if (activeAttacks.phishing) return;
+
+  const attacker = nodes.find(n => n.type === 'attacker');
+  const targets = nodes.filter(n => n.type === 'computer' || n.type === 'phone');
+  if (!attacker || targets.length === 0) {
+    showToast('Phishing nécessite Attaquant + PC/Téléphone', 'warning');
+    return;
   }
+
+  // ── User-training blocks immediately ──
+  if (activeDefenses.usertraining) {
+    addLog('attack', '🎣 ═══ TENTATIVE DE PHISHING ═══');
+    addLog('info', '📧 Email frauduleux envoyé à ' + targets.length + ' employé(s)...');
+    createPacket(attacker, targets[0], 'phishing', {
+      from: 'support@banque-secure.com',
+      to: targets[0].name.toLowerCase().replace(/\s+/g, '.') + '@entreprise.com',
+      subject: '⚠️ [URGENT] Activité suspecte sur votre compte',
+      body: 'Cher(e) employé(e),\n\nConnexion inhabituelle détectée.\n\n🔗 https://banque-secure.com.evil.net/verify\n\n⚠️ Vérifiez sous 24h ou votre compte sera suspendu.\n\nÉquipe Sécurité'
+    });
+    setTimeout(() => {
+      addLog('success', '🏫 Formation: Les employés ont identifié le phishing!');
+      addLog('success', '↳ Indicateurs repérés : URL suspecte, urgence artificielle, expéditeur inconnu');
+      addLog('success', '↳ Email signalé au SOC — Phishing neutralisé');
+      showToast('Utilisateurs formés : phishing détecté et signalé!', 'success', '🏫 Formation');
+      showDetailPopup(targets[0], '🏫 Formation Efficace', {
+        tentative: 'Email de phishing reçu',
+        réaction: '✅ Signalé immédiatement au SOC',
+        indicateurs: 'URL suspecte, urgence, expéditeur inconnu',
+        résultat: '🟢 Attaque neutralisée'
+      }, 'success');
+    }, 1800);
+    return;
+  }
+
+  activeAttacks.phishing = true;
+  document.querySelector('[data-attack="phishing"]')?.classList.add('active');
+  document.getElementById('attackStatus').style.display = 'flex';
+
+  // ── Phase 1 : Reconnaissance ──
+  addLog('attack', '🎣 ═══ CAMPAGNE DE PHISHING ═══');
+  addLog('warning', '🔍 Phase 1/5 — Reconnaissance');
+  addLog('info', '↳ Collecte d\'adresses email via LinkedIn, site web, OSINT...');
+  addLog('info', '↳ ' + targets.length + ' cible(s) identifiée(s) dans l\'entreprise');
+  showToast('Phase 1 : Reconnaissance des cibles...', 'warning', '🎣 Phishing');
+
+  // ── Phase 2 : Envoi des emails (1.5s) ──
+  setTimeout(function () {
+    if (!activeAttacks.phishing) return;
+    addLog('warning', '📧 Phase 2/5 — Envoi des emails de phishing');
+    addLog('danger', '↳ De : "support@banque-secure.com" (domaine usurpé)');
+    addLog('danger', '↳ Objet : "[URGENT] Activité suspecte — Vérifiez votre compte"');
+    addLog('danger', '↳ Lien piégé : https://banque-secure.com.evil.net/login');
+
+    targets.forEach(function (target, i) {
+      setTimeout(function () {
+        if (!activeAttacks.phishing) return;
+        createPacket(attacker, target, 'phishing', {
+          from: 'support@banque-secure.com',
+          to: target.name.toLowerCase().replace(/\s+/g, '.') + '@entreprise.com',
+          subject: '⚠️ [URGENT] Activité suspecte sur votre compte',
+          body: 'Cher(e) employé(e),\n\nNous avons détecté une connexion inhabituelle\nà votre compte depuis un appareil inconnu.\n\n🔴 Action requise immédiatement :\n\n🔗 https://banque-secure.com.evil.net/verify\n\n⚠️ Si vous ne vérifiez pas dans les 24h,\nvotre compte sera suspendu.\n\nCordialement,\nÉquipe Sécurité'
+        });
+        addLog('info', '  📤 Email envoyé → ' + target.name);
+      }, i * 600);
+    });
+
+    // ── Phase 3 : Victim clicks (after all emails sent) ──
+    var phase3Delay = targets.length * 600 + 2500;
+    setTimeout(function () {
+      if (!activeAttacks.phishing) return;
+      var victim = targets[0];
+      addLog('warning', '🖱️ Phase 3/5 — ' + victim.name + ' clique sur le lien');
+      addLog('danger', '↳ Redirection vers la fausse page de connexion');
+      addLog('danger', '↳ Certificat SSL invalide ⚠️ (ignoré par la victime)');
+
+      victim.attacked = true;
+      createRingEffect(victim, '#ef4444');
+
+      showDetailPopup(victim, '🎣 Fausse Page de Connexion', {
+        URL: 'banque-secure.com.evil.net/login',
+        apparence: '🟢 Clone parfait du site légitime',
+        certificat: '❌ Non valide (domaine différent)',
+        formulaire: 'Email + Mot de passe',
+        piège: 'Les données vont directement à l\'attaquant'
+      }, 'blocked');
+
+      // ── Phase 4 : Saisie des credentials (2.5s) ──
+      setTimeout(function () {
+        if (!activeAttacks.phishing) return;
+        var victimEmail = victim.name.toLowerCase().replace(/\s+/g, '.') + '@entreprise.com';
+        addLog('warning', '⌨️ Phase 4/5 — Saisie des identifiants');
+        addLog('danger', '↳ Email : ' + victimEmail);
+        addLog('danger', '↳ Mot de passe : ••••••••• (P@ssw0rd!)');
+        addLog('danger', '📤 Credentials exfiltrés vers le serveur C&C de l\'attaquant');
+        showToast('Credentials volés et envoyés au C&C!', 'error', '🎣 Phishing');
+
+        createPacket(victim, attacker, 'exfiltration');
+        addSequenceMessage(victim, attacker, 'Credentials → C&C', 'attack');
+
+        // ── Phase 5 : Exploitation ou 2FA (2.5s) ──
+        setTimeout(function () {
+          if (!activeAttacks.phishing) return;
+
+          if (activeDefenses['2fa']) {
+            addLog('warning', '🔑 Phase 5/5 — Tentative d\'accès avec credentials volés');
+            addLog('success', '🛡️ 2FA ACTIVÉ — Code OTP requis!');
+            addLog('success', '↳ L\'attaquant a le mot de passe MAIS pas le code 2FA');
+            addLog('success', '↳ Le code TOTP change toutes les 30 secondes — inutilisable');
+            addLog('success', '✅ Compte protégé malgré le vol de credentials!');
+            showToast('2FA bloque l\'accès! Mot de passe inutilisable seul.', 'success', '🛡️ 2FA');
+
+            showDetailPopup(victim, '🛡️ 2FA — Protection Active', {
+              credentials: '⚠️ Volés par phishing',
+              tentative: 'Login avec mot de passe volé',
+              '2FA': '📱 Code OTP requis (TOTP/FIDO2)',
+              résultat: '✅ Accès BLOQUÉ — Compte protégé'
+            }, 'success');
+            createRingEffect(victim, '#22c55e');
+          } else {
+            addLog('danger', '💀 Phase 5/5 — Exploitation des credentials');
+            addLog('danger', '↳ Connexion réussie au compte de ' + victim.name);
+            addLog('danger', '↳ Accès obtenu : emails, documents, contacts internes');
+            addLog('danger', '↳ Données exfiltrées vers serveur C&C');
+            victim.compromised = true;
+
+            showDetailPopup(victim, '💀 Compte Compromis', {
+              victime: victim.name,
+              identifiants: victimEmail + ' / P@ssw0rd!',
+              accès: 'Emails, Documents, Contacts',
+              exfiltration: 'Données copiées vers serveur C&C',
+              impact: '🔴 Fuite de données confidentielles'
+            }, 'blocked');
+            showToast('Compte compromis! Données volées.', 'error', '🎣 Phishing');
+
+            // Attacker tries to pivot to server
+            var server = nodes.find(function (n) { return n.type === 'server'; });
+            if (server) {
+              setTimeout(function () {
+                if (!activeAttacks.phishing) return;
+                addLog('danger', '🔓 L\'attaquant utilise les credentials pour accéder au serveur');
+                createPacket(attacker, server, 'credstuffing');
+                addSequenceMessage(attacker, server, 'Login avec credentials volés', 'attack');
+              }, 1500);
+            }
+          }
+
+          // Cleanup
+          setTimeout(function () { stopPhishing(); }, 4000);
+        }, 2500);
+      }, 2500);
+    }, phase3Delay);
+  }, 1500);
+}
+
+function stopPhishing() {
+  activeAttacks.phishing = false;
+  document.querySelector('[data-attack="phishing"]')?.classList.remove('active');
+  nodes.forEach(function (n) { if (n.type === 'computer' || n.type === 'phone') n.attacked = false; });
+  checkAttackStatus();
 }
 
 // ─────────── Ransomware ───────────

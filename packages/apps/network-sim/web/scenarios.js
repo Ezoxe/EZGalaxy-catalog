@@ -45,10 +45,20 @@ const scenarioDefinitions = {
 
   /* ──────── Réseau Basique ──────── */
   'basic': function () {
-    createNode('computer', 150, 250); createNode('router', 400, 250); createNode('server', 650, 250);
-    afterCreate(() => { createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); });
+    createNode('computer', 100, 180);  // 0
+    createNode('computer', 100, 340);  // 1
+    createNode('switch', 280, 260);    // 2
+    createNode('router', 460, 260);    // 3
+    createNode('dns', 460, 120);       // 4
+    createNode('server', 640, 260);    // 5
+    afterCreate(() => {
+      createConnection(nodes[0], nodes[2]); createConnection(nodes[1], nodes[2]);
+      createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]);
+      createConnection(nodes[3], nodes[5]);
+    });
     addLog('success', 'Scénario "Réseau basique" chargé');
-    addLog('info', 'Essayez Ping, Traceroute, HTTP');
+    addLog('info', '🖥️ 2 PCs → Switch → Routeur → Serveur + DNS');
+    addLog('info', '💡 Essayez Ping, Traceroute, HTTP ou une requête DNS');
   },
 
   /* ──────── DDoS ──────── */
@@ -143,16 +153,41 @@ const scenarioDefinitions = {
 
   /* ──────── IoT Network ──────── */
   'iot-network': function () {
-    createNode('router', 400, 200); createNode('iot', 200, 100); createNode('iot', 600, 100);
-    createNode('iot', 200, 300); createNode('phone', 600, 300); createNode('printer', 400, 380);
-    createNode('attacker', 100, 200);
+    createZone(260, 40, 380, 370, '📟 Réseau IoT', 'rgba(56,189,248,0.08)', 'rgba(56,189,248,0.4)');
+
+    createNode('internet', 100, 200);    // 0 - Internet
+    createNode('firewall', 280, 200);    // 1 - Firewall (souvent absent sur IoT)
+    createNode('router', 430, 200);      // 2 - Routeur IoT
+    createNode('iot', 340, 90);          // 3 - Caméra IP
+    createNode('iot', 530, 90);          // 4 - Thermostat
+    createNode('iot', 340, 330);         // 5 - Capteur
+    createNode('iot', 530, 330);         // 6 - Serrure connectée
+    createNode('phone', 570, 200);       // 7 - App de contrôle
+    createNode('printer', 430, 330);     // 8 - Imprimante
+    createNode('cloud', 100, 80);        // 9 - Cloud IoT (fournisseur)
+    createNode('attacker', 100, 340);    // 10 - Attaquant
+
     afterCreate(() => {
-      createConnection(nodes[0], nodes[1]); createConnection(nodes[0], nodes[2]); createConnection(nodes[0], nodes[3]);
-      createConnection(nodes[0], nodes[4]); createConnection(nodes[0], nodes[5]); createConnection(nodes[6], nodes[0]);
+      createConnection(nodes[0], nodes[1]); // internet → firewall
+      createConnection(nodes[1], nodes[2]); // firewall → router
+      createConnection(nodes[2], nodes[3]); // router → caméra
+      createConnection(nodes[2], nodes[4]); // router → thermostat
+      createConnection(nodes[2], nodes[5]); // router → capteur
+      createConnection(nodes[2], nodes[6]); // router → serrure
+      createConnection(nodes[2], nodes[7]); // router → phone
+      createConnection(nodes[2], nodes[8]); // router → imprimante
+      createConnection(nodes[0], nodes[9]); // internet → cloud IoT
+      createConnection(nodes[10], nodes[0]); // attaquant → internet
     });
+
     addLog('success', 'Scénario "Réseau IoT" chargé');
-    addLog('danger', '⚠️ Réseau IoT vulnérable - ports ouverts, pas de chiffrement');
-    showToast('Réseau IoT avec équipements vulnérables', 'warning', '📟 IoT');
+    addLog('danger', '⚠️ Réseau IoT vulnérable :');
+    addLog('danger', '↳ Firmware pas à jour, mots de passe par défaut');
+    addLog('danger', '↳ Pas de chiffrement, ports ouverts (Telnet, MQTT)');
+    addLog('info', '📟 6 objets connectés + cloud fournisseur');
+    addLog('info', '🛡️ Défenses à tester : Firewall, Segmentation, IDS');
+    addLog('info', '💡 Un seul IoT compromis = accès à tout le réseau!');
+    showToast('Réseau IoT vulnérable — sécurisez-le!', 'warning', '📟 IoT');
   },
 
   /* ──────── Réseau domestique ──────── */
@@ -172,17 +207,49 @@ const scenarioDefinitions = {
 
   /* ──────── Phishing ──────── */
   'phishing-scenario': function () {
-    createNode('attacker', 80, 250); createNode('internet', 220, 250); createNode('server', 360, 180);
-    createNode('router', 500, 250);
-    createNode('computer', 650, 150); createNode('computer', 650, 250); createNode('computer', 650, 350);
+    createZone(30, 50, 250, 340, '👹 Zone Attaquant', 'rgba(239,68,68,0.08)', 'rgba(239,68,68,0.4)');
+    createZone(500, 40, 430, 380, '🏢 Réseau Entreprise', 'rgba(56,189,248,0.08)', 'rgba(56,189,248,0.4)');
+
+    createNode('attacker', 90, 150);     // 0 - Attacker
+    createNode('server', 190, 300);      // 1 - C&C / Fake website
+    createNode('internet', 390, 230);    // 2 - Internet
+    createNode('firewall', 540, 230);    // 3 - Firewall
+    createNode('router', 680, 230);      // 4 - Router
+    createNode('server', 830, 100);      // 5 - Mail Server
+    createNode('server', 830, 360);      // 6 - App Server
+    createNode('computer', 610, 100);    // 7 - PC1 (victim)
+    createNode('computer', 740, 370);    // 8 - PC2
+    createNode('phone', 610, 370);       // 9 - Phone
+    createNode('dns', 420, 380);         // 10 - DNS
+
     afterCreate(() => {
-      createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]); createConnection(nodes[1], nodes[3]);
-      createConnection(nodes[3], nodes[4]); createConnection(nodes[3], nodes[5]); createConnection(nodes[3], nodes[6]);
+      createConnection(nodes[0], nodes[2]);   // attacker → internet
+      createConnection(nodes[1], nodes[2]);   // C&C → internet
+      createConnection(nodes[2], nodes[3]);   // internet → firewall
+      createConnection(nodes[2], nodes[10]);  // internet → DNS
+      createConnection(nodes[3], nodes[4]);   // FW → router
+      createConnection(nodes[4], nodes[5]);   // router → mail server
+      createConnection(nodes[4], nodes[6]);   // router → app server
+      createConnection(nodes[4], nodes[7]);   // router → PC1
+      createConnection(nodes[4], nodes[8]);   // router → PC2
+      createConnection(nodes[4], nodes[9]);   // router → phone
     });
-    addLog('success', 'Scénario "Campagne Phishing" chargé');
-    addLog('attack', '🎣 L\'attaquant envoie des emails malveillants aux employés');
-    addLog('info', '1. Lancez Phishing  2. Activez 2FA pour protéger');
-    showToast('Campagne de phishing ciblée', 'warning', '🎣 Phishing');
+
+    addLog('success', 'Scénario "Campagne de Phishing" chargé');
+    addLog('info', '─────────────────────────────────');
+    addLog('info', '🎣 Anatomie d\'une attaque de phishing :');
+    addLog('info', '  1️⃣ Reconnaissance — Collecte d\'adresses email');
+    addLog('info', '  2️⃣ Préparation — Email piégé + faux site (C&C)');
+    addLog('info', '  3️⃣ Livraison — Emails envoyés aux employés');
+    addLog('info', '  4️⃣ Exploitation — Victime clique le lien');
+    addLog('info', '  5️⃣ Exfiltration — Credentials volés');
+    addLog('info', '─────────────────────────────────');
+    addLog('info', '🛡️ Défenses à tester :');
+    addLog('info', '  🏫 Formation Utilisateur → bloque dès la phase 2');
+    addLog('info', '  📱 2FA → bloque en phase 5');
+    addLog('info', '─────────────────────────────────');
+    addLog('info', '💡 Lancez "Phishing" puis observez le cycle complet');
+    showToast('Campagne de Phishing — Activez des défenses et observez!', 'warning', '🎣 Phishing');
   },
 
   /* ──────── Ransomware ──────── */
@@ -219,16 +286,36 @@ const scenarioDefinitions = {
 
   /* ──────── SQL Injection ──────── */
   'sql-injection': function () {
-    createNode('attacker', 100, 250); createNode('internet', 250, 250); createNode('firewall', 400, 250);
-    createNode('server', 550, 250); createNode('database', 700, 250);
+    createZone(30, 60, 170, 280, '👹 Attaquant', 'rgba(239,68,68,0.08)', 'rgba(239,68,68,0.4)');
+    createZone(400, 40, 370, 340, '🏢 DMZ & Backend', 'rgba(56,189,248,0.08)', 'rgba(56,189,248,0.4)');
+
+    createNode('attacker', 90, 200);     // 0
+    createNode('internet', 270, 200);    // 1
+    createNode('firewall', 440, 200);    // 2
+    createNode('server', 570, 110);      // 3 - Web Server (frontend)
+    createNode('server', 570, 300);      // 4 - API Server (backend)
+    createNode('database', 710, 110);    // 5 - DB Users
+    createNode('database', 710, 300);    // 6 - DB Transactions
+
     afterCreate(() => {
-      createConnection(nodes[0], nodes[1]); createConnection(nodes[1], nodes[2]);
-      createConnection(nodes[2], nodes[3]); createConnection(nodes[3], nodes[4]);
+      createConnection(nodes[0], nodes[1]); // attacker → internet
+      createConnection(nodes[1], nodes[2]); // internet → firewall
+      createConnection(nodes[2], nodes[3]); // firewall → web server
+      createConnection(nodes[2], nodes[4]); // firewall → API server
+      createConnection(nodes[3], nodes[5]); // web → DB users
+      createConnection(nodes[4], nodes[6]); // API → DB transactions
+      createConnection(nodes[3], nodes[4]); // web ↔ API (internal)
     });
+
     addLog('success', 'Scénario "SQL Injection" chargé');
-    addLog('attack', '💉 Application web vulnérable aux injections SQL');
-    addLog('info', '1. Lancez SQL Injection  2. Activez WAF pour bloquer');
-    showToast('Application vulnérable - testez les injections', 'warning', '💉 SQLi');
+    addLog('info', '─────────────────────────────────');
+    addLog('info', '💉 Architecture web avec 2 bases de données :');
+    addLog('info', '  🌐 Web Server → DB Users (credentials)');
+    addLog('info', '  ⚙️ API Server → DB Transactions (données)');
+    addLog('info', '─────────────────────────────────');
+    addLog('info', '🛡️ Défense à tester : WAF');
+    addLog('info', '💡 Lancez SQL Injection sur un Serveur');
+    showToast('Application vulnérable — testez avec/sans WAF!', 'warning', '💉 SQLi');
   },
 
   /* ──────── Cloud Hybride ──────── */

@@ -674,14 +674,10 @@ function handlePacketArrival(packet) {
       addLog('info', 'TCP établi avec ' + srcNode.name);
       break;
     case 'phishing':
-      if (activeDefenses.usertraining) {
-        addLog('success', '🏫 Employé formé: Phishing identifié et signalé!');
-        showToast('Phishing signalé grâce à la formation!', 'success', '🏫 Formation');
-      } else if (activeDefenses['2fa']) {
-        addLog('success', '🛡️ 2FA bloque le phishing');
-      } else {
-        addLog('danger', '⚠️ Credentials volés!');
+      if (packet.data && packet.data.from) {
+        showEmailPreview(packet, false);
       }
+      createRingEffect(tgtNode, '#ef4444');
       break;
     case 'blocked':
       addLog('success', '🛡️ ' + (packet.data.originalType || 'Attaque') + ' bloqué par firewall!');
