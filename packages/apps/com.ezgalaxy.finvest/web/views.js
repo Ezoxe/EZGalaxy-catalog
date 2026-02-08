@@ -1244,9 +1244,162 @@
     container.appendChild(wrap);
   }
 
+  /* =============================================================
+     J. AI — Prompts IA personnalisés
+     ============================================================= */
+  const AI_CATEGORIES = [
+    { key: 'all', label: '✨ Tous', badge: '' },
+    { key: 'analyse', label: '🔍 Analyse', badge: '' },
+    { key: 'investissement', label: '📊 Investissement', badge: 'purple' },
+    { key: 'fiscalite', label: '🧾 Fiscalité', badge: 'orange' },
+    { key: 'immobilier', label: '🏠 Immobilier', badge: 'pink' },
+    { key: 'retraite', label: '🏖️ Retraite', badge: 'blue' },
+    { key: 'dettes', label: '⚡ Dettes', badge: 'orange' },
+    { key: 'budget', label: '💡 Budget', badge: '' },
+    { key: 'urgence', label: '🛡️ Urgence', badge: 'orange' },
+    { key: 'education', label: '📚 Éducation', badge: 'blue' },
+    { key: 'situations', label: '🔄 Situations', badge: 'pink' }
+  ];
+
+  function ai(container) {
+    container.innerHTML = '';
+    const s = Store.getState();
+    const a = s.analysis;
+    if (!a) {
+      container.appendChild(el('div', { className: 'empty-state' }, [
+        el('div', { className: 'empty-icon', textContent: '🤖' }),
+        el('h3', { textContent: 'Analyse requise' }),
+        el('p', { textContent: 'Complétez d\'abord le questionnaire pour générer des prompts IA personnalisés.' })
+      ]));
+      return;
+    }
+
+    const prompts = FinEngine.generateAIPrompts(s.profile, a);
+    let activeCategory = 'all';
+
+    const wrap = el('div', { className: 'dashboard' });
+
+    // Header
+    wrap.appendChild(el('div', { className: 'page-header ez-fade-in' }, [
+      icon('sparkles', 28),
+      el('div', {}, [
+        el('h2', { textContent: 'Prompts IA personnalisés' }),
+        el('p', { className: 'text-muted', textContent: `${prompts.length} prompts générés automatiquement à partir de vos données financières` })
+      ])
+    ]));
+
+    // Intro card
+    wrap.appendChild(el('div', { className: 'ai-intro anim-slide-up' }, [
+      el('div', { className: 'ai-intro__icon', textContent: '🤖' }),
+      el('h3', { textContent: 'Comment utiliser ces prompts ?' }),
+      el('p', { textContent: 'Chaque prompt est pré-rempli avec vos données financières personnelles. Copiez un prompt, collez-le dans ChatGPT, Claude, Gemini ou l\'IA de votre choix, et obtenez des conseils hautement personnalisés. Vos données restent locales — seul le prompt est copié.' })
+    ]));
+
+    // Category filter bar
+    const catBar = el('div', { className: 'ai-category-bar anim-slide-up stagger-1' });
+    const promptsContainer = el('div', { className: 'ai-prompts' });
+
+    function renderCategoryBar() {
+      catBar.innerHTML = '';
+      for (const cat of AI_CATEGORIES) {
+        // Count prompts in category
+        const count = cat.key === 'all' ? prompts.length : prompts.filter(p => p.category === cat.key).length;
+        if (count === 0 && cat.key !== 'all') continue;
+        const btn = el('button', {
+          className: `ai-cat-btn ${activeCategory === cat.key ? 'ai-cat-btn--active' : ''}`,
+          textContent: `${cat.label} (${count})`,
+          onClick: () => {
+            activeCategory = cat.key;
+            renderCategoryBar();
+            renderPrompts();
+          }
+        });
+        catBar.appendChild(btn);
+      }
+    }
+
+    function renderPrompts() {
+      promptsContainer.innerHTML = '';
+      const filtered = activeCategory === 'all' ? prompts : prompts.filter(p => p.category === activeCategory);
+
+      filtered.forEach((prompt, i) => {
+        const card = el('div', { className: `ai-prompt-card anim-slide-up stagger-${Math.min(i + 1, 8)}` });
+
+        // Header
+        const header = el('div', { className: 'ai-prompt-card__header' });
+        header.appendChild(el('span', { className: 'ai-prompt-card__emoji', textContent: prompt.emoji }));
+        const meta = el('div', { className: 'ai-prompt-card__meta' });
+        meta.appendChild(el('div', { className: 'ai-prompt-card__title', textContent: prompt.title }));
+        meta.appendChild(el('div', { className: 'ai-prompt-card__target', textContent: `Idéal pour : ${prompt.target}` }));
+        header.appendChild(meta);
+        const badges = el('div', { className: 'ai-prompt-card__badges' });
+        prompt.badges.forEach((b, bi) => {
+          const colorClass = prompt.badgeColors[bi] ? `ai-prompt-badge--${prompt.badgeColors[bi]}` : '';
+          badges.appendChild(el('span', { className: `ai-prompt-badge ${colorClass}`, textContent: b }));
+        });
+        header.appendChild(badges);
+        card.appendChild(header);
+
+        // Body — prompt text
+        const body = el('div', { className: 'ai-prompt-card__body' });
+        body.appendChild(el('pre', { className: 'ai-prompt-text', textContent: prompt.prompt }));
+        card.appendChild(body);
+
+        // Footer — copy button
+        const footer = el('div', { className: 'ai-prompt-card__footer' });
+        footer.appendChild(el('span', { className: 'text-muted', textContent: `~${prompt.prompt.length} caractères` }));
+
+        const copyBtn = el('button', { className: 'copy-btn', onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(prompt.prompt);
+            copyBtn.innerHTML = '';
+            copyBtn.appendChild(icon('check', 14));
+            copyBtn.appendChild(el('span', { textContent: 'Copié !' }));
+            copyBtn.classList.add('copy-btn--copied');
+            toast(`Prompt "${prompt.title}" copié !`, 'success');
+            setTimeout(() => {
+              copyBtn.innerHTML = '';
+              copyBtn.appendChild(icon('clipboard', 14));
+              copyBtn.appendChild(el('span', { textContent: 'Copier le prompt' }));
+              copyBtn.classList.remove('copy-btn--copied');
+            }, 2500);
+          } catch (e) {
+            // Fallback for non-secure contexts
+            const ta = document.createElement('textarea');
+            ta.value = prompt.prompt;
+            ta.style.cssText = 'position:fixed;left:-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            toast(`Prompt copié !`, 'success');
+          }
+        } }, [icon('clipboard', 14), el('span', { textContent: 'Copier le prompt' })]);
+
+        footer.appendChild(copyBtn);
+        card.appendChild(footer);
+        promptsContainer.appendChild(card);
+      });
+
+      if (filtered.length === 0) {
+        promptsContainer.appendChild(el('div', { className: 'empty-state' }, [
+          el('div', { className: 'empty-icon', textContent: '🔎' }),
+          el('h3', { textContent: 'Aucun prompt dans cette catégorie' })
+        ]));
+      }
+    }
+
+    renderCategoryBar();
+    renderPrompts();
+
+    wrap.appendChild(catBar);
+    wrap.appendChild(promptsContainer);
+    container.appendChild(wrap);
+  }
+
   /* ---------- PUBLIC API -------------------------------------- */
   window.Views = {
     welcome, questionnaire,
-    overview, allocation, projections, retirement, debt, advice, settings
+    overview, allocation, projections, retirement, debt, advice, ai, settings
   };
 })();

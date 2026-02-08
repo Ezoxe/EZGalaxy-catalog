@@ -837,6 +837,454 @@
     };
   }
 
+  /* ============================================================
+     12. AI PROMPT GENERATION
+     ============================================================ */
+  function generateAIPrompts(profile, analysis) {
+    if (!profile || !analysis) return [];
+
+    const p = profile;
+    const a = analysis;
+    const bal = a.balance;
+    const riskLabel = a.riskScore <= 3 ? 'conservateur' : a.riskScore <= 5 ? 'modéré' : a.riskScore <= 7 ? 'dynamique' : 'agressif';
+    const familyLabel = { single: 'célibataire', couple: 'en couple', married: 'marié(e)', divorced: 'divorcé(e)', widowed: 'veuf/ve' }[p.familySituation] || p.familySituation;
+    const stabilityLabel = { very_stable: 'très stable (fonctionnaire/CDI longue durée)', stable: 'stable (CDI)', moderate: 'modérée (CDD/intérim)', unstable: 'instable (freelance/création)', no_income: 'sans emploi' }[p.employmentStability] || p.employmentStability;
+    const fmtC = v => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v || 0);
+    const totalInv = (p.investments || []).reduce((s, i) => s + (i.amount || 0), 0);
+    const totalRE = (p.realEstate || []).reduce((s, r) => s + (r.value || 0), 0);
+    const totalDebt = (p.debts || []).reduce((s, d) => s + (d.remainingAmount || 0), 0);
+    const invDetail = (p.investments || []).filter(i => i.amount > 0).map(i => `${i.type}: ${fmtC(i.amount)}`).join(', ') || 'aucun';
+
+    // Context block used in all prompts
+    const CTX = `Mon profil financier :
+- ${p.age} ans, ${familyLabel}, ${p.dependents} personne(s) à charge
+- Revenus mensuels nets : ${fmtC(bal.income)} (stabilité : ${stabilityLabel})
+- Dépenses mensuelles : ${fmtC(bal.expenses)} (taux d'épargne : ${bal.savingsRate.toFixed(1)}%)
+- Capacité d'épargne mensuelle : ${fmtC(bal.surplus)}
+- Épargne de précaution : ${fmtC(p.currentSavings)}
+- Placements : ${invDetail} (total : ${fmtC(totalInv)})
+- Immobilier : ${totalRE > 0 ? fmtC(totalRE) : 'aucun'}
+- Dettes : ${totalDebt > 0 ? fmtC(totalDebt) + ' (' + p.debts.length + ' crédit(s))' : 'aucune'}
+- Patrimoine net estimé : ${fmtC(a.ratios.netWorth)}
+- Score de risque : ${a.riskScore.toFixed(1)}/10 (profil ${riskLabel})
+- Score de santé financière : ${a.healthScore.total}/100`;
+
+    const goalsText = (p.goals || []).length
+      ? (p.goals || []).map(g => `${g.name} : ${fmtC(g.targetAmount)} en ${g.horizonYears} ans (priorité ${g.priority})`).join('\n  ')
+      : 'aucun objectif défini';
+
+    const retText = `Retraite souhaitée à ${p.retirementAge} ans, revenu cible : ${p.retirementIncome > 0 ? fmtC(p.retirementIncome) + '/mois' : '70% du revenu actuel'}`;
+
+    const allPrompts = [
+      // ===== CATEGORY: Analyse globale =====
+      {
+        id: 'global-analysis',
+        category: 'analyse',
+        emoji: '🔍',
+        title: 'Analyse financière globale',
+        target: 'ChatGPT, Claude, Gemini',
+        badges: ['analyse', 'conseil'],
+        badgeColors: ['', 'blue'],
+        prompt: `Tu es un conseiller financier personnel expert. Analyse mon profil financier complet et donne-moi un diagnostic détaillé avec des recommandations concrètes et chiffrées.
+
+${CTX}
+
+Mes objectifs :
+  ${goalsText}
+${retText}
+
+Fais une analyse structurée en 5 parties :
+1. 📊 Diagnostic global (points forts / points faibles)
+2. 💰 Analyse budget & train de vie (est-ce optimisé ?)
+3. 📈 Analyse des placements (diversification, rendement, risque)
+4. 🎯 Faisabilité des objectifs (avec estimation chiffrée)
+5. ✅ Plan d'action concret par ordre de priorité (avec montants et calendrier)
+
+Sois précis, donne des montants, des pourcentages, et des recommandations actionnables.`
+      },
+
+      {
+        id: 'second-opinion',
+        category: 'analyse',
+        emoji: '🧑‍⚖️',
+        title: 'Deuxième avis — Critique constructive',
+        target: 'ChatGPT, Claude',
+        badges: ['analyse', 'critique'],
+        badgeColors: ['', 'orange'],
+        prompt: `Tu es un analyste financier indépendant très critique. Mon outil d'analyse me donne les résultats suivants. Je veux ton avis objectif : est-ce que ces résultats te semblent cohérents ? Qu'est-ce que l'outil a pu manquer ?
+
+${CTX}
+
+Résultats de l'outil :
+- Score santé financière : ${a.healthScore.total}/100
+- Allocation recommandée : profil ${riskLabel}
+- Projection retraite : ${a.retirement.onTrack ? 'en bonne voie' : 'déficitaire'} (capital projeté : ${fmtC(a.retirement.projectedCapital)} vs nécessaire : ${fmtC(a.retirement.capitalNeeded)})
+- Fonds d'urgence : ${a.emergencyFund.monthsCovered.toFixed(1)} mois couverts
+
+En tant que regard extérieur :
+1. Ces résultats sont-ils réalistes ?
+2. Quels biais ou angles morts vois-tu ?
+3. Que recommanderais-tu de différent ?
+4. Quels risques ne sont pas pris en compte ?`
+      },
+
+      // ===== CATEGORY: Investissement =====
+      {
+        id: 'portfolio-optimization',
+        category: 'investissement',
+        emoji: '📊',
+        title: 'Optimisation de portefeuille',
+        target: 'ChatGPT, Claude, Gemini',
+        badges: ['investissement', 'allocation'],
+        badgeColors: ['purple', 'blue'],
+        prompt: `Tu es un expert en gestion de portefeuille et allocation d'actifs. Aide-moi à optimiser mes placements.
+
+${CTX}
+
+Détail de mes placements actuels : ${invDetail}
+
+Mon profil de risque est ${riskLabel} (${a.riskScore.toFixed(1)}/10).
+Mon horizon d'investissement principal est de ${a.retirement.yearsToRetirement} ans (jusqu'à la retraite).
+
+Questions :
+1. Mon allocation actuelle est-elle adaptée à mon profil de risque ?
+2. Quels ETF/fonds spécifiques recommandes-tu ? (avec les codes ISIN si possible)
+3. Comment devrais-je répartir mes ${fmtC(bal.surplus)}/mois d'épargne entre les différents supports ?
+4. Dois-je rééquilibrer ? Si oui, quel plan de transition ?
+5. Quels sont les pièges à éviter avec mon profil ?
+
+Donne des recommandations précises avec des noms de produits accessibles en France.`
+      },
+
+      {
+        id: 'etf-selection',
+        category: 'investissement',
+        emoji: '📈',
+        title: 'Sélection d\'ETF personnalisée',
+        target: 'ChatGPT, Claude, Perplexity',
+        badges: ['investissement', 'ETF'],
+        badgeColors: ['purple', ''],
+        prompt: `Tu es un spécialiste des ETF accessibles sur le marché français (PEA, CTO, Assurance-Vie).
+
+${CTX}
+
+Je cherche à construire un portefeuille d'ETF adapté à mon profil ${riskLabel} avec un horizon de ${a.retirement.yearsToRetirement} ans.
+Budget mensuel disponible pour investir : ${fmtC(bal.surplus)}.
+
+Propose-moi :
+1. Un portefeuille "cœur" de 3-5 ETF avec répartition en % (éligibles PEA si possible)
+2. Pour chaque ETF : nom exact, code ISIN, TER (frais), encours, indice suivi
+3. Un portefeuille "satellite" optionnel pour booster la performance (2-3 ETF thématiques)
+4. La stratégie de versement (DCA mensuel, trimestriel ?)
+5. Les critères de rééquilibrage (quand et comment)
+
+Privilégie les ETF à réplication physique et à faible coût (TER < 0.30%).`
+      },
+
+      {
+        id: 'crypto-strategy',
+        category: 'investissement',
+        emoji: '₿',
+        title: 'Stratégie crypto adaptée',
+        target: 'ChatGPT, Claude, Gemini',
+        badges: ['investissement', 'crypto'],
+        badgeColors: ['purple', 'orange'],
+        prompt: `Tu es un expert en crypto-actifs et en gestion de portefeuille diversifié.
+
+${CTX}
+
+Mon profil de risque est ${riskLabel} (${a.riskScore.toFixed(1)}/10).
+Mon patrimoine financier total est de ${fmtC(a.ratios.netWorth)}.
+
+Questions :
+1. Quelle part de mon patrimoine devrais-je allouer aux crypto-actifs maximum ? (en % et en montant)
+2. Quelles cryptos recommandes-tu pour mon profil ? (top 3-5 avec répartition)
+3. Quelle stratégie d'entrée ? (DCA, lump sum, attente de correction ?)
+4. Comment sécuriser mes cryptos ? (cold wallet, diversification des exchanges)
+5. Quelles erreurs classiques dois-je absolument éviter ?
+6. Quelle fiscalité en France pour les plus-values crypto ?
+
+Sois réaliste sur les risques et ne survends pas le marché.`
+      },
+
+      // ===== CATEGORY: Fiscalité =====
+      {
+        id: 'tax-optimization',
+        category: 'fiscalite',
+        emoji: '🧾',
+        title: 'Optimisation fiscale complète',
+        target: 'ChatGPT, Claude',
+        badges: ['fiscalité', 'France'],
+        badgeColors: ['orange', 'blue'],
+        prompt: `Tu es un fiscaliste expert du droit français. Aide-moi à optimiser ma situation fiscale.
+
+${CTX}
+
+Mes enveloppes de placement actuelles : ${invDetail}
+${retText}
+
+Analyse et recommande :
+1. 🏦 Quelles enveloppes fiscales utiliser en priorité ? (PEA, AV, PER, CTO — dans quel ordre et pour quels montants ?)
+2. 💶 Estimation de mon TMI (Tranche Marginale d'Imposition) probable
+3. 📉 Stratégies de réduction d'impôts adaptées à mon profil (investissement Pinel, FCPI, dons…)
+4. 🔄 Comment optimiser les arbitrages entre enveloppes ?
+5. 📅 Calendrier fiscal annuel : que faire et quand ?
+6. ⚠️ Erreurs fiscales courantes à éviter
+
+Donne des montants et des exemples concrets basés sur ma situation.`
+      },
+
+      // ===== CATEGORY: Immobilier =====
+      {
+        id: 'real-estate',
+        category: 'immobilier',
+        emoji: '🏠',
+        title: 'Stratégie immobilière',
+        target: 'ChatGPT, Claude, Gemini',
+        badges: ['immobilier', 'investissement'],
+        badgeColors: ['pink', 'purple'],
+        prompt: `Tu es un expert en investissement immobilier en France.
+
+${CTX}
+
+Immobilier actuel : ${totalRE > 0 ? (p.realEstate || []).map(r => `${r.name}: ${fmtC(r.value)}`).join(', ') : 'aucun bien'}
+Dettes immobilières : ${(p.debts || []).filter(d => d.name?.toLowerCase().includes('immo')).length > 0 ? 'oui' : 'non spécifié'}
+
+En tenant compte de ma capacité d'épargne de ${fmtC(bal.surplus)}/mois et mon patrimoine :
+1. Ai-je intérêt à investir dans l'immobilier ? (locatif / RP / SCPI ?)
+2. Quelle est ma capacité d'emprunt estimée ?
+3. Quel type d'investissement immobilier correspond le mieux à mon profil ${riskLabel} ?
+4. SCPI vs immobilier en direct : avantages/inconvénients pour mon cas
+5. Si SCPI : lesquelles recommandes-tu ? (avec rendements et critères)
+6. Timing : est-ce le bon moment par rapport au marché et à ma situation ?`
+      },
+
+      // ===== CATEGORY: Retraite =====
+      {
+        id: 'retirement-plan',
+        category: 'retraite',
+        emoji: '🏖️',
+        title: 'Plan retraite détaillé',
+        target: 'ChatGPT, Claude',
+        badges: ['retraite', 'planification'],
+        badgeColors: ['blue', ''],
+        prompt: `Tu es un spécialiste de la planification retraite en France.
+
+${CTX}
+
+${retText}
+Années avant la retraite : ${a.retirement.yearsToRetirement}
+Capital projeté à la retraite : ${fmtC(a.retirement.projectedCapital)}
+Capital nécessaire (règle des 4%) : ${fmtC(a.retirement.capitalNeeded)}
+Statut actuel : ${a.retirement.onTrack ? 'en bonne voie' : 'déficitaire de ' + fmtC(a.retirement.savingGap) + '/mois'}
+
+Construis-moi un plan retraite complet :
+1. 📊 Estimation de ma pension de retraite légale (régime général + complémentaire)
+2. 💰 Combien me manquera-t-il par mois ? Quel complément privé constituer ?
+3. 🏦 Répartition optimale PER / PEA / AV / Immobilier pour la retraite
+4. 📈 Stratégie d'investissement phase d'accumulation (maintenant → retraite)
+5. 📉 Stratégie de décumulation (à la retraite : comment tirer un revenu)
+6. ⚡ Plan B : si je veux prendre ma retraite 5 ans plus tôt, que dois-je changer ?
+
+Chiffre tout avec des montants mensuels concrets.`
+      },
+
+      // ===== CATEGORY: Dettes =====
+      {
+        id: 'debt-strategy',
+        category: 'dettes',
+        emoji: '⚡',
+        title: 'Stratégie optimale de remboursement',
+        target: 'ChatGPT, Claude',
+        badges: ['dettes', 'stratégie'],
+        badgeColors: ['orange', ''],
+        prompt: `Tu es un expert en gestion de dettes et restructuration financière.
+
+${CTX}
+
+Détail de mes dettes :
+${(p.debts || []).length > 0 ? (p.debts || []).map(d => `- ${d.name || 'Crédit'} : ${fmtC(d.remainingAmount)} restant, ${fmtC(d.monthlyPayment)}/mois, taux ${d.rate}%, ${d.remainingMonths} mois restants`).join('\n') : '(aucune dette)'}
+
+Ma capacité d'épargne après dettes : ${fmtC(bal.surplus)}/mois
+
+Recommandations demandées :
+1. Ordre optimal de remboursement (snowball vs avalanche vs une autre stratégie ?)
+2. Dois-je essayer de renégocier certains crédits ? Quels arguments utiliser ?
+3. Regroupement de crédits : bonne ou mauvaise idée dans mon cas ?
+4. Combien allouer au remboursement anticipé vs investissement ?
+5. Calendrier de remboursement optimisé avec montants
+6. Une fois libre de dettes, comment réallouer les mensualités ?`
+      },
+
+      // ===== CATEGORY: Budget =====
+      {
+        id: 'budget-coach',
+        category: 'budget',
+        emoji: '💡',
+        title: 'Coaching budget & épargne',
+        target: 'ChatGPT, Claude, Gemini',
+        badges: ['budget', 'coaching'],
+        badgeColors: ['', 'blue'],
+        prompt: `Tu es un coach financier bienveillant mais exigeant. Aide-moi à optimiser mon budget pour maximiser mon épargne.
+
+${CTX}
+
+Répartition actuelle :
+- Charges fixes (loyer/crédit) : ${fmtC(p.fixedExpenses)}
+- Dépenses variables : ${fmtC(p.variableExpenses)}
+- Remboursements dettes : ${fmtC(a.debtAnalysis.totalMonthlyPayments)}
+- Reste (épargne) : ${fmtC(bal.surplus)}
+
+Mon taux d'épargne est de ${bal.savingsRate.toFixed(1)}%.
+
+Aide-moi à :
+1. 🔍 Identifier où je peux économiser (détaille catégorie par catégorie)
+2. 💪 Passer à un taux d'épargne de ${Math.min(bal.savingsRate + 10, 40).toFixed(0)}% — est-ce réaliste ?
+3. 🏗️ Mettre en place la méthode 50/30/20 adaptée à ma situation
+4. 📱 Outils/apps que tu recommandes pour le suivi budget
+5. 🎯 Objectif épargne réaliste pour les 12 prochains mois (montant total)
+6. 💡 3 quick wins pour économiser dès ce mois-ci`
+      },
+
+      // ===== CATEGORY: Urgence =====
+      {
+        id: 'emergency-plan',
+        category: 'urgence',
+        emoji: '🛡️',
+        title: 'Plan d\'urgence financière',
+        target: 'ChatGPT, Claude',
+        badges: ['urgence', 'sécurité'],
+        badgeColors: ['orange', ''],
+        prompt: `Tu es un planificateur financier spécialisé dans la gestion des risques personnels.
+
+${CTX}
+
+Mon fonds d'urgence actuel couvre ${a.emergencyFund.monthsCovered.toFixed(1)} mois de dépenses.
+Le montant recommandé est ${fmtC(a.emergencyFund.recommended)}.
+
+Construis-moi un plan de sécurité financière complet :
+1. 🛡️ Mon fonds d'urgence est-il suffisant ? Plan pour atteindre le montant idéal
+2. 🏥 Assurances à vérifier/souscrire (maladie, prévoyance, RC, habitation…)
+3. 📋 Scénarios de crise : perte d'emploi, arrêt maladie, divorce — suis-je protégé ?
+4. 💼 Plan d'action si je perds mon emploi demain (étapes + délais)
+5. 📄 Documents financiers importants à mettre en ordre
+6. 👥 Protection des proches : quelle assurance-vie, testament, mandat ?
+
+Sois concret avec des montants et des actions datées.`
+      },
+
+      // ===== CATEGORY: Éducation =====
+      {
+        id: 'learn-investing',
+        category: 'education',
+        emoji: '📚',
+        title: 'Plan d\'apprentissage investissement',
+        target: 'ChatGPT, Claude, Gemini',
+        badges: ['éducation', 'investissement'],
+        badgeColors: ['blue', 'purple'],
+        prompt: `Tu es un formateur en éducation financière qui adapte son contenu au niveau de l'apprenant.
+
+${CTX}
+
+Mon profil de risque est ${riskLabel} et j'ai un patrimoine de ${fmtC(a.ratios.netWorth)}.
+
+Crée-moi un plan d'apprentissage personnalisé pour devenir autonome en gestion de patrimoine :
+1. 📊 Mon niveau actuel estimé (débutant/intermédiaire/avancé) basé sur mon profil
+2. 📚 Top 5 livres à lire dans l'ordre (finance personnelle, investissement)
+3. 🎓 Concepts clés à maîtriser en priorité (liste ordonnée)
+4. 📺 Chaînes YouTube / podcasts français recommandés
+5. 🛠️ Exercices pratiques à faire avec mon propre argent (petits montants)
+6. 📅 Programme sur 3 mois : semaine par semaine, que dois-je apprendre ?
+
+Adapte le contenu au contexte français (fiscalité, produits disponibles).`
+      },
+
+      {
+        id: 'market-analysis',
+        category: 'education',
+        emoji: '🌍',
+        title: 'Analyse macro-économique pour mon profil',
+        target: 'ChatGPT, Gemini, Perplexity',
+        badges: ['macro', 'marchés'],
+        badgeColors: ['blue', 'purple'],
+        prompt: `Tu es un économiste qui vulgarise l'actualité macro-économique et son impact sur les investisseurs particuliers.
+
+${CTX}
+
+Mon allocation actuelle : ${invDetail}
+Profil : ${riskLabel}
+
+En tenant compte du contexte économique actuel :
+1. 🌍 Quelles sont les grandes tendances macro qui m'impactent ? (inflation, taux, géopolitique)
+2. 📈 Quels marchés/secteurs favoriser dans les 12 prochains mois ?
+3. ⚠️ Quels risques surveiller avec mon allocation actuelle ?
+4. 🔄 Dois-je ajuster ma stratégie au vu du contexte ?
+5. 💶 L'euro vs le dollar : impact sur mes placements ?
+6. 🔮 Scénarios à 1 an : optimiste, central, pessimiste — comment me positionner pour chacun ?
+
+Distingue bien les faits des opinions.`
+      },
+
+      // ===== CATEGORY: Situation de vie =====
+      {
+        id: 'life-event',
+        category: 'situations',
+        emoji: '🔄',
+        title: 'Adaptation à un changement de vie',
+        target: 'ChatGPT, Claude',
+        badges: ['vie', 'adaptation'],
+        badgeColors: ['pink', ''],
+        prompt: `Tu es un conseiller en gestion de patrimoine spécialisé dans l'accompagnement des transitions de vie.
+
+${CTX}
+
+Pour chacun de ces scénarios de vie possibles, explique comment je devrais adapter ma stratégie financière :
+
+1. 💍 Mariage / PACS — Impact fiscal et patrimonial, régime matrimonial recommandé
+2. 👶 Naissance d'un enfant — Combien prévoir ? Quels placements pour sa future éducation ?
+3. 🏠 Achat de résidence principale — Capacité d'emprunt, apport optimal, impact sur mes investissements
+4. 💼 Changement d'emploi (hausse de salaire +30%) — Comment réallouer le surplus ?
+5. 🚀 Création d'entreprise — Combien de trésorerie garder ? Quels risques couvrir ?
+6. 📉 Récession / perte d'emploi — Plan de survie financière sur 12 mois
+
+Pour chaque scénario, donne les 3 actions prioritaires.`
+      },
+
+      {
+        id: 'negotiate-salary',
+        category: 'situations',
+        emoji: '💼',
+        title: 'Négociation salariale chiffrée',
+        target: 'ChatGPT, Claude',
+        badges: ['négociation', 'carrière'],
+        badgeColors: ['', 'pink'],
+        prompt: `Tu es un coach en négociation salariale.
+
+${CTX}
+
+Avec un salaire net de ${fmtC(p.monthlyNetIncome)}/mois et une stabilité ${stabilityLabel} :
+
+1. 💰 Quelle augmentation est réaliste à demander ? (% et montant)
+2. 📊 Comment argumenter avec des données de marché ?
+3. 🎯 Impact concret d'une augmentation de 10% sur mon patrimoine dans 10 ans (calcule-le)
+4. 📋 Avantages en nature à négocier en plus du salaire (lesquels valent le plus ?)
+5. 📝 Script de négociation en 5 étapes
+6. ⏰ Meilleur timing pour négocier dans l'année
+
+Donne des conseils très concrets et des phrases à utiliser.`
+      }
+    ];
+
+    // Filter out irrelevant prompts
+    const filtered = allPrompts.filter(prompt => {
+      // If no debts, remove debt strategy
+      if (prompt.id === 'debt-strategy' && totalDebt === 0) return false;
+      return true;
+    });
+
+    return filtered;
+  }
+
   /* ---------- PUBLIC API -------------------------------------- */
   window.FinEngine = {
     computeRiskScore,
@@ -855,6 +1303,7 @@
     computeFinancialRatios,
     computeTaxOptimization,
     generateAdvice,
+    generateAIPrompts,
     runFullAnalysis,
     ASSET_CLASSES,
     ALLOCATION_PROFILES

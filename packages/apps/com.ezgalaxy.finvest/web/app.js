@@ -18,6 +18,7 @@
     { key: 'retirement',  label: 'Retraite',          icon: 'clock' },
     { key: 'debt',        label: 'Dettes',            icon: 'lock' },
     { key: 'advice',      label: 'Conseils',          icon: 'star' },
+    { key: 'ai',          label: 'Prompts IA',        icon: 'sparkles' },
     { key: 'settings',    label: 'Paramètres',        icon: 'settings' }
   ];
 
