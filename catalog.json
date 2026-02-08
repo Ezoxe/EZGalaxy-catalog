@@ -93,8 +93,8 @@
     },
     {
       "id": "com.ezgalaxy.pentest-lab",
-      "title": "La Cuisine d'Ez — Pentest Lab",
-      "function": "CTF pentest training : 9 flags (3 facile, 3 moyen, 3 difficile) cachés dans un faux catalogue de recettes françaises. Fausses vulnérabilités (honeypot), documentation riche avec indices et fausses pistes, solutions chiffrées AES-GCM. Sauvegarde cloud via Community Data API.",
+      "title": "EzPentest Lab",
+      "function": "Plateforme d'entraînement au pentest : 9 flags cachés dans un site de recettes (La Cuisine d'Ez). 3 niveaux de difficulté, documentation avec indices et fausses pistes, solutions chiffrées AES-GCM. Sauvegarde cloud via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.pentest-lab",
       "version": "1.0.0"
     }
