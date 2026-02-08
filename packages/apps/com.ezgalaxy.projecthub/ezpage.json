@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "com.ezgalaxy.projecthub",
-  "title": "Project Hub - AI Dashboard",
-  "function": "Dashboard de gestion de projet futuriste avec Kanban, Gantt, matrices de charge, prédictions IA, analyse de risques et métriques financières. Sauvegarde via Community Data API.",
-  "version": "1.0.0",
+  "title": "Project Hub — Smart Project Management",
+  "function": "Application de gestion de projet intelligente : Kanban drag-and-drop, timeline Gantt, prédictions IA (vélocité, risques, burndown), NLP pour création rapide de tâches, graphiques SVG interactifs, gestion d'équipe avec matrice de compétences, suivi budgétaire, palette de commandes (Ctrl+K), thème sombre/clair, et synchronisation cloud via Community Data API.",
+  "version": "2.0.0",
   "createdAt": "2026-01-28",
   "author": "EZGalaxy Community",
   "entry": "web/index.html",

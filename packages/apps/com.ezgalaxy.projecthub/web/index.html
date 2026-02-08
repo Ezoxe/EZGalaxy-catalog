@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Project Hub - AI Dashboard</title>
-  
-  <!-- App Styles -->
-  <link rel="stylesheet" href="./style.css">
+  <title>Project Hub — AI Dashboard</title>
+  <link rel="stylesheet" href="ezgalaxy-base.css">
+  <link rel="stylesheet" href="ezgalaxy-animations.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="root">
+  <div id="app-root">
     <div class="loading-screen">
       <div class="loading-spinner"></div>
-      <div class="loading-text">Loading Project Hub...</div>
+      <div class="loading-text">Initializing Project Hub…</div>
     </div>
   </div>
-  
-  <!-- Core Libraries (order matters!) -->
-  <script src="./charts.js"></script>
-  <script src="./store.js"></script>
-  <script src="./components.js"></script>
-  <script src="./views.js"></script>
-  <script src="./app.js"></script>
+
+  <script src="vendor/lz-string.min.js"></script>
+  <script src="charts.js"></script>
+  <script src="store.js"></script>
+  <script src="predictions.js"></script>
+  <script src="components.js"></script>
+  <script src="views.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
