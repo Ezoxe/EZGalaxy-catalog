@@ -90,6 +90,13 @@
       "function": "Dashboard de gestion de projet futuriste avec Kanban intelligent, Gantt HD avec dépendances, matrice de charge équipe, moteur prédictif IA (Time-Traveler), analyseur de risques, score de sentiment, métriques financières. Sauvegarde via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.projecthub",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.pentest-lab",
+      "title": "La Cuisine d'Ez — Pentest Lab",
+      "function": "CTF pentest training : 9 flags (3 facile, 3 moyen, 3 difficile) cachés dans un faux catalogue de recettes françaises. Fausses vulnérabilités (honeypot), documentation riche avec indices et fausses pistes, solutions chiffrées AES-GCM. Sauvegarde cloud via Community Data API.",
+      "path": "packages/apps/com.ezgalaxy.pentest-lab",
+      "version": "1.0.0"
     }
   ]
 }
