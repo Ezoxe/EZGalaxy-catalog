@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.finvest",
+  "updatedAt": "2026-02-08",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": {
+        "allowedOrigins": []
+      },
+      "justification": "Autorise les appels réseau vers les endpoints same-origin d'EZGalaxy (/api/auth/login, /api/community/...) pour l'authentification et la persistance des données via Community Data API. Aucun domaine externe requis."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": ["profiles", "analyses", "settings"],
+        "dataTypes": [
+          "profiles: profil financier complet de l'utilisateur (revenus, dépenses, patrimoine, dettes, objectifs, profil de risque)",
+          "analyses: dernière analyse financière générée (scores, allocations, projections)",
+          "settings: préférences utilisateur (hypothèses, affichage)"
+        ]
+      },
+      "justification": "Stockage des données financières personnelles de l'utilisateur : profil investisseur, résultats d'analyse, et préférences. Données isolées par utilisateur (scope owner_user_id). Compression LZString appliquée avant envoi."
+    },
+    {
+      "name": "downloads",
+      "enabled": true,
+      "details": {
+        "formats": ["JSON"]
+      },
+      "justification": "Export du profil financier et des analyses en fichier JSON local pour sauvegarde hors-ligne."
+    }
+  ]
+}

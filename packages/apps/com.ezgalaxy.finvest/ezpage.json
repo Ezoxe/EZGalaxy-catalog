@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.finvest",
+  "title": "FinVest — Analyse Financière",
+  "function": "Outil complet d'analyse financière : questionnaire profil investisseur, score de santé financière, allocation portefeuille, projections Monte Carlo, planification retraite, gestion de dettes, conseils personnalisés. Sauvegarde via Community Data API.",
+  "version": "1.0.0",
+  "createdAt": "2026-02-08",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "icon": "icon.png",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}
