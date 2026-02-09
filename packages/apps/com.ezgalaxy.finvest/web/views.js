@@ -153,23 +153,52 @@
     const s = Store.getState();
     const step = s.questionnaireStep || 0;
     const p = s.profile;
+    const qMode = s.questionnaireMode || null; // 'quick' | 'full' | null (not chosen)
+
+    // If mode not yet chosen, show mode selector
+    if (qMode === null && step <= 0) {
+      renderModeSelector(container);
+      return;
+    }
+
+    // Quick mode steps: 0 (profil), 1 (revenus), 2 (dépenses), 5 (objectifs) → then analyse
+    const quickSteps = [0, 1, 2, 5];
+    const isQuick = qMode === 'quick';
+    const effectiveSteps = isQuick ? quickSteps : [0, 1, 2, 3, 4, 5, 6];
+    const currentStepIndex = isQuick ? quickSteps.indexOf(step) : step;
+    const actualStep = step;
+    const maxStepIndex = effectiveSteps.length - 1;
+    const isLastStep = currentStepIndex >= maxStepIndex;
+
+    const STEPS_DISPLAY = isQuick
+      ? [QUESTIONNAIRE_STEPS[0], QUESTIONNAIRE_STEPS[1], QUESTIONNAIRE_STEPS[2], QUESTIONNAIRE_STEPS[5]]
+      : QUESTIONNAIRE_STEPS;
 
     const wrap = el('div', { className: 'questionnaire' });
 
+    // Mode badge
+    wrap.appendChild(el('div', { className: 'q-mode-badge', onClick: () => {
+      Store.setState({ questionnaireMode: null, questionnaireStep: 0 });
+      window.navigateTo('questionnaire');
+    } }, [
+      el('span', { textContent: isQuick ? '⚡ Mode rapide' : '📋 Mode complet' }),
+      el('span', { className: 'q-mode-badge__change', textContent: '(changer)' })
+    ]));
+
     // Step indicator
-    wrap.appendChild(stepIndicator(QUESTIONNAIRE_STEPS.map(s => s.title), step));
+    wrap.appendChild(stepIndicator(STEPS_DISPLAY.map(s => s.title), Math.max(0, currentStepIndex)));
 
     // Step title
-    const stepInfo = QUESTIONNAIRE_STEPS[step];
+    const stepInfo = QUESTIONNAIRE_STEPS[actualStep];
     wrap.appendChild(el('div', { className: 'q-header ez-fade-in' }, [
       icon(stepInfo.icon, 28),
       el('h2', { textContent: stepInfo.title })
     ]));
 
     // Questions container
-    const questions = el('div', { className: 'q-body ez-fade-in', dataset: { step: step } });
+    const questions = el('div', { className: 'q-body ez-fade-in', dataset: { step: actualStep } });
 
-    switch (step) {
+    switch (actualStep) {
       case 0: renderStep0(questions, p); break;
       case 1: renderStep1(questions, p); break;
       case 2: renderStep2(questions, p); break;
@@ -183,25 +212,31 @@
 
     // Navigation buttons
     const nav = el('div', { className: 'q-nav' });
-    if (step > 0) {
+    if (currentStepIndex > 0) {
+      const prevStep = effectiveSteps[currentStepIndex - 1];
       nav.appendChild(el('button', { className: 'btn', onClick: () => {
-        Store.setState({ questionnaireStep: step - 1 });
+        Store.setState({ questionnaireStep: prevStep });
         window.navigateTo('questionnaire');
       } }, [icon('chevron-left', 16), 'Précédent']));
     } else {
       nav.appendChild(el('button', { className: 'btn btn--ghost', onClick: () => {
-        Store.setState({ step: 'welcome' });
-        window.navigateTo('welcome');
+        Store.setState({ questionnaireMode: null, questionnaireStep: 0 });
+        window.navigateTo('questionnaire');
       } }, [icon('chevron-left', 16), 'Retour']));
     }
-    if (step < 6) {
+    if (!isLastStep) {
+      const nextStep = effectiveSteps[currentStepIndex + 1];
       nav.appendChild(el('button', { className: 'btn btn--primary', onClick: () => {
-        Store.setState({ questionnaireStep: step + 1 });
+        Store.setState({ questionnaireStep: nextStep });
         window.navigateTo('questionnaire');
       } }, ['Suivant', icon('chevron-right', 16)]));
     } else {
       nav.appendChild(el('button', { className: 'btn btn--primary btn--lg', onClick: () => {
         try {
+          // In quick mode, set defaults for skipped steps
+          if (isQuick) {
+            Store.updateProfile({ riskAnswers: [3, 3, 3, 3, 3, 3, 3] });
+          }
           Store.runAnalysis();
           toast('Analyse terminée !', 'success');
           window.navigateTo('overview');
@@ -209,6 +244,68 @@
       } }, [icon('activity', 18), 'Lancer l\'analyse']));
     }
     wrap.appendChild(nav);
+    container.appendChild(wrap);
+  }
+
+  /* ----- Mode Selector ---------------------------------------- */
+  function renderModeSelector(container) {
+    const wrap = el('div', { className: 'questionnaire' });
+
+    wrap.appendChild(el('div', { className: 'q-mode-hero ez-fade-in' }, [
+      el('div', { className: 'q-mode-hero__icon' }, ['📝']),
+      el('h2', { textContent: 'Choisissez votre questionnaire' }),
+      el('p', { className: 'text-muted', textContent: 'Sélectionnez le niveau de détail qui vous convient.' })
+    ]));
+
+    const grid = el('div', { className: 'q-mode-grid' });
+
+    // Quick mode
+    const quickCard = el('div', { className: 'q-mode-card q-mode-card--quick anim-slide-up stagger-1', onClick: () => {
+      Store.setState({ questionnaireMode: 'quick', questionnaireStep: 0 });
+      window.navigateTo('questionnaire');
+    } });
+    quickCard.innerHTML = `
+      <div class="q-mode-card__icon">⚡</div>
+      <h3 class="q-mode-card__title">Rapide</h3>
+      <p class="q-mode-card__time">~3 minutes • 4 étapes</p>
+      <p class="q-mode-card__desc">L'essentiel pour une première analyse : profil, revenus, dépenses et objectifs. Parfait pour découvrir l'application.</p>
+      <ul class="q-mode-card__list">
+        <li>✅ Profil personnel</li>
+        <li>✅ Revenus</li>
+        <li>✅ Dépenses</li>
+        <li>✅ Objectifs & retraite</li>
+        <li>⏭️ Patrimoine (valeurs par défaut)</li>
+        <li>⏭️ Dettes (valeurs par défaut)</li>
+        <li>⏭️ Profil de risque (modéré par défaut)</li>
+      </ul>
+      <div class="q-mode-card__footer">Commencer →</div>
+    `;
+    grid.appendChild(quickCard);
+
+    // Full mode
+    const fullCard = el('div', { className: 'q-mode-card q-mode-card--full anim-slide-up stagger-2', onClick: () => {
+      Store.setState({ questionnaireMode: 'full', questionnaireStep: 0 });
+      window.navigateTo('questionnaire');
+    } });
+    fullCard.innerHTML = `
+      <div class="q-mode-card__icon">📋</div>
+      <h3 class="q-mode-card__title">Complet</h3>
+      <p class="q-mode-card__time">~10 minutes • 7 étapes</p>
+      <p class="q-mode-card__desc">Analyse approfondie avec tous les détails : placements, immobilier, dettes, profil de risque. Conseils ultra-personnalisés.</p>
+      <ul class="q-mode-card__list">
+        <li>✅ Profil personnel</li>
+        <li>✅ Revenus</li>
+        <li>✅ Dépenses</li>
+        <li>✅ Patrimoine détaillé</li>
+        <li>✅ Dettes & crédits</li>
+        <li>✅ Objectifs & retraite</li>
+        <li>✅ Profil de risque (7 questions)</li>
+      </ul>
+      <div class="q-mode-card__footer">Commencer →</div>
+    `;
+    grid.appendChild(fullCard);
+
+    wrap.appendChild(grid);
     container.appendChild(wrap);
   }
 
@@ -1079,22 +1176,43 @@
      ============================================================= */
   function advice(container) {
     container.innerHTML = '';
-    const a = Store.getState().analysis;
+    const s = Store.getState();
+    const a = s.analysis;
     if (!a) return;
+    const p = s.profile;
 
     const wrap = el('div', { className: 'dashboard' });
     wrap.appendChild(el('div', { className: 'page-header ez-fade-in' }, [
       icon('star', 28),
       el('div', {}, [
-        el('h2', { textContent: 'Conseils personnalisés' }),
-        el('p', { className: 'text-muted', textContent: `${(a.advice || []).length} recommandations basées sur votre profil` })
+        el('h2', { textContent: 'Conseils ultra-personnalisés' }),
+        el('p', { className: 'text-muted', textContent: `${(a.advice || []).length} recommandations basées sur votre profil unique` })
       ])
     ]));
+
+    // Personalized profile summary banner
+    const familyLabels = { single: 'Célibataire', couple: 'En couple', married: 'Marié(e)', divorced: 'Divorcé(e)', widowed: 'Veuf/ve' };
+    const stabLabels = { very_stable: 'Très stable', stable: 'Stable', moderate: 'Modérée', unstable: 'Instable', no_income: 'Sans emploi' };
+    const bal = a.balance || {};
+    const profileBanner = el('div', { className: 'profile-summary-banner anim-slide-up' });
+    profileBanner.innerHTML = `
+      <div class="profile-summary-banner__title">👤 Votre profil</div>
+      <div class="profile-summary-banner__grid">
+        <div class="profile-summary-badge">🎂 ${p.age} ans</div>
+        <div class="profile-summary-badge">${familyLabels[p.familySituation] || p.familySituation}${p.dependents > 0 ? ` + ${p.dependents} enfant(s)` : ''}</div>
+        <div class="profile-summary-badge">💰 ${(bal.income || 0).toLocaleString('fr-FR')} €/mois</div>
+        <div class="profile-summary-badge">📊 Épargne ${(bal.savingsRate || 0).toFixed(0)}%</div>
+        <div class="profile-summary-badge">⚖️ Risque ${(a.riskScore || 5).toFixed(0)}/10</div>
+        <div class="profile-summary-badge">💼 ${stabLabels[p.employmentStability] || 'N/A'}</div>
+      </div>
+    `;
+    wrap.appendChild(profileBanner);
 
     const allAdvice = a.advice || [];
     const urgent = allAdvice.filter(a => a.category === 'urgent');
     const important = allAdvice.filter(a => a.category === 'important');
     const optimizations = allAdvice.filter(a => a.category === 'optimization');
+    const personal = allAdvice.filter(a => a.category === 'personal');
 
     // Goal progress
     if (a.goals && a.goals.length) {
@@ -1139,6 +1257,13 @@
       const sec = el('div', { className: 'advice-section ez-fade-in' });
       sec.appendChild(el('h3', { className: 'section-title section-title--success' }, [icon('star', 20), ` Optimisations (${optimizations.length})`]));
       optimizations.forEach(a => sec.appendChild(adviceCard(a)));
+      wrap.appendChild(sec);
+    }
+
+    if (personal.length) {
+      const sec = el('div', { className: 'advice-section ez-fade-in' });
+      sec.appendChild(el('h3', { className: 'section-title section-title--personal' }, [icon('user', 20), ` Conseils personnalisés pour vous (${personal.length})`]));
+      personal.forEach(a => sec.appendChild(adviceCard(a)));
       wrap.appendChild(sec);
     }
 
@@ -1500,19 +1625,50 @@
       const w = window.open(url, '_blank', 'noopener,noreferrer');
       if (w) return;
     } catch(_) {}
-    // Strategy 2: top-level navigation
+    // Strategy 2: parent postMessage (if EZGalaxy parent handles it)
     try {
-      if (window.top && window.top !== window) { window.top.open(url, '_blank'); return; }
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'open-url', url: url }, '*');
+      }
     } catch(_) {}
-    // Strategy 3: dynamic anchor
+    // Strategy 3: dynamic anchor (most reliable in sandbox with allow-popups)
     try {
       const a = document.createElement('a');
       a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      // Use top-level body if accessible
+      const body = (() => { try { return window.top.document.body || document.body; } catch(_) { return document.body; } })();
+      body.appendChild(a); a.click(); body.removeChild(a);
       return;
     } catch(_) {}
-    // Fallback: copy URL
-    copyUrl(url);
+    // Fallback: show modal with clickable link + copy
+    _showLinkModal(url);
+  }
+
+  function _showLinkModal(url) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(6px)';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#1a1f2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;max-width:500px;width:100%;padding:24px;text-align:center';
+    box.innerHTML = `
+      <div style="font-size:2rem;margin-bottom:12px">🔗</div>
+      <h3 style="color:#fff;margin:0 0 12px">Ouvrir le lien</h3>
+      <p style="color:#94a3b8;font-size:13px;margin:0 0 16px;word-break:break-all">${url}</p>
+      <a href="${url}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 24px;background:#0ea5a4;color:#fff;border-radius:8px;font-weight:600;text-decoration:none;margin-bottom:10px">Ouvrir dans un nouvel onglet ↗</a>
+      <br>
+    `;
+    const copyBtn2 = document.createElement('button');
+    copyBtn2.textContent = '📋 Copier le lien';
+    copyBtn2.style.cssText = 'padding:8px 18px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-size:13px;margin-top:4px';
+    copyBtn2.onclick = () => { copyUrl(url); copyBtn2.textContent = '✅ Copié !'; setTimeout(() => { copyBtn2.textContent = '📋 Copier le lien'; }, 2000); };
+    box.appendChild(copyBtn2);
+    const closeBtn2 = document.createElement('button');
+    closeBtn2.textContent = '✕ Fermer';
+    closeBtn2.style.cssText = 'display:block;margin:16px auto 0;background:none;border:none;color:#888;cursor:pointer;font-size:13px';
+    closeBtn2.onclick = () => overlay.remove();
+    box.appendChild(closeBtn2);
+    overlay.appendChild(box);
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
   }
 
   function copyUrl(url) {

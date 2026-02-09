@@ -788,8 +788,269 @@
     }
 
     // Sort by priority
-    const order = { urgent: 0, important: 1, optimization: 2 };
+    const order = { urgent: 0, important: 1, optimization: 2, personal: 3 };
     advice.sort((a, b) => order[a.category] - order[b.category]);
+
+    // ====== ULTRA-PERSONALIZED ADVICE ======
+    // Based on age, family situation, income level, specific investments, goals, etc.
+    const personalAdvice = generatePersonalizedAdvice(profile, bal, ef, debt, ratios, riskScore, goals, retirement);
+    advice.push(...personalAdvice);
+
+    // Re-sort after adding personalized advice
+    advice.sort((a, b) => order[a.category] - order[b.category]);
+
+    return advice;
+  }
+
+  /* ============================================================
+     15b. ULTRA-PERSONALIZED ADVICE ENGINE
+     ============================================================ */
+  function generatePersonalizedAdvice(profile, bal, ef, debt, ratios, riskScore, goals, retirement) {
+    const advice = [];
+    const age = profile.age || 30;
+    const income = bal.income;
+    const surplus = bal.surplus;
+    const savingsRate = bal.savingsRate;
+    const family = profile.familySituation;
+    const dependents = profile.dependents || 0;
+    const stability = profile.employmentStability;
+    const investments = profile.investments || [];
+    const totalInv = investments.reduce((s, i) => s + (i.amount || 0), 0);
+    const invTypes = new Set(investments.map(i => i.type));
+    const realEstate = profile.realEstate || [];
+    const totalRE = realEstate.reduce((s, r) => s + (r.value || 0), 0);
+    const totalAssets = ratios.totalAssets;
+    const savings = profile.currentSavings || 0;
+    const debts = profile.debts || [];
+    const totalDebt = debts.reduce((s, d) => s + (d.remainingAmount || 0), 0);
+
+    // ---- AGE-SPECIFIC ADVICE ----
+    if (age < 25) {
+      advice.push({
+        category: 'personal', icon: 'user',
+        title: '🎓 Conseils pour votre tranche d\'âge (< 25 ans)',
+        description: `À ${age} ans, vous avez un atout majeur : le temps. Même de petits investissements réguliers peuvent devenir considérables grâce aux intérêts composés. Si vous investissez 100 €/mois à 7%/an dès maintenant, vous aurez ~${Math.round(100 * ((Math.pow(1 + 0.07/12, (65 - age) * 12) - 1) / (0.07/12))).toLocaleString('fr-FR')} € à 65 ans.`,
+        action: 'Ouvrir un PEA dès que possible et mettre en place un virement automatique mensuel, même petit (50-100 €)',
+        impact: `${65 - age} ans de croissance composée`
+      });
+      if (!invTypes.has('pea') && !invTypes.has('etf_monde')) {
+        advice.push({
+          category: 'personal', icon: 'trending-up',
+          title: 'Premier investissement recommandé',
+          description: 'À votre âge, un ETF Monde (type MSCI World) est le placement idéal : simple, diversifié, et performant sur le long terme (~7-8%/an historiquement).',
+          action: 'Ouvrir un PEA en ligne (Boursorama, Fortuneo, Bourse Direct) et investir dans un ETF MSCI World (ex: CW8 Amundi)',
+          impact: 'Diversification mondiale en un seul produit'
+        });
+      }
+    } else if (age >= 25 && age < 35) {
+      advice.push({
+        category: 'personal', icon: 'user',
+        title: '💼 Conseils pour votre tranche d\'âge (25-35 ans)',
+        description: `À ${age} ans, c'est le moment d'accélérer la construction de votre patrimoine. Priorisez : 1) Fonds d'urgence, 2) Remboursement de dettes à taux élevé, 3) Investissement régulier. Votre horizon long terme vous permet de prendre des risques mesurés.`,
+        action: 'Automatiser votre épargne : 50% livrets sécurisés, 30% PEA/ETF, 20% assurance-vie',
+        impact: 'Construction d\'une base patrimoniale solide'
+      });
+    } else if (age >= 35 && age < 50) {
+      advice.push({
+        category: 'personal', icon: 'user',
+        title: '🏠 Conseils pour votre tranche d\'âge (35-50 ans)',
+        description: `À ${age} ans, privilégiez l'optimisation fiscale et la diversification. C'est souvent la période des revenus les plus élevés — profitez-en pour maximiser votre épargne. Si vous avez des enfants, pensez aussi à leur avenir financier.`,
+        action: dependents > 0
+          ? `Ouvrir une assurance-vie au nom de chaque enfant (${dependents} enfant(s)) pour profiter de la fiscalité avantageuse après 8 ans`
+          : 'Maximiser le PEA (plafond 150 000 €) et ouvrir un PER pour l\'avantage fiscal immédiat',
+        impact: 'Optimisation fiscale maximale'
+      });
+    } else if (age >= 50) {
+      advice.push({
+        category: 'personal', icon: 'user',
+        title: '🎯 Conseils pour votre tranche d\'âge (50+ ans)',
+        description: `À ${age} ans, commencez à sécuriser progressivement votre portefeuille. Réduisez l'exposition actions de 5% tous les 3 ans. Pensez à la transmission et aux solutions de rente.`,
+        action: 'Basculer 20-30% de votre portefeuille vers des obligations et fonds euros. Consulter un notaire pour la transmission.',
+        impact: `Protection du capital pour la retraite dans ${Math.max(0, (profile.retirementAge || 65) - age)} ans`
+      });
+    }
+
+    // ---- FAMILY-SPECIFIC ADVICE ----
+    if (dependents > 0) {
+      const educationCost = dependents * 8000; // €/an estimation
+      advice.push({
+        category: 'personal', icon: 'home',
+        title: `👨‍👩‍👧‍👦 Avec ${dependents} personne(s) à charge`,
+        description: `Vos charges familiales représentent un engagement important. Budget éducation estimé : ${(educationCost * 18).toLocaleString('fr-FR')} € par enfant jusqu'à 18 ans. Pensez à anticiper ces dépenses.`,
+        action: `Ouvrir un contrat d'assurance-vie par enfant avec versements programmés de ${Math.round(educationCost / 12).toLocaleString('fr-FR')} €/mois`,
+        impact: `Constitution de ${(educationCost * 8).toLocaleString('fr-FR')} € par enfant en 8 ans`
+      });
+    }
+
+    if (family === 'married' || family === 'couple') {
+      advice.push({
+        category: 'personal', icon: 'shield',
+        title: '💑 Conseil en couple',
+        description: 'En couple, optimisez votre stratégie fiscale conjointement. Répartissez les investissements pour maximiser les plafonds (2 PEA = 300 000 €, etc.). Pensez aussi à la prévoyance mutuelle.',
+        action: 'Vérifier que chacun a son propre PEA, sa propre assurance-vie, et une clause bénéficiaire à jour',
+        impact: 'Doublement des enveloppes fiscales'
+      });
+    }
+
+    if (family === 'single' && age >= 30 && dependents === 0) {
+      advice.push({
+        category: 'personal', icon: 'star',
+        title: '🚀 Avantage célibataire sans charges',
+        description: `Sans personnes à charge, vous avez une capacité d'épargne potentiellement élevée. Objectif : épargner ${savingsRate >= 30 ? 'au moins 30%' : '25-35%'} de vos revenus pour accélérer votre indépendance financière.`,
+        action: 'Investir agressivement (80% actions / 20% obligations) grâce à votre liberté financière',
+        impact: 'Accélération vers l\'indépendance financière'
+      });
+    }
+
+    // ---- INCOME-LEVEL SPECIFIC ----
+    if (income > 0 && income < 2000) {
+      advice.push({
+        category: 'personal', icon: 'piggy-bank',
+        title: '💰 Optimisation petit budget',
+        description: `Avec ${income.toLocaleString('fr-FR')} €/mois de revenus, chaque euro compte. Privilégiez les placements sans frais (ETF en PEA) et les livrets réglementés (Livret A : 3%, LDDS : 3%). Évitez les produits bancaires avec frais cachés.`,
+        action: 'Remplir d\'abord le Livret A (plafond 22 950 €) et le LDDS (plafond 12 000 €) avant d\'investir en bourse',
+        impact: `${(22950 * 0.03).toLocaleString('fr-FR')} €/an d'intérêts garantis et défiscalisés`
+      });
+    } else if (income >= 5000) {
+      advice.push({
+        category: 'personal', icon: 'trending-up',
+        title: '🏆 Stratégie hauts revenus',
+        description: `Avec ${income.toLocaleString('fr-FR')} €/mois, vous pouvez construire un patrimoine significatif rapidement. Diversifiez entre PEA, assurance-vie luxembourgeoise, PER, et potentiellement SCPI pour les revenus passifs.`,
+        action: 'Consulter un conseiller en gestion de patrimoine indépendant (CGPI) pour une stratégie sur-mesure',
+        impact: `Potentiel d'épargne de ${Math.round(income * 0.3).toLocaleString('fr-FR')} €/mois`
+      });
+    }
+
+    // ---- INVESTMENT-TYPE SPECIFIC ----
+    if (invTypes.has('crypto') && totalInv > 0) {
+      const cryptoAmt = investments.filter(i => i.type === 'crypto').reduce((s, i) => s + (i.amount || 0), 0);
+      const cryptoPct = (cryptoAmt / totalInv * 100);
+      if (cryptoPct > 15) {
+        advice.push({
+          category: 'important', icon: 'alert',
+          title: `⚠️ Exposition crypto élevée (${cryptoPct.toFixed(0)}%)`,
+          description: `Votre allocation en crypto-monnaies représente ${cryptoPct.toFixed(1)}% de votre portefeuille. Les experts recommandent de limiter cette classe d'actifs à 5-10% maximum en raison de sa volatilité extrême.`,
+          action: `Réduire votre exposition crypto de ${(cryptoAmt - totalInv * 0.10).toLocaleString('fr-FR')} € et réallouer vers des ETF diversifiés`,
+          impact: 'Réduction significative du risque de perte'
+        });
+      }
+    }
+
+    if (invTypes.has('scpi')) {
+      advice.push({
+        category: 'personal', icon: 'home',
+        title: '🏢 Optimisation SCPI',
+        description: 'Les SCPI offrent des revenus réguliers (4-5%/an) mais manquent de liquidité. En PER ou assurance-vie, la fiscalité est optimisée. Attention aux frais d\'entrée (8-12%).',
+        action: 'Privilégiez les SCPI en assurance-vie pour réduire la fiscalité des revenus fonciers',
+        impact: 'Économie d\'impôt de 30-40% sur les revenus SCPI'
+      });
+    }
+
+    if (!invTypes.has('per') && income >= 3000 && age >= 30) {
+      const tmi = income * 12 > 78570 ? 41 : income * 12 > 28797 ? 30 : 11;
+      advice.push({
+        category: 'personal', icon: 'percent',
+        title: '📦 PER : économie d\'impôt immédiate',
+        description: `Votre TMI estimée est de ${tmi}%. Un versement PER de 5 000 € vous ferait économiser ${(5000 * tmi / 100).toLocaleString('fr-FR')} € d'impôts immédiats. Le PER est idéal pour préparer la retraite avec un avantage fiscal.`,
+        action: `Ouvrir un PER en ligne et programmer des versements mensuels de ${Math.round(5000 / 12)} €`,
+        impact: `${(5000 * tmi / 100).toLocaleString('fr-FR')} € d'économie fiscale/an`
+      });
+    }
+
+    // ---- STABILITY-SPECIFIC ----
+    if (stability === 'unstable' || stability === 'no_income') {
+      advice.push({
+        category: 'important', icon: 'shield',
+        title: '🛡️ Situation professionnelle précaire',
+        description: `En situation ${stability === 'no_income' ? 'sans emploi' : 'instable'}, votre priorité absolue est le fonds d'urgence (${ef.recommendedMonths} mois de dépenses minimum). Évitez tout placement illiquide et gardez un maximum de trésorerie disponible.`,
+        action: 'Constituer un fonds d\'urgence de 6-9 mois avant tout investissement. Rester en produits liquides (Livret A, LDDS)',
+        impact: 'Protection contre l\'imprévu professionnel'
+      });
+    }
+
+    // ---- REAL ESTATE ----
+    if (totalRE === 0 && age >= 28 && income >= 2500) {
+      advice.push({
+        category: 'personal', icon: 'home',
+        title: '🏠 Achat immobilier à considérer',
+        description: `Avec ${income.toLocaleString('fr-FR')} €/mois à ${age} ans, vous pourriez emprunter environ ${Math.round(income * 0.33 * 12 * 20 * 0.85).toLocaleString('fr-FR')} € sur 20 ans. L'immobilier est souvent le premier levier de constitution de patrimoine en France.`,
+        action: 'Simuler votre capacité d\'emprunt et comparer le coût loyer vs achat dans votre ville',
+        impact: 'Capitalisation patrimoniale vs loyer à fonds perdus'
+      });
+    }
+
+    if (totalRE > 0 && totalInv === 0) {
+      advice.push({
+        category: 'personal', icon: 'trending-up',
+        title: '📊 Diversifiez au-delà de l\'immobilier',
+        description: `Votre patrimoine est 100% immobilier (${totalRE.toLocaleString('fr-FR')} €). Cette concentration est risquée. Commencez à investir en financier (PEA, assurance-vie) pour diversifier.`,
+        action: 'Épargner 50% du surplus mensuel en PEA et 50% en assurance-vie fonds euros',
+        impact: 'Diversification et liquidité accrues'
+      });
+    }
+
+    // ---- SURPLUS ALLOCATION ADVICE ----
+    if (surplus > 300) {
+      const peaPct = age < 40 ? 60 : age < 55 ? 40 : 20;
+      const avPct = age < 40 ? 20 : age < 55 ? 30 : 40;
+      const livretPct = 100 - peaPct - avPct;
+      advice.push({
+        category: 'personal', icon: 'pie-chart',
+        title: `💎 Répartition optimale de votre surplus (${surplus.toLocaleString('fr-FR')} €/mois)`,
+        description: `Voici la répartition recommandée pour votre profil (${age} ans, risque ${riskScore.toFixed(0)}/10) :
+• PEA/ETF : ${peaPct}% = ${Math.round(surplus * peaPct / 100).toLocaleString('fr-FR')} €/mois
+• Assurance-vie : ${avPct}% = ${Math.round(surplus * avPct / 100).toLocaleString('fr-FR')} €/mois
+• Livrets sécurisés : ${livretPct}% = ${Math.round(surplus * livretPct / 100).toLocaleString('fr-FR')} €/mois`,
+        action: `Mettre en place 3 virements automatiques le 1er de chaque mois :: PEA ${Math.round(surplus * peaPct / 100)} € + AV ${Math.round(surplus * avPct / 100)} € + Livret ${Math.round(surplus * livretPct / 100)} €`,
+        impact: `Patrimoine estimé dans 10 ans : ${Math.round(surplus * 12 * 10 * 1.35).toLocaleString('fr-FR')} €`
+      });
+    }
+
+    // ---- RISK PROFILE MISMATCH ----
+    if (riskScore >= 7 && age >= 55) {
+      advice.push({
+        category: 'important', icon: 'alert',
+        title: '⚠️ Profil de risque vs horizon',
+        description: `Votre profil de risque est dynamique (${riskScore.toFixed(1)}/10) mais votre horizon avant la retraite est court (${Math.max(0, (profile.retirementAge || 65) - age)} ans). Un krach de -40% laisserait peu de temps pour récupérer.`,
+        action: 'Réduire progressivement la part actions à 40-50% maximum et augmenter les obligations/fonds euros',
+        impact: 'Protection du capital accumulé'
+      });
+    }
+
+    if (riskScore <= 3 && age < 35) {
+      advice.push({
+        category: 'personal', icon: 'trending-up',
+        title: '📈 Vous pouvez prendre plus de risques',
+        description: `Votre profil de risque est très prudent (${riskScore.toFixed(1)}/10) mais à ${age} ans, vous avez ${(profile.retirementAge || 65) - age} ans devant vous. Historiquement, un portefeuille 80% actions a toujours été positif sur 15+ ans, même en incluant toutes les crises.`,
+        action: 'Augmenter progressivement votre exposition actions de 10% par trimestre jusqu\'à atteindre 60-70%',
+        impact: 'Rendement potentiel +3-4%/an par rapport à un portefeuille prudent'
+      });
+    }
+
+    // ---- GOAL-SPECIFIC PERSONALIZED ----
+    const userGoals = profile.goals || [];
+    for (const g of userGoals) {
+      if (g.name && g.name.toLowerCase().includes('immobilier') && g.targetAmount > 0) {
+        const monthsLeft = (g.horizonYears || 5) * 12;
+        const monthlyNeeded = g.targetAmount / monthsLeft;
+        advice.push({
+          category: 'personal', icon: 'home',
+          title: `🏠 Stratégie pour "${g.name}"`,
+          description: `Pour atteindre ${g.targetAmount.toLocaleString('fr-FR')} € en ${g.horizonYears} ans, vous devez épargner ${Math.round(monthlyNeeded).toLocaleString('fr-FR')} €/mois sur un support sécurisé (apport < 5 ans = zéro risque). Utilisez un Livret A + LDDS, puis un fonds euros si les plafonds sont atteints.`,
+          action: 'NE PAS investir en bourse un apport immobilier à moins de 5 ans — risque de perte en capital',
+          impact: `${Math.round(monthlyNeeded).toLocaleString('fr-FR')} €/mois pendant ${g.horizonYears} ans`
+        });
+      }
+      if (g.name && g.name.toLowerCase().includes('retraite') && g.priority === 'high') {
+        advice.push({
+          category: 'personal', icon: 'clock',
+          title: `⏰ Accélérer "${g.name}"`,
+          description: `Objectif retraite prioritaire : ${g.targetAmount.toLocaleString('fr-FR')} € en ${g.horizonYears} ans. Combinez PER (avantage fiscal à l'entrée) + PEA (pas d'impôt à la sortie après 5 ans) pour maximiser le rendement net.`,
+          action: 'Répartir : 40% PER (défiscalisation) + 40% PEA (ETF Monde) + 20% fonds euros (sécurité)',
+          impact: 'Double optimisation fiscale entrée/sortie'
+        });
+      }
+    }
 
     return advice;
   }

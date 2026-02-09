@@ -290,8 +290,8 @@
 
   /* ---------- Advice Card ------------------------------------- */
   function adviceCard(advice) {
-    const catColors = { urgent: 'var(--ez-danger)', important: 'var(--ez-warning)', optimization: 'var(--ez-success)' };
-    const catLabels = { urgent: '🔴 Urgent', important: '🟡 Important', optimization: '🟢 Optimisation' };
+    const catColors = { urgent: 'var(--ez-danger)', important: 'var(--ez-warning)', optimization: 'var(--ez-success)', personal: 'var(--accent-purple, #8b5cf6)' };
+    const catLabels = { urgent: '🔴 Urgent', important: '🟡 Important', optimization: '🟢 Optimisation', personal: '🟣 Personnalisé' };
     return el('div', { className: `advice-card advice-card--${advice.category}`, style: { borderLeftColor: catColors[advice.category] } }, [
       el('div', { className: 'advice-card__header' }, [
         icon(advice.icon || 'info', 20),

@@ -12,15 +12,23 @@
   const fc = v => (v || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   const fp = v => (v || 0).toFixed(1) + '%';
 
-  /* helper: section header */
-  function sectionHeader(iconName, title, subtitle) {
-    return el('div', { className: 'page-header ez-fade-in' }, [
+  /* helper: section header — with optional auto-description */
+  function sectionHeader(iconName, title, subtitle, viewKey) {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el('div', { className: 'page-header ez-fade-in' }, [
       icon(iconName, 28),
       el('div', {}, [
         el('h2', { textContent: title }),
         subtitle ? el('p', { className: 'text-muted', textContent: subtitle }) : null
       ].filter(Boolean))
-    ]);
+    ]));
+    // Auto-inject description if viewKey is provided and exists
+    const key = viewKey || title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+    const desc = TOOL_DESCRIPTIONS[key];
+    if (desc) {
+      frag.appendChild(toolDescription(iconName, title, desc.desc, desc.tips));
+    }
+    return frag;
   }
 
   /* helper: metric card */
@@ -36,6 +44,140 @@
     w.innerHTML = `<div class="progress-bar"><div class="progress-bar__fill" style="width:${Math.min(100, pct)}%;background:${color || 'var(--primary)'}"></div></div><span class="progress-bar__label">${Math.round(pct)}%</span>`;
     return w;
   }
+
+  /* helper: tool description banner */
+  function toolDescription(iconName, title, description, tips) {
+    const wrap = el('div', { className: 'tool-description' });
+    wrap.innerHTML = `
+      <div class="tool-description__icon">${iconName ? '' : '💡'}</div>
+      <div class="tool-description__body">
+        <p class="tool-description__text">${description}</p>
+        ${tips ? `<div class="tool-description__tips"><strong>💡 Astuce :</strong> ${tips}</div>` : ''}
+      </div>
+    `;
+    if (iconName) {
+      const iconEl = wrap.querySelector('.tool-description__icon');
+      iconEl.innerHTML = '';
+      iconEl.appendChild(icon(iconName, 22));
+    }
+    return wrap;
+  }
+
+  /* ============ TOOL DESCRIPTIONS MAP ========================= */
+  const TOOL_DESCRIPTIONS = {
+    patrimoine: {
+      desc: 'Vue complète de votre patrimoine : épargne, placements, immobilier et répartition globale. Visualisez la structure de votre richesse pour prendre de meilleures décisions.',
+      tips: 'Mettez à jour régulièrement vos montants pour un suivi précis.'
+    },
+    performance: {
+      desc: 'Suivez l\'évolution de votre performance financière dans le temps. Score de santé, rendements mensuels et tendances globales.',
+      tips: 'Comparez votre performance à l\'inflation pour vérifier si votre patrimoine progresse réellement.'
+    },
+    fire: {
+      desc: 'Calculez votre parcours vers l\'indépendance financière (FIRE). Découvrez quand vous pourrez vivre de vos rentes selon différents scénarios.',
+      tips: 'Ajustez votre taux d\'épargne de +5% pour voir l\'impact sur votre date FIRE.'
+    },
+    comparateur: {
+      desc: 'Comparez plusieurs scénarios d\'investissement côte à côte. Idéal pour choisir entre différentes stratégies (prudent vs dynamique, etc.).',
+      tips: 'Créez 3 scénarios : pessimiste, réaliste et optimiste.'
+    },
+    credit: {
+      desc: 'Simulez un crédit immobilier ou consommation. Calculez mensualités, coût total des intérêts et tableau d\'amortissement complet.',
+      tips: 'Comparez les offres en modifiant le taux : même 0.2% de différence peut représenter des milliers d\'euros.'
+    },
+    dividendes: {
+      desc: 'Estimez vos revenus passifs issus des dividendes. Visualisez la croissance de vos revenus grâce au réinvestissement automatique.',
+      tips: 'Un rendement de 4-5% avec réinvestissement peut doubler en ~15 ans.'
+    },
+    whatif: {
+      desc: 'Explorez des scénarios hypothétiques : « Et si j\'investissais 500€/mois de plus ? », « Et si les marchés chutaient de 40% ? ». Testez vos hypothèses.',
+      tips: 'Testez les scénarios extrêmes pour vérifier votre résilience financière.'
+    },
+    esg: {
+      desc: 'Évaluez la dimension ESG (Environnement, Social, Gouvernance) de votre portefeuille. Score de durabilité et suggestions d\'amélioration.',
+      tips: 'Les ETF ESG ont souvent des performances comparables aux ETF classiques.'
+    },
+    stresstest: {
+      desc: 'Simulez l\'impact de crises financières historiques (2008, COVID, dot-com) sur votre portefeuille actuel. Mesurez votre résistance.',
+      tips: 'Si votre portefeuille perd plus de 40% dans un stress test, réduisez votre exposition aux actifs risqués.'
+    },
+    fiscalite: {
+      desc: 'Optimisez votre situation fiscale : TMI, niches fiscales disponibles, stratégies d\'enveloppes (PEA, assurance-vie, PER). Estimez vos économies d\'impôts.',
+      tips: 'Maximisez d\'abord le PEA (plafond 150 000 €) avant d\'utiliser un CTO.'
+    },
+    interets: {
+      desc: 'Visualisez la puissance des intérêts composés. Comparez l\'évolution d\'un capital avec et sans réinvestissement sur 10, 20 ou 30 ans.',
+      tips: 'La règle de 72 : divisez 72 par votre taux de rendement pour estimer le nombre d\'années nécessaires pour doubler votre capital.'
+    },
+    budget: {
+      desc: 'Analysez la répartition de vos dépenses par catégorie. Identifiez les postes où vous pouvez économiser et optimiser votre budget mensuel.',
+      tips: 'Suivez la règle 50/30/20 : 50% besoins, 30% envies, 20% épargne.'
+    },
+    badges: {
+      desc: 'Gagnez des badges en atteignant des jalons financiers : premier investissement, fonds d\'urgence constitué, objectif atteint…',
+      tips: 'Chaque badge représente une étape concrète vers votre santé financière.'
+    },
+    defis: {
+      desc: 'Relevez des défis financiers personnalisés pour améliorer vos habitudes : défi épargne 30 jours, défi zéro dépense superflue…',
+      tips: 'Commencez par un défi simple et augmentez progressivement la difficulté.'
+    },
+    scorecard: {
+      desc: 'Votre tableau de bord synthétique : tous vos indicateurs clés (score, épargne, dette, objectifs) en un coup d\'œil pour suivre votre progression.',
+      tips: 'Consultez votre scorecard chaque semaine pour rester motivé.'
+    },
+    timeline: {
+      desc: 'Visualisez votre parcours financier passé et futur sur une timeline interactive. Retracez vos décisions et projetez votre avenir.',
+      tips: 'Ajoutez vos événements de vie (mariage, enfant, achat) pour des projections plus réalistes.'
+    },
+    benchmark: {
+      desc: 'Comparez vos indicateurs financiers aux moyennes nationales et aux meilleures pratiques. Identifiez vos points forts et axes d\'amélioration.',
+      tips: 'Ne vous comparez qu\'à des profils similaires (même tranche d\'âge et situation).'
+    },
+    simulationVie: {
+      desc: 'Simulez des choix de vie alternatifs : « Et si j\'avais commencé à investir à 20 ans ? », « Et si j\'avais pris un autre emploi ? ».',
+      tips: 'Cet outil montre l\'importance du timing — le meilleur moment pour investir, c\'est maintenant.'
+    },
+    heatmap: {
+      desc: 'Carte de chaleur de vos flux financiers mensuels. Identifiez les mois de forte dépense et les périodes d\'épargne maximale.',
+      tips: 'Repérez les mois récurrents de grosses dépenses pour mieux anticiper.'
+    },
+    retraiteImmersive: {
+      desc: 'Simulation détaillée et visuelle de votre retraite : projection du capital, rente mensuelle estimée, et impact de différents scénarios.',
+      tips: 'Combinez PER + assurance-vie pour optimiser votre fiscalité retraite.'
+    },
+    radar: {
+      desc: 'Graphique radar multi-dimensions de votre santé financière : épargne, investissement, dette, protection, diversification, revenus.',
+      tips: 'Un profil équilibré a un radar sans creux prononcé.'
+    },
+    copilot: {
+      desc: 'Assistant IA intégré qui analyse votre profil et génère des recommandations personnalisées en utilisant les meilleurs modèles de langage.',
+      tips: 'Copiez le prompt dans ChatGPT, Claude ou Gemini pour des conseils approfondis.'
+    },
+    kanban: {
+      desc: 'Organisez vos objectifs financiers en tableau kanban : À faire, En cours, Terminé. Suivez visuellement votre progression.',
+      tips: 'Limitez-vous à 3 objectifs « En cours » simultanément pour rester concentré.'
+    },
+    alertes: {
+      desc: 'Configurez des alertes personnalisées : seuil de dépenses dépassé, objectif atteint, rendement en baisse…',
+      tips: 'Une alerte par mois suffit pour garder le contrôle sans stress.'
+    },
+    journal: {
+      desc: 'Tenez votre journal financier : notez vos décisions d\'investissement, vos réflexions et suivez votre évolution psychologique face à l\'argent.',
+      tips: 'Relisez vos anciennes entrées lors de périodes de doute — elles rappellent pourquoi vous avez fait ces choix.'
+    },
+    partage: {
+      desc: 'Partagez votre analyse en générant un lien ou un rapport visuel. Idéal pour demander conseil à un proche ou un professionnel.',
+      tips: 'Partagez uniquement les données que vous êtes à l\'aise de montrer.'
+    },
+    cours: {
+      desc: 'Mini-cours de finance personnelle : budget, intérêts composés, diversification, fiscalité… Apprenez à votre rythme.',
+      tips: 'Suivez un cours par semaine pour devenir financièrement autonome en quelques mois.'
+    },
+    glossaire: {
+      desc: 'Dictionnaire complet des termes financiers utilisés dans l\'application. PEA, ETF, TMI, SCPI… tout est expliqué simplement.',
+      tips: 'Utilisez la recherche pour trouver rapidement un terme.'
+    }
+  };
 
   /* =============================================================
      1. PATRIMOINE GLOBAL (Sankey-style wealth dashboard)
@@ -55,7 +197,7 @@
     const grossWorth = totalInv + (p.currentSavings || 0) + totalRE;
 
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('layers', 'Patrimoine global', 'Vue consolidée de votre richesse'));
+    wrap.appendChild(sectionHeader('layers', 'Patrimoine global', 'Vue consolidée de votre richesse', 'patrimoine'));
 
     // Main metrics
     const grid = el('div', { className: 'metrics-grid' });
@@ -112,7 +254,7 @@
     container.innerHTML = '';
     const p = Store.getState().profile;
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('trending-up', 'Performance historique', 'Évolution simulée de votre patrimoine'));
+    wrap.appendChild(sectionHeader('trending-up', 'Performance historique', 'Évolution simulée de votre patrimoine', 'performance'));
 
     const totalInv = (p.investments || []).reduce((s, i) => s + (i.amount || 0), 0);
     const bal = FinEngine.computeMonthlyBalance(p);
@@ -170,7 +312,7 @@
     const p = Store.getState().profile;
     const data = FinExtra.computeFIRE(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('zap', 'Indépendance financière (FIRE)', `Liberté financière à ${data.fireAge} ans`));
+    wrap.appendChild(sectionHeader('zap', 'Indépendance financière (FIRE)', `Liberté financière à ${data.fireAge} ans`, 'fire'));
 
     // Progress ring
     const progressSection = el('div', { className: 'fire-hero anim-slide-up stagger-1' });
@@ -220,7 +362,7 @@
     container.innerHTML = '';
     const p = Store.getState().profile;
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('layers', 'Comparateur de scénarios', 'Comparez différentes stratégies côte-à-côte'));
+    wrap.appendChild(sectionHeader('layers', 'Comparateur de scénarios', 'Comparez différentes stratégies côte-à-côte', 'comparateur'));
 
     const scenarios = [
       { name: '100% ETF Monde', description: 'Tout en ETF diversifié', investType: 'etf_monde', monthlyInvestment: 300, returnRate: 7 },
@@ -290,7 +432,7 @@
   function credit(container) {
     container.innerHTML = '';
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('home', 'Simulateur de crédit', 'Calculez votre amortissement'));
+    wrap.appendChild(sectionHeader('home', 'Simulateur de crédit', 'Calculez votre amortissement', 'credit'));
 
     let params = { amount: 200000, rate: 3.5, durationYears: 20, insurance: 0.36 };
     const formCard = el('div', { className: 'card anim-slide-up stagger-1' });
@@ -364,7 +506,7 @@
   function dividendes(container) {
     container.innerHTML = '';
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('dollar-sign', 'Calculateur de dividendes', 'Projection de revenus passifs'));
+    wrap.appendChild(sectionHeader('dollar-sign', 'Calculateur de dividendes', 'Projection de revenus passifs', 'dividendes'));
 
     let params = { initialInvestment: 10000, monthlyContribution: 200, dividendYield: 3.5, growthRate: 5, years: 30, reinvest: true, taxRate: 30 };
     const formCard = el('div', { className: 'card anim-slide-up stagger-1' });
@@ -441,7 +583,7 @@
     container.innerHTML = '';
     const p = Store.getState().profile;
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('zap', 'Analyse What-If', 'Que se passe-t-il si…'));
+    wrap.appendChild(sectionHeader('zap', 'Analyse What-If', 'Que se passe-t-il si…', 'whatif'));
 
     let scenario = { salaryChange: 0, extraInvestment: 0, expenseChange: 0 };
     const formCard = el('div', { className: 'card anim-slide-up stagger-1' });
@@ -499,7 +641,7 @@
     const p = Store.getState().profile;
     const data = FinExtra.computeESG(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('globe', 'Score ESG', 'Impact environnemental, social & gouvernance'));
+    wrap.appendChild(sectionHeader('globe', 'Score ESG', 'Impact environnemental, social & gouvernance', 'esg'));
 
     const hero = el('div', { className: 'esg-hero anim-slide-up stagger-1' });
     const gradeEl = el('div', { className: `esg-grade esg-grade--${data.grade.replace('+', 'plus')}` });
@@ -549,7 +691,7 @@
     container.innerHTML = '';
     const p = Store.getState().profile;
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('alert', 'Stress Test', 'Résistance de votre portefeuille aux crises'));
+    wrap.appendChild(sectionHeader('alert', 'Stress Test', 'Résistance de votre portefeuille aux crises', 'stresstest'));
 
     let selectedScenario = 'crash_2008';
     const scenarioBar = el('div', { className: 'news-category-bar anim-slide-up stagger-1' });
@@ -624,7 +766,7 @@
     const a = Store.getState().analysis;
     const tax = a?.taxOptimization || FinEngine.computeTaxOptimization(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('percent', 'Optimiseur fiscal', 'Maximisez votre rendement net d\'impôt'));
+    wrap.appendChild(sectionHeader('percent', 'Optimiseur fiscal', 'Maximisez votre rendement net d\'impôt', 'fiscalite'));
 
     const grid = el('div', { className: 'metrics-grid anim-slide-up stagger-1' });
     grid.appendChild(metric('TMI estimé', tax.estimatedTMI + '%', 'Taux marginal d\'imposition'));
@@ -675,7 +817,7 @@
     const locked = allBadges.filter(b => !b.unlocked);
 
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('star', 'Badges & Trophées', `${unlocked.length}/${allBadges.length} débloqués`));
+    wrap.appendChild(sectionHeader('star', 'Badges & Trophées', `${unlocked.length}/${allBadges.length} débloqués`, 'badges'));
 
     // Progress
     const prog = el('div', { className: 'badge-progress anim-slide-up stagger-1' });
@@ -721,7 +863,7 @@
     const p = Store.getState().profile;
     const challenges = FinExtra.generateChallenges(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('target', 'Défis mensuels', 'Améliorez vos finances pas à pas'));
+    wrap.appendChild(sectionHeader('target', 'Défis mensuels', 'Améliorez vos finances pas à pas', 'defis'));
 
     const grid = el('div', { className: 'challenge-grid anim-slide-up stagger-1' });
     challenges.forEach((c, i) => {
@@ -761,7 +903,7 @@
     const esgData = FinExtra.computeESG(p);
 
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('shield', 'Scorecard financière', 'Évaluation complète de votre rigueur'));
+    wrap.appendChild(sectionHeader('shield', 'Scorecard financière', 'Évaluation complète de votre rigueur', 'scorecard'));
 
     // Overall grade
     const healthScore = a?.healthScore?.total || 0;
@@ -808,7 +950,7 @@
     const p = Store.getState().profile;
     const fire = FinExtra.computeFIRE(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('clock', 'Timeline financière', 'Votre parcours patrimonial'));
+    wrap.appendChild(sectionHeader('clock', 'Timeline financière', 'Votre parcours patrimonial', 'timeline'));
 
     const events = [];
     const currentAge = p.age || 30;
@@ -874,7 +1016,7 @@
     const p = Store.getState().profile;
     const data = FinExtra.computeBenchmark(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('bar-chart-2', 'Benchmark', `Comparaison par tranche d'âge (${data.bracket})`));
+    wrap.appendChild(sectionHeader('bar-chart-2', 'Benchmark', `Comparaison par tranche d'âge (${data.bracket})`, 'benchmark'));
 
     const hero = el('div', { className: 'benchmark-hero anim-slide-up stagger-1' });
     hero.innerHTML = `<div class="benchmark-percentile">Top <strong>${100 - data.overallPercentile}%</strong></div><p class="text-muted">Vous êtes au ${data.overallPercentile}ème percentile de votre tranche d'âge</p>`;
@@ -911,7 +1053,7 @@
     const p = Store.getState().profile;
     const a = Store.getState().analysis;
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('share', 'Profil partageable', 'Générer une carte de synthèse'));
+    wrap.appendChild(sectionHeader('share', 'Profil partageable', 'Générer une carte de synthèse', 'partage'));
 
     const cardPreview = el('div', { className: 'share-card-preview anim-slide-up stagger-1' });
     const healthScore = a?.healthScore?.total || 0;
@@ -953,7 +1095,7 @@
   function cours(container) {
     container.innerHTML = '';
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('book', 'Éducation financière', 'Mini-cours interactifs'));
+    wrap.appendChild(sectionHeader('book', 'Éducation financière', 'Mini-cours interactifs', 'cours'));
 
     let activeCourse = null;
     let activeLesson = 0;
@@ -1031,7 +1173,7 @@
   function glossaire(container) {
     container.innerHTML = '';
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('book', 'Glossaire financier', `${FinExtra.GLOSSARY.length} termes`));
+    wrap.appendChild(sectionHeader('book', 'Glossaire financier', `${FinExtra.GLOSSARY.length} termes`, 'glossaire'));
 
     let filter = '';
     const searchInput = el('input', { type: 'text', className: 'input', placeholder: '🔍 Rechercher un terme...', onInput: (e) => { filter = e.target.value.toLowerCase(); renderTerms(); } });
@@ -1066,7 +1208,7 @@
   function interets(container) {
     container.innerHTML = '';
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('trending-up', 'Intérêts composés', 'La 8ème merveille du monde'));
+    wrap.appendChild(sectionHeader('trending-up', 'Intérêts composés', 'La 8ème merveille du monde', 'interets'));
 
     let params = { principal: 1000, monthlyAdd: 200, rate: 7, years: 30 };
     const formCard = el('div', { className: 'card anim-slide-up stagger-1' });
@@ -1131,7 +1273,7 @@
     const p = Store.getState().profile;
     const bal = FinEngine.computeMonthlyBalance(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('wallet', 'Suivi budget mensuel', 'Prévisionnel vs Réel'));
+    wrap.appendChild(sectionHeader('wallet', 'Suivi budget mensuel', 'Prévisionnel vs Réel', 'budget'));
 
     const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
     const currentMonth = new Date().getMonth();
@@ -1192,7 +1334,7 @@
     const p = Store.getState().profile;
     const goals = p.goals || [];
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('target', 'Tableau d\'objectifs', 'Gérez vos objectifs financiers'));
+    wrap.appendChild(sectionHeader('target', 'Tableau d\'objectifs', 'Gérez vos objectifs financiers', 'kanban'));
 
     const columns = [
       { id: 'todo', title: '📋 À faire', filter: g => (FinEngine.computeGoalProgress(p).find(gp => gp.name === g.name)?.progress || 0) < 25 },
@@ -1244,7 +1386,7 @@
     const debt = a?.debtAnalysis || FinEngine.computeDebtAnalysis(p);
 
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('alert', 'Alertes & Rappels', 'Situations nécessitant votre attention'));
+    wrap.appendChild(sectionHeader('alert', 'Alertes & Rappels', 'Situations nécessitant votre attention', 'alertes'));
 
     const alerts = [];
 
@@ -1284,7 +1426,7 @@
   function journal(container) {
     container.innerHTML = '';
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('edit', 'Journal financier', 'Documentez vos décisions'));
+    wrap.appendChild(sectionHeader('edit', 'Journal financier', 'Documentez vos décisions', 'journal'));
 
     // Load entries from localStorage
     const LS_KEY = 'finvest_journal';
@@ -1351,7 +1493,7 @@
     container.innerHTML = '';
     const p = Store.getState().profile;
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('clock', 'Et si j\'avais commencé plus tôt ?', 'Simulation de vie alternative'));
+    wrap.appendChild(sectionHeader('clock', 'Et si j\'avais commencé plus tôt ?', 'Simulation de vie alternative', 'simulationVie'));
 
     let startAge = 20;
     const formCard = el('div', { className: 'card anim-slide-up stagger-1' });
@@ -1411,7 +1553,7 @@
     const p = Store.getState().profile;
     const data = FinExtra.generateHeatmapData(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('activity', 'Heatmap patrimoine', 'Variation quotidienne sur 1 an'));
+    wrap.appendChild(sectionHeader('activity', 'Heatmap patrimoine', 'Variation quotidienne sur 1 an', 'heatmap'));
 
     const grid = el('div', { className: 'metrics-grid anim-slide-up stagger-1' });
     grid.appendChild(metric('Jours positifs', data.positive + '', `${Math.round(data.positive / 365 * 100)}% du temps`, '#10b981'));
@@ -1467,7 +1609,7 @@
     const bal = a?.balance || FinEngine.computeMonthlyBalance(p);
     const fire = FinExtra.computeFIRE(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('sparkles', 'Copilot financier', 'Missions personnalisées quotidiennes'));
+    wrap.appendChild(sectionHeader('sparkles', 'Copilot financier', 'Missions personnalisées quotidiennes', 'copilot'));
 
     // Generate daily missions based on profile
     const missions = [];
@@ -1524,7 +1666,7 @@
     const settings = Store.getState().settings;
     const data = FinExtra.computeImmersiveRetirement(p, settings);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('clock', 'Projection retraite immersive', `${data.yearsOfRetirement} ans de retraite modélisés`));
+    wrap.appendChild(sectionHeader('clock', 'Projection retraite immersive', `${data.yearsOfRetirement} ans de retraite modélisés`, 'retraiteImmersive'));
 
     const grid = el('div', { className: 'metrics-grid anim-slide-up stagger-1' });
     grid.appendChild(metric('Patrimoine à la retraite', fc(data.portfolioAtRetirement), `À ${data.retirementAge} ans`));
@@ -1590,7 +1732,7 @@
     const p = Store.getState().profile;
     const data = FinExtra.computeRadarData(p);
     const wrap = el('div', { className: 'dashboard' });
-    wrap.appendChild(sectionHeader('shield', 'Radar financier', 'Scan multi-axes de votre profil'));
+    wrap.appendChild(sectionHeader('shield', 'Radar financier', 'Scan multi-axes de votre profil', 'radar'));
 
     // Chart
     const chartCard = el('div', { className: 'card anim-slide-up stagger-1', style: { textAlign: 'center' } });
@@ -1645,7 +1787,8 @@
       { id: 'sunset', name: 'Coucher de soleil', icon: '🌅', colors: { bg: '#1a0a0a', primary: '#f59e0b', text: '#fef3c7', surface: 'rgba(245,158,11,0.04)' } }
     ];
 
-    const currentTheme = localStorage.getItem('finvest_theme') || 'dark';
+    const safeLS = window._finvestSafeLS || { getItem(k){ try{return localStorage.getItem(k)}catch(_){return null} }, setItem(k,v){ try{localStorage.setItem(k,v)}catch(_){} } };
+    const currentTheme = safeLS.getItem('finvest_theme') || 'dark';
     const grid = el('div', { className: 'theme-grid anim-slide-up stagger-1' });
 
     THEMES.forEach(t => {
@@ -1653,7 +1796,7 @@
         className: `theme-card ${currentTheme === t.id ? 'theme-card--active' : ''}`,
         onClick: () => {
           applyTheme(t);
-          localStorage.setItem('finvest_theme', t.id);
+          safeLS.setItem('finvest_theme', t.id);
           grid.querySelectorAll('.theme-card').forEach(c => c.classList.remove('theme-card--active'));
           card.classList.add('theme-card--active');
           toast(`Thème "${t.name}" appliqué`, 'success');
@@ -1680,6 +1823,14 @@
       root.style.setProperty('--text', t.colors.text);
       root.style.setProperty('--glass', t.colors.surface);
       root.style.setProperty('--primary-soft', t.colors.primary + '18');
+      // Also set body/html background to prevent black flash
+      document.body.style.background = t.colors.bg;
+      document.body.style.color = t.colors.text;
+      // Set derived variables
+      const isLight = t.id === 'light';
+      root.style.setProperty('--muted', isLight ? '#64748b' : 'rgba(255,255,255,0.45)');
+      root.style.setProperty('--bg-card', isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)');
+      root.style.setProperty('--border', isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)');
     }
 
     // Apply saved theme on load

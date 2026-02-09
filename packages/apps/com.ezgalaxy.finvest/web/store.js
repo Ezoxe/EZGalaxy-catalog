@@ -10,6 +10,22 @@
   const LS_KEY = 'finvest_state';
   const LS_AUTH = 'finvest_auth';
 
+  /* ---------- Safe localStorage wrapper (sandbox-proof) ------- */
+  const _mem = {};
+  const safeLS = {
+    getItem(key) {
+      try { return localStorage.getItem(key); } catch (_) { return _mem[key] || null; }
+    },
+    setItem(key, value) {
+      try { localStorage.setItem(key, value); } catch (_) { _mem[key] = value; }
+    },
+    removeItem(key) {
+      try { localStorage.removeItem(key); } catch (_) { delete _mem[key]; }
+    }
+  };
+  // Expose for other modules (themes, etc.)
+  window._finvestSafeLS = safeLS;
+
   /* ---------- default state ----------------------------------- */
   const defaultProfile = {
     age: 30,
@@ -42,6 +58,7 @@
   let state = {
     step: 'welcome',          // welcome | questionnaire | dashboard
     questionnaireStep: 0,     // 0-6
+    questionnaireMode: null,  // null | 'quick' | 'full'
     profile: { ...defaultProfile },
     analysis: null,
     currentView: 'overview',
@@ -85,6 +102,7 @@
     setState({
       step: 'welcome',
       questionnaireStep: 0,
+      questionnaireMode: null,
       profile: { ...defaultProfile },
       analysis: null,
       currentView: 'overview'
@@ -104,24 +122,26 @@
       const payload = {
         step: state.step,
         questionnaireStep: state.questionnaireStep,
+        questionnaireMode: state.questionnaireMode,
         profile: state.profile,
         analysis: state.analysis,
         currentView: state.currentView,
         settings: state.settings
       };
-      localStorage.setItem(LS_KEY, JSON.stringify(payload));
+      safeLS.setItem(LS_KEY, JSON.stringify(payload));
     } catch (e) { /* quota exceeded — silent */ }
   }
 
   function loadLocal() {
     try {
-      const raw = localStorage.getItem(LS_KEY);
+      const raw = safeLS.getItem(LS_KEY);
       if (!raw) return false;
       const saved = JSON.parse(raw);
       state = {
         ...state,
         step: saved.step || 'welcome',
         questionnaireStep: saved.questionnaireStep || 0,
+        questionnaireMode: saved.questionnaireMode || null,
         profile: { ...defaultProfile, ...saved.profile },
         analysis: saved.analysis || null,
         currentView: saved.currentView || 'overview',
@@ -129,7 +149,7 @@
       };
       // Restore auth token separately
       try {
-        const authRaw = localStorage.getItem(LS_AUTH);
+        const authRaw = safeLS.getItem(LS_AUTH);
         if (authRaw) {
           const auth = JSON.parse(authRaw);
           state.auth = auth;
@@ -152,7 +172,7 @@
     const res = await fetch(url, { ...options, headers });
     if (res.status === 401) {
       setState({ auth: { token: null, user: null }, cloudStatus: 'disconnected' });
-      localStorage.removeItem(LS_AUTH);
+      safeLS.removeItem(LS_AUTH);
       throw new Error('Session expirée — reconnectez-vous');
     }
     if (!res.ok) {
@@ -174,13 +194,13 @@
     }
     const data = await res.json();
     const auth = { token: data.token, user: data.user };
-    localStorage.setItem(LS_AUTH, JSON.stringify(auth));
+    safeLS.setItem(LS_AUTH, JSON.stringify(auth));
     setState({ auth, cloudStatus: 'connected' });
     return data.user;
   }
 
   function logout() {
-    localStorage.removeItem(LS_AUTH);
+    safeLS.removeItem(LS_AUTH);
     setState({ auth: { token: null, user: null }, cloudStatus: 'disconnected' });
   }
 
@@ -326,7 +346,59 @@
     ta.readOnly = true;
     ta.style.cssText = 'flex:1;background:#0d1117;color:#7ee787;border:none;padding:16px 20px;font-family:monospace;font-size:12px;resize:none;min-height:200px;outline:none';
     const ftr = document.createElement('div');
-    ftr.style.cssText = 'padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:8px;justify-content:flex-end';
+    ftr.style.cssText = 'padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap';
+
+    // Download .json button (blob URI — works even in many sandboxes)
+    const dlBtn = document.createElement('button');
+    dlBtn.innerHTML = '💾 Télécharger .json';
+    dlBtn.style.cssText = 'padding:8px 18px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px';
+    dlBtn.onclick = () => {
+      try {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        dlBtn.innerHTML = '✅ Téléchargé !';
+        setTimeout(() => { dlBtn.innerHTML = '💾 Télécharger .json'; }, 2000);
+      } catch (_) {
+        // If download blocked by sandbox, fall back to data URI
+        try {
+          const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
+          const a = document.createElement('a');
+          a.href = dataUri; a.download = filename;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          dlBtn.innerHTML = '✅ Téléchargé !';
+        } catch (__) {
+          dlBtn.innerHTML = '❌ Bloqué par le navigateur';
+        }
+        setTimeout(() => { dlBtn.innerHTML = '💾 Télécharger .json'; }, 2500);
+      }
+    };
+    ftr.appendChild(dlBtn);
+
+    // Download .txt button
+    const dlTxtBtn = document.createElement('button');
+    dlTxtBtn.innerHTML = '📝 Télécharger .txt';
+    dlTxtBtn.style.cssText = 'padding:8px 18px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px';
+    dlTxtBtn.onclick = () => {
+      try {
+        const blob = new Blob([jsonStr], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename.replace('.json', '.txt');
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        dlTxtBtn.innerHTML = '✅ Téléchargé !';
+        setTimeout(() => { dlTxtBtn.innerHTML = '📝 Télécharger .txt'; }, 2000);
+      } catch (_) {
+        dlTxtBtn.innerHTML = '❌ Bloqué';
+        setTimeout(() => { dlTxtBtn.innerHTML = '📝 Télécharger .txt'; }, 2000);
+      }
+    };
+    ftr.appendChild(dlTxtBtn);
+
     const copyBtn = document.createElement('button');
     copyBtn.innerHTML = '📋 Copier le JSON';
     copyBtn.style.cssText = 'padding:8px 18px;background:#0ea5a4;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px';
