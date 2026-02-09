@@ -266,7 +266,19 @@
     const jsonStr = JSON.stringify(payload, null, 2);
     const filename = `finvest-export-${new Date().toISOString().slice(0, 10)}.json`;
 
-    // Strategy 1: Blob + click (works outside sandboxed iframes)
+    // Detect sandboxed iframe (EZGalaxy runs apps in iframes)
+    let inSandbox = false;
+    try {
+      inSandbox = window.self !== window.top;
+    } catch (_) { inSandbox = true; }
+
+    // In sandbox, go straight to modal (downloads blocked in iframes)
+    if (inSandbox) {
+      _showExportModal(jsonStr, filename);
+      return;
+    }
+
+    // Strategy 1: Blob + click
     try {
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -292,19 +304,7 @@
       return;
     } catch (_) { /* fallback */ }
 
-    // Strategy 3: window.open with data URI
-    try {
-      const w = window.open('', '_blank');
-      if (w) {
-        w.document.open();
-        w.document.write('<pre style="background:#111;color:#eee;padding:24px;font-size:13px;white-space:pre-wrap">' + jsonStr.replace(/</g, '&lt;') + '</pre>');
-        w.document.title = filename;
-        w.document.close();
-        return;
-      }
-    } catch (_) { /* fallback */ }
-
-    // Strategy 4: Copy to clipboard + modal
+    // Strategy 3: Copy to clipboard + modal
     _showExportModal(jsonStr, filename);
   }
 

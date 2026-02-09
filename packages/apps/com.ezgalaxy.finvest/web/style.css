@@ -135,6 +135,12 @@ p { margin: 0 0 8px; }
 .app--fullscreen .main {
   margin-left: 0 !important;
   width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .app--dashboard {
@@ -263,20 +269,14 @@ p { margin: 0 0 8px; }
 
 /* ---------- MAIN CONTENT ------------------------------------- */
 .main {
-  margin-left: var(--sidebar-w);
   flex: 1;
   min-height: 100vh;
   padding: 28px 36px;
   transition: opacity 0.2s ease;
-  max-width: 960px;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: max(36px, calc((100% - 960px) / 2));
 }
 .app--dashboard .main {
   margin-left: var(--sidebar-w);
-  margin-right: auto;
-  max-width: calc(100% - var(--sidebar-w));
+  width: calc(100% - var(--sidebar-w));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -299,8 +299,8 @@ p { margin: 0 0 8px; }
   gap: 40px;
   padding: 24px;
   text-align: center;
+  width: 100%;
   max-width: 900px;
-  margin: 0 auto;
 }
 
 .welcome__hero { display: flex; flex-direction: column; align-items: center; gap: 12px; }
@@ -1214,6 +1214,7 @@ p { margin: 0 0 8px; }
 
   .main {
     margin-left: 0 !important;
+    width: 100% !important;
     padding: 60px 16px 24px;
   }
 
