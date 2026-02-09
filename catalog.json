@@ -104,6 +104,13 @@
       "function": "Outil complet d'analyse financière : questionnaire profil investisseur, score de santé financière, allocation portefeuille, projections Monte Carlo, planification retraite, gestion de dettes, conseils personnalisés. Sauvegarde via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.finvest",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.gamestudio",
+      "title": "Game Studio — Créateur de Jeux",
+      "function": "Créateur de mini-jeux vidéo ultra complet : éditeur visuel de scènes, moteurs 2D et 3D, physique, IA, éclairage, scripting visuel, 200+ sprites, 40+ modèles 3D, 60+ sons, 40+ tuiles, particules, 6 templates (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner). Sauvegarde via Community Data API.",
+      "path": "packages/apps/com.ezgalaxy.gamestudio",
+      "version": "1.0.0"
     }
   ]
 }

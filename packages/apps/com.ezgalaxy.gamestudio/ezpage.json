@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.gamestudio",
+  "title": "Game Studio — Créateur de Jeux",
+  "function": "Créateur ultra-complet de mini-jeux 2D et 3D avec éditeur visuel, bibliothèque massive d'assets procéduraux, IA, physique, éclairage, scripting visuel et sauvegarde cloud.",
+  "version": "1.0.0",
+  "createdAt": "2026-02-09",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}

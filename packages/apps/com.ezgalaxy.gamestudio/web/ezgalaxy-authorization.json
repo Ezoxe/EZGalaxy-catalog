@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.gamestudio",
+  "updatedAt": "2026-02-09",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": { "allowedOrigins": [] },
+      "justification": "Accès same-origin uniquement pour la Community Data API (sauvegarde/chargement projets)."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": ["projects", "assets", "settings"],
+        "dataTypes": ["game-project", "custom-asset", "user-preferences"]
+      },
+      "justification": "Sauvegarde cloud des projets de jeu, assets personnalisés et préférences utilisateur."
+    }
+  ]
+}
