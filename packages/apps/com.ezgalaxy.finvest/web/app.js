@@ -19,6 +19,7 @@
     { key: 'debt',        label: 'Dettes',            icon: 'lock' },
     { key: 'advice',      label: 'Conseils',          icon: 'star' },
     { key: 'ai',          label: 'Prompts IA',        icon: 'sparkles' },
+    { key: 'news',        label: 'Actualités',        icon: 'newspaper' },
     { key: 'settings',    label: 'Paramètres',        icon: 'settings' }
   ];
 

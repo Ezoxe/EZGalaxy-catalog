@@ -7,9 +7,9 @@
       "name": "network.outgoing",
       "enabled": true,
       "details": {
-        "allowedOrigins": []
+        "allowedOrigins": ["api.rss2json.com", "news.google.com"]
       },
-      "justification": "Autorise les appels réseau vers les endpoints same-origin d'EZGalaxy (/api/auth/login, /api/community/...) pour l'authentification et la persistance des données via Community Data API. Aucun domaine externe requis."
+      "justification": "Appels réseau vers same-origin EZGalaxy (/api/auth/login, /api/community/...) pour authentification et Community Data API. Accès externe à api.rss2json.com (proxy RSS→JSON) et news.google.com (flux RSS) pour le fil d'actualité financière personnalisé."
     },
     {
       "name": "communityDataApi",

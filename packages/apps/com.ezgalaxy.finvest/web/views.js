@@ -1397,9 +1397,254 @@
     container.appendChild(wrap);
   }
 
+  /* =============================================================
+     K. NEWS — Fil d'actualité financière RSS
+     ============================================================= */
+
+  const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
+  const GOOG_NEWS = 'https://news.google.com/rss/search?hl=fr&gl=FR&ceid=FR:fr&q=';
+
+  const NEWS_CATEGORIES = [
+    { key: 'perso',          label: '⭐ Pour vous',     query: null },
+    { key: 'marche',         label: '📈 Marchés',       query: 'bourse+CAC40+marchés+financiers+actions' },
+    { key: 'investissement',  label: '💰 Investissement', query: 'investissement+placement+ETF+PEA' },
+    { key: 'immobilier',     label: '🏠 Immobilier',    query: 'immobilier+SCPI+investissement+locatif+prix' },
+    { key: 'epargne',        label: '🏦 Épargne',       query: 'épargne+livret+A+assurance+vie+taux' },
+    { key: 'crypto',         label: '₿ Crypto',         query: 'bitcoin+crypto+ethereum+blockchain' },
+    { key: 'economie',       label: '🌍 Économie',      query: 'économie+france+inflation+BCE+taux+directeur' },
+    { key: 'retraite',       label: '🏖️ Retraite',     query: 'retraite+pension+PER+réforme+retraite' }
+  ];
+
+  /* Build personalized query based on user profile */
+  function buildPersonalizedQuery(profile) {
+    const kw = ['finance', 'patrimoine'];
+    const inv = profile.investments || [];
+    const has = t => inv.some(i => i.type === t && i.amount > 0);
+
+    if (has('crypto'))                  kw.push('bitcoin', 'crypto');
+    if (has('pea') || has('cto_actions') || has('etf_monde') || has('etf_emergents'))
+      kw.push('bourse', 'ETF', 'actions');
+    if (has('scpi') || (profile.realEstate || []).length > 0)
+      kw.push('immobilier', 'SCPI');
+    if (has('assurance_vie_fonds_euros') || has('assurance_vie_uc'))
+      kw.push('assurance+vie');
+    if (has('per'))                     kw.push('PER', 'retraite');
+    if (has('obligations'))             kw.push('obligations', 'taux');
+    if ((profile.debts || []).length > 0) kw.push('crédit', 'taux+emprunt');
+    if (profile.retirementAge && profile.retirementAge < 62) kw.push('retraite+anticipée');
+
+    return kw.join('+');
+  }
+
+  /* News cache */
+  const _newsCache = {};
+  const _newsCacheTs = {};
+  const CACHE_MS = 10 * 60 * 1000;
+
+  async function fetchFeed(key, query) {
+    if (_newsCache[key] && Date.now() - (_newsCacheTs[key] || 0) < CACHE_MS) {
+      return _newsCache[key];
+    }
+    const rssUrl = GOOG_NEWS + encodeURIComponent(query);
+    try {
+      const resp = await fetch(RSS2JSON + encodeURIComponent(rssUrl));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (data.status !== 'ok') throw new Error(data.message || 'Feed error');
+
+      const items = (data.items || []).map(item => ({
+        title: stripHtml(item.title || ''),
+        link: item.link || '#',
+        description: stripHtml(item.description || item.content || '').slice(0, 220),
+        pubDate: item.pubDate || '',
+        source: extractDomain(item.link),
+        thumbnail: item.thumbnail || item.enclosure?.link || null,
+        category: key
+      }));
+
+      _newsCache[key] = items;
+      _newsCacheTs[key] = Date.now();
+      return items;
+    } catch (e) {
+      console.warn('[News] Fetch error for', key, e.message);
+      return _newsCache[key] || [];
+    }
+  }
+
+  function stripHtml(html) {
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    return (d.textContent || '').trim();
+  }
+
+  function extractDomain(url) {
+    try { return new URL(url).hostname.replace('www.', ''); }
+    catch { return ''; }
+  }
+
+  function timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (diff < 0) return '';
+    if (diff < 60)    return 'À l\'instant';
+    if (diff < 3600)  return `Il y a ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `Il y a ${Math.floor(diff / 3600)}h`;
+    if (diff < 604800) return `Il y a ${Math.floor(diff / 86400)}j`;
+    return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+
+  function news(container) {
+    container.innerHTML = '';
+    const s = Store.getState();
+    const profile = s.profile;
+    let activeCat = 'perso';
+
+    const wrap = el('div', { className: 'dashboard' });
+
+    // Header
+    wrap.appendChild(el('div', { className: 'page-header ez-fade-in' }, [
+      icon('newspaper', 28),
+      el('div', {}, [
+        el('h2', { textContent: 'Actualités financières' }),
+        el('p', { className: 'text-muted', textContent: 'Flux RSS en direct, personnalisé selon votre profil' })
+      ])
+    ]));
+
+    // Info banner
+    const personalKw = buildPersonalizedQuery(profile);
+    const kwDisplay = personalKw.replace(/\+/g, ', ').slice(0, 80);
+    wrap.appendChild(el('div', { className: 'news-perso-banner anim-slide-up' }, [
+      icon('sparkles', 18),
+      el('span', { textContent: `Mots-clés personnalisés : ${kwDisplay}…` })
+    ]));
+
+    // Category tabs
+    const catBar = el('div', { className: 'news-category-bar anim-slide-up stagger-1' });
+    const feedContainer = el('div', { className: 'news-feed', id: 'news-feed' });
+
+    function renderCatBar() {
+      catBar.innerHTML = '';
+      for (const cat of NEWS_CATEGORIES) {
+        catBar.appendChild(el('button', {
+          className: `news-cat-btn ${activeCat === cat.key ? 'news-cat-btn--active' : ''}`,
+          textContent: cat.label,
+          onClick: () => { activeCat = cat.key; renderCatBar(); loadFeed(); }
+        }));
+      }
+      // Refresh button
+      catBar.appendChild(el('button', {
+        className: 'news-cat-btn news-cat-btn--refresh',
+        title: 'Rafraîchir',
+        onClick: () => {
+          delete _newsCache[activeCat];
+          delete _newsCacheTs[activeCat];
+          loadFeed();
+        }
+      }, [icon('refresh', 14)]));
+    }
+
+    async function loadFeed() {
+      feedContainer.innerHTML = '';
+      // Loading skeleton
+      for (let i = 0; i < 4; i++) {
+        feedContainer.appendChild(el('div', { className: 'news-skeleton anim-slide-up' }, [
+          el('div', { className: 'news-skeleton__img' }),
+          el('div', { className: 'news-skeleton__body' }, [
+            el('div', { className: 'news-skeleton__line news-skeleton__line--title' }),
+            el('div', { className: 'news-skeleton__line' }),
+            el('div', { className: 'news-skeleton__line news-skeleton__line--short' })
+          ])
+        ]));
+      }
+
+      const cat = NEWS_CATEGORIES.find(c => c.key === activeCat);
+      const query = cat.key === 'perso' ? personalKw : cat.query;
+      const items = await fetchFeed(activeCat, query);
+
+      feedContainer.innerHTML = '';
+
+      if (items.length === 0) {
+        feedContainer.appendChild(el('div', { className: 'news-empty anim-slide-up' }, [
+          icon('rss', 40),
+          el('h3', { textContent: 'Impossible de charger le flux' }),
+          el('p', { className: 'text-muted', textContent: 'Vérifiez votre connexion ou réessayez dans quelques instants.' }),
+          el('button', { className: 'btn btn--primary btn--sm mt-12', onClick: () => { delete _newsCache[activeCat]; loadFeed(); } }, [
+            icon('refresh', 14), 'Réessayer'
+          ])
+        ]));
+        return;
+      }
+
+      items.forEach((item, i) => {
+        const card = el('a', {
+          className: `news-card anim-slide-up stagger-${Math.min(i + 1, 8)}`,
+          href: item.link,
+          target: '_blank',
+          rel: 'noopener noreferrer'
+        });
+
+        // Thumbnail
+        if (item.thumbnail) {
+          const imgWrap = el('div', { className: 'news-card__img' });
+          const img = el('img', { src: item.thumbnail, alt: '', loading: 'lazy' });
+          img.onerror = () => { imgWrap.style.display = 'none'; };
+          imgWrap.appendChild(img);
+          card.appendChild(imgWrap);
+        }
+
+        // Content
+        const content = el('div', { className: 'news-card__content' });
+
+        // Source & time
+        const meta = el('div', { className: 'news-card__meta' });
+        if (item.source) {
+          meta.appendChild(el('span', { className: 'news-card__source' }, [
+            icon('globe', 12),
+            el('span', { textContent: item.source })
+          ]));
+        }
+        if (item.pubDate) {
+          meta.appendChild(el('span', { className: 'news-card__time', textContent: timeAgo(item.pubDate) }));
+        }
+        content.appendChild(meta);
+
+        // Title
+        content.appendChild(el('h4', { className: 'news-card__title', textContent: item.title }));
+
+        // Description
+        if (item.description) {
+          content.appendChild(el('p', { className: 'news-card__desc', textContent: item.description }));
+        }
+
+        // Open link indicator
+        content.appendChild(el('span', { className: 'news-card__open' }, [
+          el('span', { textContent: 'Lire l\'article' }),
+          icon('external-link', 12)
+        ]));
+
+        card.appendChild(content);
+        feedContainer.appendChild(card);
+      });
+
+      // Source info
+      feedContainer.appendChild(el('div', { className: 'news-source-info' }, [
+        icon('rss', 14),
+        el('span', { textContent: `${items.length} articles via Google Actualités — Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` })
+      ]));
+    }
+
+    renderCatBar();
+    wrap.appendChild(catBar);
+    wrap.appendChild(feedContainer);
+    container.appendChild(wrap);
+
+    // Initial load
+    loadFeed();
+  }
+
   /* ---------- PUBLIC API -------------------------------------- */
   window.Views = {
     welcome, questionnaire,
-    overview, allocation, projections, retirement, debt, advice, ai, settings
+    overview, allocation, projections, retirement, debt, advice, ai, news, settings
   };
 })();
