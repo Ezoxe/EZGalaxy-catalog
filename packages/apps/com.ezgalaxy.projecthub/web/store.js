@@ -49,6 +49,17 @@
       projectName: 'Nom du projet', sprint: 'Sprint', velocity: 'Vélocité',
       burnRate: 'Burn Rate', remaining: 'Restant', spent: 'Dépensé',
       total: 'Total', active: 'Actif', newTask: 'Nouvelle tâche',
+      dashboardView: 'Tableau de bord', kanbanView: 'Kanban', timelineView: 'Chronologie',
+      teamView: 'Équipe', budgetView: 'Budget', analyticsView: 'Analytique',
+      activityView: 'Activité', settingsView: 'Paramètres', aiAssistant: 'Assistant IA',
+      tasksDone: 'Tâches terminées', inProgress: 'En cours', overdue: 'En retard',
+      sprintProgress: 'Progression Sprint', todaysFocus: 'Focus du jour',
+      risks: 'Risques', distribution: 'Distribution', recentActivity: 'Activité récente',
+      taskMoved: 'Tâche déplacée', emptyColumn: 'Glissez des tâches ici',
+      taskCreated: 'Tâche créée !', totalBudget: 'Budget total',
+      budgetUsage: 'Utilisation budget', forecast: 'Prévisions',
+      statusDistribution: 'Distribution statuts', addMember: 'Ajouter',
+      completedTasks: 'Terminées', inProgressTasks: 'En cours', overdueTasks: 'En retard',
       allStatuses: 'Tous les statuts', allPriorities: 'Toutes les priorités',
       allAssignees: 'Tous les membres', allCategories: 'Toutes les catégories',
       title: 'Titre', description: 'Description', status: 'Statut',
@@ -97,6 +108,17 @@
       projectName: 'Project Name', sprint: 'Sprint', velocity: 'Velocity',
       burnRate: 'Burn Rate', remaining: 'Remaining', spent: 'Spent',
       total: 'Total', active: 'Active', newTask: 'New Task',
+      dashboardView: 'Dashboard', kanbanView: 'Kanban', timelineView: 'Timeline',
+      teamView: 'Team', budgetView: 'Budget', analyticsView: 'Analytics',
+      activityView: 'Activity', settingsView: 'Settings', aiAssistant: 'AI Assistant',
+      tasksDone: 'Tasks Done', inProgress: 'In Progress', overdue: 'Overdue',
+      sprintProgress: 'Sprint Progress', todaysFocus: "Today's Focus",
+      risks: 'Risks', distribution: 'Distribution', recentActivity: 'Recent Activity',
+      taskMoved: 'Task moved', emptyColumn: 'Drag tasks here',
+      taskCreated: 'Task created!', totalBudget: 'Total Budget',
+      budgetUsage: 'Budget Usage', forecast: 'Forecast',
+      statusDistribution: 'Status Distribution', addMember: 'Add member',
+      completedTasks: 'Completed', inProgressTasks: 'In Progress', overdueTasks: 'Overdue',
       allStatuses: 'All statuses', allPriorities: 'All priorities',
       allAssignees: 'All members', allCategories: 'All categories',
       title: 'Title', description: 'Description', status: 'Status',
@@ -566,12 +588,18 @@
   })();
 
   /* ── Public API ─────────────────────────────────────────── */
+  function setToken(token) {
+    const auth = { token, loginAt: new Date().toISOString() };
+    localStorage.setItem(LS_AUTH, JSON.stringify(auth));
+    setState({ auth, cloudStatus: 'connected' }, { skipHistory: true });
+  }
+
   window.Store = {
     getState, setState, subscribe, batch, undo, redo,
     addTask, updateTask, moveTask, deleteTask,
     addCollaborator, updateCollaborator, deleteCollaborator,
     getTask, getCollaborator, getMetrics, getFilteredTasks, setFilter,
-    updateSettings, login, logout, cloudSave, cloudLoad,
+    updateSettings, login, logout, cloudSave, cloudLoad, setToken,
     exportData, importData, resetToDemo, clearAllData,
     t, i18n, generateId,
   };

@@ -103,11 +103,12 @@
 
     // Cloud status
     const state = Store.getState();
-    const cloudIcon = state.cloudEnabled ? 'cloud' : 'cloudOff';
+    const isCloudOn = !!state.auth;
+    const cloudIcon = isCloudOn ? 'cloud' : 'cloudOff';
     const cloudStatus = el('div', {
-      className: 'cloud-status' + (state.cloudEnabled ? ' cloud-online' : ''),
+      className: 'cloud-status' + (isCloudOn ? ' cloud-online' : ''),
       onClick: () => {
-        if (state.cloudEnabled) {
+        if (isCloudOn) {
           dropdown(cloudStatus, [
             { label: 'Sauver dans le cloud', icon: 'upload', action: async () => { await Store.cloudSave(); toast('Sauvegardé !', 'success'); } },
             { label: 'Charger du cloud', icon: 'download', action: async () => { await Store.cloudLoad(); toast('Chargé !', 'success'); navigate(currentView); } },
@@ -120,7 +121,7 @@
       }
     }, [
       el('span', { innerHTML: icon(cloudIcon) }),
-      el('span', { className: 'cloud-label' }, [state.cloudEnabled ? 'Cloud sync' : 'Hors ligne']),
+      el('span', { className: 'cloud-label' }, [isCloudOn ? 'Cloud sync' : 'Hors ligne']),
     ]);
     sidebarFooter.appendChild(cloudStatus);
 
@@ -282,7 +283,7 @@
   async function init() {
     // Apply theme
     const state = Store.getState();
-    document.body.dataset.theme = state.settings?.theme || 'dark';
+    document.body.dataset.theme = (state.settings?.theme === 'light') ? 'light' : 'dark';
 
     // Load auth
     await loadAuthConfig();

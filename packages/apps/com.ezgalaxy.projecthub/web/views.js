@@ -27,9 +27,9 @@
 
     // Stats row
     const statsRow = el('div', { className: 'stats-row' }, [
-      statCard({ title: t('tasksDone'), value: metrics.completionRate, subtitle: `${metrics.completedTasks}/${metrics.totalTasks}`, icon: 'check', color: '#10b981', trend: 5 }),
-      statCard({ title: t('inProgress'), value: metrics.inProgressTasks, icon: 'trending', color: '#f59e0b' }),
-      statCard({ title: t('overdue'), value: metrics.overdueTasks, icon: 'alert', color: '#ef4444' }),
+      statCard({ title: t('tasksDone'), value: metrics.completionRate + '%', subtitle: `${metrics.done}/${metrics.total}`, icon: 'check', color: '#10b981', trend: 5 }),
+      statCard({ title: t('inProgress'), value: metrics.inProgress, icon: 'trending', color: '#f59e0b' }),
+      statCard({ title: t('overdue'), value: metrics.overdue, icon: 'alert', color: '#ef4444' }),
       statCard({ title: t('budget'), value: formatCurrency(state.budget.spent), subtitle: `/ ${formatCurrency(state.budget.total)}`, icon: 'budget', color: '#a855f7' }),
     ]);
     container.appendChild(statsRow);
@@ -126,7 +126,7 @@
     (state.activity || []).slice(0, 5).forEach(a => {
       actBody.appendChild(el('div', { className: 'activity-item' }, [
         el('span', { className: 'activity-dot', style: { background: activityColors[a.type] || '#6b7280' } }),
-        el('span', { className: 'activity-text' }, [a.text]),
+        el('span', { className: 'activity-text' }, [a.message || a.text || '']),
         el('span', { className: 'activity-time text-muted' }, [formatDateTime(a.timestamp)]),
       ]));
     });
@@ -585,6 +585,7 @@
 
     let filterType = 'all';
     const filterRow = el('div', { className: 'activity-filters' });
+    const typeLabels = { all: 'Toutes', completed: 'Terminé', created: 'Créé', moved: 'Déplacé', comment: 'Commentaire', blocked: 'Bloqué', milestone: 'Jalon' };
     const types = ['all', 'completed', 'created', 'moved', 'comment', 'blocked', 'milestone'];
     types.forEach(type => {
       filterRow.appendChild(el('button', {
@@ -595,7 +596,7 @@
           e.target.classList.add('active');
           renderActivities();
         }
-      }, [type === 'all' ? 'Toutes' : t(type) || type]));
+      }, [typeLabels[type] || type]));
     });
     container.appendChild(filterRow);
 
@@ -621,7 +622,7 @@
         listEl.appendChild(el('div', { className: 'activity-entry' }, [
           el('div', { className: 'activity-dot-lg', style: { background: activityColors[a.type] || '#6b7280' } }),
           el('div', { className: 'activity-content' }, [
-            el('p', { className: 'activity-text' }, [a.text]),
+            el('p', { className: 'activity-text' }, [a.message || a.text || '']),
             a.timestamp ? el('span', { className: 'activity-time text-muted' }, [formatDateTime(a.timestamp)]) : null,
           ].filter(Boolean)),
         ]));
@@ -649,13 +650,13 @@
       el('div', { className: 'settings-row' }, [
         el('div', { className: 'settings-info' }, [
           el('span', { className: 'settings-label' }, ['Statut cloud']),
-          el('span', { className: 'settings-value' }, [state.cloudEnabled ? '🟢 Connecté' : '🔴 Hors ligne']),
+          el('span', { className: 'settings-value' }, [state.auth ? '🟢 Connecté' : '🔴 Hors ligne']),
         ]),
-        state.cloudEnabled
-          ? el('button', { className: 'btn btn-secondary', onClick: () => { Store.logout(); toast('Déconnecté', 'info'); } }, ['Déconnexion'])
+        state.auth
+          ? el('button', { className: 'btn btn-secondary', onClick: () => { Store.logout(); toast('Déconnecté', 'info'); settings(container); } }, ['Déconnexion'])
           : el('button', { className: 'btn btn-primary', onClick: () => UI.loginModal({ onLogin: () => settings(container) }) }, ['Se connecter']),
       ]),
-      state.cloudEnabled ? el('div', { className: 'settings-row' }, [
+      state.auth ? el('div', { className: 'settings-row' }, [
         el('button', { className: 'btn btn-secondary', onClick: async () => { await Store.cloudSave(); toast('Sauvegardé !', 'success'); } }, [icon('upload') + ' Sauver dans le cloud']),
         el('button', { className: 'btn btn-secondary', onClick: async () => { await Store.cloudLoad(); toast('Chargé !', 'success'); settings(container); } }, [icon('download') + ' Charger du cloud']),
       ]) : null,
@@ -663,7 +664,7 @@
     sections.appendChild(cloudSection);
 
     // Appearance
-    const theme = state.settings?.theme || 'dark';
+    const theme = (state.settings?.theme === 'light') ? 'light' : 'dark';
     const lang = state.settings?.lang || 'fr';
     const appearSection = el('div', { className: 'settings-section' }, [
       el('h3', { innerHTML: icon('sun') + ' Apparence' }),
