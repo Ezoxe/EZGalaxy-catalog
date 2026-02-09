@@ -36,21 +36,12 @@
       ...navItems.filter(n => !n.divider).map(n => ({
         id: 'goto-' + n.id, label: 'Aller à ' + t(n.labelKey), icon: n.icon, action: () => navigate(n.id),
       })),
-      { id: 'export', label: 'Exporter les données', icon: 'download', action: () => {
-        const data = Store.exportData();
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'projecthub-export.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        toast('Données exportées !', 'success');
+      { id: 'export', label: t('exportData'), icon: 'download', action: () => {
+        Store.exportData(); // exportData now handles download internally
+        toast(t('exportData') + ' ✓', 'success');
       }},
       { id: 'cloudSync', label: 'Synchroniser (Cloud)', icon: 'cloud', action: async () => {
-        if (!Store.getState().cloudEnabled) { loginModal({ onLogin: () => navigate(currentView) }); return; }
+        if (!Store.getState().auth) { loginModal({ onLogin: () => navigate(currentView) }); return; }
         await Store.cloudSave();
         toast('Synchronisé !', 'success');
       }},
@@ -209,21 +200,23 @@
     commandPalette({
       commands: getCommands(),
       onSelect: (item) => {
-        if (item.type === 'search') {
-          if (item.type === 'task') {
-            const task = Store.getTask(item.id);
-            if (task) {
-              navigate('kanban');
-              setTimeout(() => {
-                taskModal(task, {
-                  onSave: (d) => { Store.updateTask(d.id, d); toast('Modifié', 'success'); },
-                  onDelete: (id) => { Store.deleteTask(id); toast('Supprimé', 'info'); },
-                });
-              }, 200);
-            }
-          } else if (item.viewId) {
-            navigate(item.viewId);
+        if (item.action) {
+          item.action();
+        } else if (item.type === 'task') {
+          const task = Store.getTask(item.id);
+          if (task) {
+            navigate('kanban');
+            setTimeout(() => {
+              taskModal(task, {
+                onSave: (d) => { Store.updateTask(d.id, d); toast(t('taskMoved'), 'success'); },
+                onDelete: (id) => { Store.deleteTask(id); toast(t('delete'), 'info'); },
+              });
+            }, 200);
           }
+        } else if (item.type === 'collaborator') {
+          navigate('team');
+        } else if (item.type === 'view' || item.viewId) {
+          navigate(item.viewId || item.id);
         }
       }
     });
@@ -247,8 +240,8 @@
       // Ctrl+Shift+Z — Redo
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') { e.preventDefault(); Store.redo(); return; }
 
-      // Number keys 1-9 for quick nav
-      if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
+      // Number keys 1-9 for quick nav (only when no modal/overlay is open)
+      if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.metaKey && !document.querySelector('.modal-overlay, .command-palette')) {
         const idx = parseInt(e.key) - 1;
         const navItem = navItems.filter(n => !n.divider)[idx];
         if (navItem) navigate(navItem.id);
@@ -267,9 +260,11 @@
   /* ── Load Auth Config ───────────────────────────────────── */
   async function loadAuthConfig() {
     try {
-      const resp = await fetch('ezgalaxy-authorization.json');
+      const resp = await fetch('./ezgalaxy-authorization.json');
       if (resp.ok) {
         const config = await resp.json();
+        // EZGalaxy platform injects token at runtime via capabilities
+        // If a session token exists, use it
         if (config.token) {
           Store.setToken(config.token);
         }

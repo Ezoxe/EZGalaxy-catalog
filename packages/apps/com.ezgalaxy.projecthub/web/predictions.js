@@ -405,10 +405,29 @@
       return { ...t, _score: score };
     });
 
-    return scored.sort((a, b) => b._score - a._score).slice(0, 5).map(t => ({
-      id: t.id, title: t.title, priority: t.priority, status: t.status,
-      score: t._score, dueDate: t.dueDate, progress: t.progress, assignee: t.assignee,
-    }));
+    return scored.sort((a, b) => b._score - a._score).slice(0, 5).map(t => {
+      // Generate a reason for focus
+      let reason = '';
+      const now2 = new Date();
+      if (t.dueDate) {
+        const dl = (new Date(t.dueDate) - now2) / 86400000;
+        if (dl < 0) reason = 'En retard de ' + Math.abs(Math.floor(dl)) + ' jour(s)';
+        else if (dl < 1) reason = 'Échéance aujourd\'hui';
+        else if (dl < 3) reason = 'Échéance dans ' + Math.ceil(dl) + ' jour(s)';
+      }
+      if (!reason && t.status === 'in-progress') reason = 'En cours — maintenir le momentum';
+      if (!reason && t.status === 'review') reason = 'En revue — à finaliser';
+      if (!reason) {
+        const blocking = Store.getState().tasks.filter(o => o.dependencies && o.dependencies.includes(t.id) && o.status !== 'done');
+        if (blocking.length > 0) reason = 'Bloque ' + blocking.length + ' autre(s) tâche(s)';
+      }
+      if (!reason) reason = 'Priorité ' + t.priority;
+      return {
+        id: t.id, title: t.title, priority: t.priority, status: t.status,
+        score: t._score, dueDate: t.dueDate, progress: t.progress, assignee: t.assignee,
+        reason,
+      };
+    });
   }
 
   /* ── Task Auto-Suggester ────────────────────────────────── */

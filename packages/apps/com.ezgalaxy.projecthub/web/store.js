@@ -351,12 +351,14 @@
   function deleteTask(taskId) {
     const task = _state.tasks.find(t => t.id === taskId);
     if (!task) return;
-    setState({ tasks: _state.tasks.filter(t => t.id !== taskId) });
-    _state.tasks.forEach(t => {
-      if (t.dependencies && t.dependencies.includes(taskId))
-        updateTask(t.id, { dependencies: t.dependencies.filter(d => d !== taskId) });
+    batch(() => {
+      setState({ tasks: _state.tasks.filter(t => t.id !== taskId) });
+      _state.tasks.forEach(t => {
+        if (t.dependencies && t.dependencies.includes(taskId))
+          updateTask(t.id, { dependencies: t.dependencies.filter(d => d !== taskId) });
+      });
+      _addActivity('deleted', task.assignee, null, `"${task.title}" supprimée`);
     });
-    _addActivity('deleted', task.assignee, null, `"${task.title}" supprimée`);
   }
 
   /* ── Collaborator CRUD ──────────────────────────────────── */
@@ -546,10 +548,13 @@
   /* ── Data import / export ───────────────────────────────── */
   function exportData() {
     const data = { project: _state.project, tasks: _state.tasks, collaborators: _state.collaborators, budget: _state.budget, activity: _state.activity, settings: _state.settings, exportedAt: new Date().toISOString(), version: '2.0.0' };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `projecthub-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click(); URL.revokeObjectURL(a.href);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    return json;
   }
 
   function importData(json) {

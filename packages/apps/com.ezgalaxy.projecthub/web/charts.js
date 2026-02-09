@@ -63,10 +63,10 @@
     const linePath = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${scaleX(i)},${scaleY(d[yKey])}`).join(' ');
     const lineEl = svg('path', { d: linePath, fill: 'none', stroke: color, 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'chart-line-path' });
     if (animate) {
-      const len = lineEl.getTotalLength ? 1000 : 0;
-      lineEl.style.strokeDasharray = '1000';
-      lineEl.style.strokeDashoffset = '1000';
-      lineEl.style.animation = 'chartStrokeDraw 1.2s ease-out forwards';
+      lineEl.style.strokeDasharray = '2000';
+      lineEl.style.strokeDashoffset = '2000';
+      lineEl.style.transition = 'stroke-dashoffset 1.2s ease-out';
+      setTimeout(() => { lineEl.style.strokeDashoffset = '0'; }, 50);
     }
     root.appendChild(lineEl);
 
@@ -221,7 +221,8 @@
       });
       if (animate) {
         circle.style.opacity = '0';
-        circle.style.animation = `chartFadeScale 0.5s ease ${i * 0.1}s forwards`;
+        circle.style.transition = `opacity 0.5s ease ${i * 0.1}s`;
+        setTimeout(() => { circle.style.opacity = '1'; }, 50);
       }
       // Hover
       circle.addEventListener('mouseenter', () => { circle.style.strokeWidth = thickness + 4; circle.style.filter = 'brightness(1.2)'; });
@@ -507,13 +508,20 @@
 
     // Value arc
     const valAngle = startAngle + pct * range;
-    const valArc = describeArc(half, half * 0.85, radius, startAngle, animate ? startAngle : valAngle);
+    const valArc = describeArc(half, half * 0.85, radius, startAngle, animate ? startAngle + 0.1 : valAngle);
     const valPath = svg('path', { d: valArc, fill: 'none', stroke: color, 'stroke-width': 10, 'stroke-linecap': 'round', class: 'chart-gauge-arc' });
     if (animate) {
-      setTimeout(() => {
-        valPath.setAttribute('d', describeArc(half, half * 0.85, radius, startAngle, valAngle));
-      }, 100);
-      valPath.style.transition = 'd 1s ease'; // Note: d transition limited support, using CSS fallback
+      const startTime = performance.now();
+      const duration = 1000;
+      function animateGauge(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const currentAngle = startAngle + eased * pct * range;
+        valPath.setAttribute('d', describeArc(half, half * 0.85, radius, startAngle, currentAngle));
+        if (progress < 1) requestAnimationFrame(animateGauge);
+      }
+      requestAnimationFrame(animateGauge);
     }
     root.appendChild(valPath);
 
