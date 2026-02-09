@@ -263,15 +263,89 @@
       analysis: state.analysis,
       settings: state.settings
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `finvest-export-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const filename = `finvest-export-${new Date().toISOString().slice(0, 10)}.json`;
+
+    // Strategy 1: Blob + click (works outside sandboxed iframes)
+    try {
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    } catch (_) { /* fallback */ }
+
+    // Strategy 2: data URI
+    try {
+      const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
+      const a = document.createElement('a');
+      a.href = dataUri;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    } catch (_) { /* fallback */ }
+
+    // Strategy 3: window.open with data URI
+    try {
+      const w = window.open('', '_blank');
+      if (w) {
+        w.document.open();
+        w.document.write('<pre style="background:#111;color:#eee;padding:24px;font-size:13px;white-space:pre-wrap">' + jsonStr.replace(/</g, '&lt;') + '</pre>');
+        w.document.title = filename;
+        w.document.close();
+        return;
+      }
+    } catch (_) { /* fallback */ }
+
+    // Strategy 4: Copy to clipboard + modal
+    _showExportModal(jsonStr, filename);
+  }
+
+  function _showExportModal(jsonStr, filename) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(6px)';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#1a1f2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;max-width:640px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden';
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center';
+    hdr.innerHTML = `<strong style="color:#fff">📋 ${filename}</strong>`;
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:none;color:#888;font-size:18px;cursor:pointer';
+    closeBtn.onclick = () => overlay.remove();
+    hdr.appendChild(closeBtn);
+    const ta = document.createElement('textarea');
+    ta.value = jsonStr;
+    ta.readOnly = true;
+    ta.style.cssText = 'flex:1;background:#0d1117;color:#7ee787;border:none;padding:16px 20px;font-family:monospace;font-size:12px;resize:none;min-height:200px;outline:none';
+    const ftr = document.createElement('div');
+    ftr.style.cssText = 'padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:8px;justify-content:flex-end';
+    const copyBtn = document.createElement('button');
+    copyBtn.innerHTML = '📋 Copier le JSON';
+    copyBtn.style.cssText = 'padding:8px 18px;background:#0ea5a4;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px';
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(jsonStr);
+        copyBtn.innerHTML = '✅ Copié !';
+      } catch {
+        ta.select();
+        document.execCommand('copy');
+        copyBtn.innerHTML = '✅ Copié !';
+      }
+      setTimeout(() => { copyBtn.innerHTML = '📋 Copier le JSON'; }, 2000);
+    };
+    ftr.appendChild(copyBtn);
+    box.append(hdr, ta, ftr);
+    overlay.appendChild(box);
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
   }
 
   function importJSON(file) {

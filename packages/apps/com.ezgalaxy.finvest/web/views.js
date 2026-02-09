@@ -1493,6 +1493,40 @@
     return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   }
 
+  /* Open article URL with multiple fallback strategies */
+  function openArticle(url) {
+    // Strategy 1: window.open
+    try {
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      if (w) return;
+    } catch(_) {}
+    // Strategy 2: top-level navigation
+    try {
+      if (window.top && window.top !== window) { window.top.open(url, '_blank'); return; }
+    } catch(_) {}
+    // Strategy 3: dynamic anchor
+    try {
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      return;
+    } catch(_) {}
+    // Fallback: copy URL
+    copyUrl(url);
+  }
+
+  function copyUrl(url) {
+    try {
+      navigator.clipboard.writeText(url).then(() => toast('Lien copié !', 'success'));
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast('Lien copié !', 'success');
+    }
+  }
+
   function news(container) {
     container.innerHTML = '';
     const s = Store.getState();
@@ -1576,11 +1610,9 @@
       }
 
       items.forEach((item, i) => {
-        const card = el('a', {
+        const card = el('div', {
           className: `news-card anim-slide-up stagger-${Math.min(i + 1, 8)}`,
-          href: item.link,
-          target: '_blank',
-          rel: 'noopener noreferrer'
+          onClick: () => openArticle(item.link)
         });
 
         // Thumbnail
@@ -1615,6 +1647,14 @@
         if (item.description) {
           content.appendChild(el('p', { className: 'news-card__desc', textContent: item.description }));
         }
+
+        // URL display + copy
+        const urlBar = el('div', { className: 'news-card__url-bar', onClick: (e) => { e.stopPropagation(); copyUrl(item.link); } }, [
+          icon('external-link', 12),
+          el('span', { className: 'news-card__url-text', textContent: item.link.slice(0, 60) + (item.link.length > 60 ? '…' : '') }),
+          el('span', { className: 'news-card__url-copy', textContent: 'Copier' })
+        ]);
+        content.appendChild(urlBar);
 
         // Open link indicator
         content.appendChild(el('span', { className: 'news-card__open' }, [

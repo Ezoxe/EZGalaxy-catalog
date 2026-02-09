@@ -12,15 +12,55 @@
 
   /* ---------- Navigation map --------------------------------- */
   const NAV_ITEMS = [
-    { key: 'overview',    label: 'Vue d\'ensemble',   icon: 'activity' },
-    { key: 'allocation',  label: 'Allocation',        icon: 'pie-chart' },
-    { key: 'projections', label: 'Projections',       icon: 'trending-up' },
-    { key: 'retirement',  label: 'Retraite',          icon: 'clock' },
-    { key: 'debt',        label: 'Dettes',            icon: 'lock' },
-    { key: 'advice',      label: 'Conseils',          icon: 'star' },
-    { key: 'ai',          label: 'Prompts IA',        icon: 'sparkles' },
-    { key: 'news',        label: 'Actualités',        icon: 'newspaper' },
-    { key: 'settings',    label: 'Paramètres',        icon: 'settings' }
+    { type: 'divider', label: '📊 Tableaux de bord' },
+    { key: 'overview',          label: 'Vue d\'ensemble',    icon: 'activity' },
+    { key: 'patrimoine',        label: 'Patrimoine',         icon: 'layers' },
+    { key: 'performance',       label: 'Performance',        icon: 'trending-up' },
+    { key: 'allocation',        label: 'Allocation',         icon: 'pie-chart' },
+    { key: 'radar',             label: 'Radar financier',    icon: 'shield' },
+    { key: 'scorecard',         label: 'Scorecard',          icon: 'award' },
+
+    { type: 'divider', label: '🔧 Outils d\'analyse' },
+    { key: 'projections',       label: 'Projections',        icon: 'trending-up' },
+    { key: 'retirement',        label: 'Retraite',           icon: 'clock' },
+    { key: 'retraiteImmersive', label: 'Retraite immersive', icon: 'compass' },
+    { key: 'fire',              label: 'FIRE',               icon: 'zap' },
+    { key: 'debt',              label: 'Dettes',             icon: 'lock' },
+    { key: 'credit',            label: 'Simulateur crédit',  icon: 'home' },
+    { key: 'dividendes',        label: 'Dividendes',         icon: 'dollar-sign' },
+    { key: 'interets',          label: 'Intérêts composés',  icon: 'percent' },
+    { key: 'whatif',             label: 'What-If',            icon: 'zap' },
+    { key: 'comparateur',       label: 'Comparateur',        icon: 'bar-chart-2' },
+    { key: 'stresstest',        label: 'Stress Test',        icon: 'alert' },
+    { key: 'esg',               label: 'Score ESG',          icon: 'globe' },
+    { key: 'fiscalite',         label: 'Optimiseur fiscal',  icon: 'percent' },
+    { key: 'heatmap',           label: 'Heatmap',            icon: 'activity' },
+    { key: 'benchmark',         label: 'Benchmark',          icon: 'bar-chart-2' },
+
+    { type: 'divider', label: '🎮 Gamification' },
+    { key: 'badges',            label: 'Badges',             icon: 'star' },
+    { key: 'defis',             label: 'Défis mensuels',     icon: 'target' },
+    { key: 'timeline',          label: 'Timeline',           icon: 'clock' },
+    { key: 'simulationVie',     label: 'Vie alternative',    icon: 'clock' },
+
+    { type: 'divider', label: '📚 Ressources' },
+    { key: 'advice',            label: 'Conseils',           icon: 'star' },
+    { key: 'copilot',           label: 'Copilot IA',         icon: 'sparkles' },
+    { key: 'ai',                label: 'Prompts IA',         icon: 'sparkles' },
+    { key: 'cours',             label: 'Mini-cours',         icon: 'book' },
+    { key: 'glossaire',         label: 'Glossaire',          icon: 'book' },
+    { key: 'news',              label: 'Actualités',         icon: 'newspaper' },
+
+    { type: 'divider', label: '📋 Suivi' },
+    { key: 'budget',            label: 'Budget mensuel',     icon: 'wallet' },
+    { key: 'kanban',            label: 'Objectifs',          icon: 'target' },
+    { key: 'alertes',           label: 'Alertes',            icon: 'bell' },
+    { key: 'journal',           label: 'Journal',            icon: 'edit' },
+    { key: 'partage',           label: 'Partager',           icon: 'share' },
+
+    { type: 'divider', label: '⚙️ Système' },
+    { key: 'themes',            label: 'Thèmes',            icon: 'palette' },
+    { key: 'settings',          label: 'Paramètres',        icon: 'settings' }
   ];
 
   /* ---------- Build shell ------------------------------------ */
@@ -41,6 +81,10 @@
     // Nav links
     const nav = UI.el('nav', { className: 'sidebar__nav', id: 'sidebar-nav' });
     for (const item of NAV_ITEMS) {
+      if (item.type === 'divider') {
+        nav.appendChild(UI.el('div', { className: 'nav-divider', textContent: item.label }));
+        continue;
+      }
       const link = UI.el('a', {
         className: 'nav-link',
         href: '#',
