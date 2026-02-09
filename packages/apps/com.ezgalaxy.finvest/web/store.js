@@ -268,8 +268,10 @@
     const a = document.createElement('a');
     a.href = url;
     a.download = `finvest-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function importJSON(file) {

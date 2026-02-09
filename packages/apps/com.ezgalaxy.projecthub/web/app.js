@@ -39,10 +39,14 @@
       { id: 'export', label: 'Exporter les données', icon: 'download', action: () => {
         const data = Store.exportData();
         const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
+        a.href = url;
         a.download = 'projecthub-export.json';
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         toast('Données exportées !', 'success');
       }},
       { id: 'cloudSync', label: 'Synchroniser (Cloud)', icon: 'cloud', action: async () => {
