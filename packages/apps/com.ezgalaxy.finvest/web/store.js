@@ -177,7 +177,9 @@
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Erreur ${res.status}`);
+      const e = new Error(err.message || `Erreur ${res.status}`);
+      e.status = res.status;
+      throw e;
     }
     return res;
   }
@@ -264,7 +266,8 @@
       setState({ cloudStatus: 'connected' });
       return false;
     } catch (e) {
-      if (e.message && e.message.includes('404')) {
+      // 404 = no saved data yet (fresh account) — this is normal, not an error
+      if (e.status === 404 || (e.message && (e.message.includes('404') || e.message.toLowerCase().includes('not found')))) {
         setState({ cloudStatus: 'connected' });
         return false;
       }
@@ -345,63 +348,18 @@
     ta.value = jsonStr;
     ta.readOnly = true;
     ta.style.cssText = 'flex:1;background:#0d1117;color:#7ee787;border:none;padding:16px 20px;font-family:monospace;font-size:12px;resize:none;min-height:200px;outline:none';
+    // Hint for sandbox
+    const hint = document.createElement('div');
+    hint.style.cssText = 'padding:8px 20px;font-size:12px;color:#94a3b8;text-align:center;background:rgba(255,255,255,0.02)';
+    hint.textContent = '💡 L\'application tourne dans un cadre sécurisé. Utilisez « Copier » puis collez dans un fichier, ou « Ouvrir dans un onglet » puis Ctrl+S pour sauvegarder.';
+
     const ftr = document.createElement('div');
-    ftr.style.cssText = 'padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap';
+    ftr.style.cssText = 'padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
 
-    // Download .json button (blob URI — works even in many sandboxes)
-    const dlBtn = document.createElement('button');
-    dlBtn.innerHTML = '💾 Télécharger .json';
-    dlBtn.style.cssText = 'padding:8px 18px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px';
-    dlBtn.onclick = () => {
-      try {
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        dlBtn.innerHTML = '✅ Téléchargé !';
-        setTimeout(() => { dlBtn.innerHTML = '💾 Télécharger .json'; }, 2000);
-      } catch (_) {
-        // If download blocked by sandbox, fall back to data URI
-        try {
-          const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
-          const a = document.createElement('a');
-          a.href = dataUri; a.download = filename;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          dlBtn.innerHTML = '✅ Téléchargé !';
-        } catch (__) {
-          dlBtn.innerHTML = '❌ Bloqué par le navigateur';
-        }
-        setTimeout(() => { dlBtn.innerHTML = '💾 Télécharger .json'; }, 2500);
-      }
-    };
-    ftr.appendChild(dlBtn);
-
-    // Download .txt button
-    const dlTxtBtn = document.createElement('button');
-    dlTxtBtn.innerHTML = '📝 Télécharger .txt';
-    dlTxtBtn.style.cssText = 'padding:8px 18px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px';
-    dlTxtBtn.onclick = () => {
-      try {
-        const blob = new Blob([jsonStr], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename.replace('.json', '.txt');
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        dlTxtBtn.innerHTML = '✅ Téléchargé !';
-        setTimeout(() => { dlTxtBtn.innerHTML = '📝 Télécharger .txt'; }, 2000);
-      } catch (_) {
-        dlTxtBtn.innerHTML = '❌ Bloqué';
-        setTimeout(() => { dlTxtBtn.innerHTML = '📝 Télécharger .txt'; }, 2000);
-      }
-    };
-    ftr.appendChild(dlTxtBtn);
-
+    // PRIMARY: Copy to clipboard (most reliable in sandbox)
     const copyBtn = document.createElement('button');
     copyBtn.innerHTML = '📋 Copier le JSON';
-    copyBtn.style.cssText = 'padding:8px 18px;background:#0ea5a4;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px';
+    copyBtn.style.cssText = 'padding:10px 22px;background:#0ea5a4;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px;flex:1;max-width:200px';
     copyBtn.onclick = async () => {
       try {
         await navigator.clipboard.writeText(jsonStr);
@@ -414,7 +372,52 @@
       setTimeout(() => { copyBtn.innerHTML = '📋 Copier le JSON'; }, 2000);
     };
     ftr.appendChild(copyBtn);
-    box.append(hdr, ta, ftr);
+
+    // SECONDARY: Open in new tab (user can Ctrl+S from there)
+    const openBtn = document.createElement('button');
+    openBtn.innerHTML = '↗ Ouvrir dans un onglet';
+    openBtn.style.cssText = 'padding:10px 18px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;flex:1;max-width:200px';
+    openBtn.onclick = () => {
+      try {
+        // Try Blob URL in new window
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const w = window.open(url, '_blank');
+        if (w) { openBtn.innerHTML = '✅ Ouvert !'; setTimeout(() => { openBtn.innerHTML = '↗ Ouvrir dans un onglet'; URL.revokeObjectURL(url); }, 3000); return; }
+        URL.revokeObjectURL(url);
+      } catch(_) {}
+      // Try data URI
+      try {
+        const w = window.open('data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr), '_blank');
+        if (w) { openBtn.innerHTML = '✅ Ouvert !'; setTimeout(() => { openBtn.innerHTML = '↗ Ouvrir dans un onglet'; }, 2000); return; }
+      } catch(_) {}
+      // Try parent message
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'open-url', url: 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr) }, '*');
+          openBtn.innerHTML = '📤 Envoyé au parent';
+          setTimeout(() => { openBtn.innerHTML = '↗ Ouvrir dans un onglet'; }, 2000);
+          return;
+        }
+      } catch(_) {}
+      openBtn.innerHTML = '❌ Bloqué — utilisez Copier';
+      setTimeout(() => { openBtn.innerHTML = '↗ Ouvrir dans un onglet'; }, 2500);
+    };
+    ftr.appendChild(openBtn);
+
+    // TERTIARY: Select all text in textarea
+    const selBtn = document.createElement('button');
+    selBtn.innerHTML = '🖱️ Tout sélectionner';
+    selBtn.style.cssText = 'padding:10px 18px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;flex:1;max-width:200px';
+    selBtn.onclick = () => {
+      ta.focus();
+      ta.select();
+      selBtn.innerHTML = '✅ Sélectionné — Ctrl+C pour copier';
+      setTimeout(() => { selBtn.innerHTML = '🖱️ Tout sélectionner'; }, 3000);
+    };
+    ftr.appendChild(selBtn);
+
+    box.append(hdr, ta, hint, ftr);
     overlay.appendChild(box);
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);

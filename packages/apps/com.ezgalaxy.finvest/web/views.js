@@ -75,8 +75,8 @@
         try {
           const loaded = await Store.cloudLoad();
           if (loaded) { toast('Données chargées depuis le cloud', 'success'); window.renderApp(); }
-          else toast('Aucune donnée cloud trouvée', 'info');
-        } catch (e) { toast(e.message, 'error'); }
+          else toast('Aucune sauvegarde cloud trouvée. Utilisez d\'abord « Sauvegarder » dans les Paramètres.', 'info');
+        } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
       } }, [icon('download', 14), 'Charger depuis le cloud']));
     } else {
       const loginBtn = el('button', { className: 'btn btn--sm btn--ghost', onClick: () => showLoginModal() }, [
@@ -1295,7 +1295,7 @@
             try { await Store.cloudSave(); toast('Données sauvegardées sur le cloud', 'success'); } catch (e) { toast(e.message, 'error'); }
           } }, [icon('upload', 16), 'Sauvegarder']),
           el('button', { className: 'btn', onClick: async () => {
-            try { const ok = await Store.cloudLoad(); toast(ok ? 'Données chargées' : 'Aucune donnée trouvée', ok ? 'success' : 'info'); if (ok) window.renderApp(); } catch (e) { toast(e.message, 'error'); }
+            try { const ok = await Store.cloudLoad(); toast(ok ? 'Données chargées' : 'Aucune sauvegarde trouvée — sauvegardez d\'abord vos données.', ok ? 'success' : 'info'); if (ok) window.renderApp(); } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
           } }, [icon('download', 16), 'Charger']),
           el('button', { className: 'btn btn--ghost', onClick: () => { Store.logout(); toast('Déconnecté', 'info'); window.renderApp(); } }, [icon('logout', 16), 'Déconnexion'])
         ])
