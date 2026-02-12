@@ -111,6 +111,13 @@
       "function": "Créateur de mini-jeux vidéo ultra complet : éditeur visuel de scènes, moteurs 2D et 3D, physique, IA, éclairage, scripting visuel, 200+ sprites, 40+ modèles 3D, 60+ sons, 40+ tuiles, particules, 6 templates (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner). Sauvegarde via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.gamestudio",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.it-discovery",
+      "title": "IT Discovery",
+      "function": "Découvre l'informatique de manière ludique et interactive — modules, quiz, badges et gamification pour les 14 ans et +",
+      "path": "packages/apps/com.ezgalaxy.it-discovery",
+      "version": "1.0.0"
     }
   ]
 }

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.it-discovery",
+  "updatedAt": "2026-02-12",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": false,
+      "details": { "allowedOrigins": [] },
+      "justification": "Aucun accès réseau nécessaire — tout le contenu est embarqué localement."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": false,
+      "details": { "collections": [], "dataTypes": [] },
+      "justification": "La progression est sauvegardée uniquement en localStorage."
+    }
+  ]
+}
