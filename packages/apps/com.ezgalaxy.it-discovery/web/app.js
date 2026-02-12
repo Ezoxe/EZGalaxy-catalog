@@ -472,12 +472,8 @@
     const lvlProg = getLevelProgress();
     const userBadge = State.user
       ? '<span class="header-user" data-action="profile" title="Profil">👤 ' + escapeHtml(State.user.pseudo) + '</span>'
-      : (State.apiAvailable
-        ? '<span class="header-user header-login" data-action="auth" title="Connexion">🔐</span>'
-        : '');
-    const scoreboardBtn = State.apiAvailable
-      ? '<span class="header-scoreboard" data-action="scoreboard" title="Classement">🏆</span>'
-      : '';
+      : '<span class="header-user header-login" data-action="auth" title="Connexion">🔐</span>';
+    const scoreboardBtn = '<span class="header-scoreboard" data-action="scoreboard" title="Classement">🏆</span>';
     return '\
       <div class="header">\
         <div class="header-left">\
@@ -523,12 +519,10 @@
           🚀 Commencer l'aventure
         </button>
         <div class="home-secondary-actions">
-          ${State.apiAvailable ? '<button class="home-btn-secondary" data-action="scoreboard">🏆 Classement</button>' : ''}
-          ${State.apiAvailable
-            ? (State.user
-              ? '<button class="home-btn-secondary" data-action="profile">👤 ' + escapeHtml(State.user.pseudo) + '</button>'
-              : '<button class="home-btn-secondary" data-action="auth">🔐 Connexion / Inscription</button>')
-            : ''}
+          <button class="home-btn-secondary" data-action="scoreboard">🏆 Classement</button>
+          ${State.user
+            ? '<button class="home-btn-secondary" data-action="profile">👤 ' + escapeHtml(State.user.pseudo) + '</button>'
+            : '<button class="home-btn-secondary" data-action="auth">🔐 Connexion / Inscription</button>'}
         </div>
         ${State.xp > 0 ? `
           <div class="home-stats">
@@ -995,6 +989,30 @@
      RENDER: SCOREBOARD
      ═══════════════════════════════════════════ */
   function renderScoreboard() {
+    // API non disponible → message explicatif
+    if (!State.apiAvailable) {
+      return '\
+        <div class="scoreboard-view">\
+          <button class="btn-back" data-action="modules">← Retour</button>\
+          <div class="scoreboard-header">\
+            <h2>🏆 Classement</h2>\
+            <p>Les meilleurs explorateurs IT</p>\
+          </div>\
+          <div class="scoreboard-offline">\
+            <span class="scoreboard-offline-icon">🌐</span>\
+            <h3>Classement non disponible</h3>\
+            <p>Le classement nécessite une connexion à une instance EZGalaxy.</p>\
+            <p class="scoreboard-offline-sub">Quand tu utilises cette app sur une plateforme EZGalaxy,<br>tu peux t\'inscrire, sauvegarder ta progression en ligne<br>et comparer tes stats avec les autres !</p>\
+            <div class="scoreboard-offline-features">\
+              <div class="scoreboard-feature">🥇 Classement par XP</div>\
+              <div class="scoreboard-feature">👤 Pseudo + Code PIN</div>\
+              <div class="scoreboard-feature">📊 Comparaison des stats</div>\
+              <div class="scoreboard-feature">☁️ Sauvegarde en ligne</div>\
+            </div>\
+          </div>\
+        </div>';
+    }
+
     if (State.scoreboardLoading) {
       return '<div class="scoreboard-view"><div class="scoreboard-loading"><div class="loading-spinner"></div><p>Chargement du classement...</p></div></div>';
     }
@@ -1027,7 +1045,7 @@
           <button class="scoreboard-refresh-btn" data-action="refresh-scoreboard">🔄 Actualiser</button>\
         </div>\
         ' + (State.scoreboard.length === 0 ? emptyMsg : '<div class="scoreboard-list">' + rows + '</div>') + '\
-        ' + (!State.user && State.apiAvailable ? '<div class="scoreboard-cta"><button class="auth-submit-btn" data-action="auth">🔐 S\'inscrire pour apparaître</button></div>' : '') + '\
+        ' + (!State.user ? '<div class="scoreboard-cta"><button class="auth-submit-btn" data-action="auth">🔐 S\'inscrire pour apparaître</button></div>' : '') + '\
       </div>';
   }
 
@@ -1162,6 +1180,10 @@
         break;
 
       case 'auth':
+        if (!State.apiAvailable) {
+          toast('info', 'Connexion disponible uniquement sur une instance EZGalaxy');
+          break;
+        }
         State.authPin = '';
         State.authPseudo = '';
         State.authError = '';
@@ -1199,7 +1221,7 @@
 
       case 'scoreboard':
         navigate('scoreboard');
-        loadScoreboard();
+        if (State.apiAvailable) loadScoreboard();
         break;
 
       case 'refresh-scoreboard':
