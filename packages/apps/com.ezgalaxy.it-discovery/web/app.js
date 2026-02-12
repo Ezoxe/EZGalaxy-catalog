@@ -263,6 +263,11 @@
   }
 
   async function handleAuthSubmit() {
+    if (!State.apiAvailable) {
+      State.authError = 'API non disponible. Cette fonctionnalité nécessite une instance EZGalaxy connectée.';
+      render();
+      return;
+    }
     State.authLoading = true;
     State.authError = '';
     render();
@@ -956,12 +961,21 @@
 
     const ready = State.authPin.length === 4 && State.authPseudo.length > 0;
 
+    var apiWarning = '';
+    if (!State.apiAvailable) {
+      apiWarning = '<div class="auth-warning">\
+        <span class="auth-warning-icon">⚠️</span>\
+        <div><strong>Mode hors-ligne</strong><br>L\'API n\'est pas détectée. L\'inscription et la connexion nécessitent une instance EZGalaxy avec l\'API Community Data activée.</div>\
+      </div>';
+    }
+
     return '\
     <div class="auth-view">\
       <div class="auth-card">\
         <div class="auth-hero-icon">🔐</div>\
         <h2 class="auth-title">' + (isLogin ? 'Connexion' : 'Inscription') + '</h2>\
         <p class="auth-subtitle">' + (isLogin ? 'Entre ton pseudo et ton code PIN' : 'Choisis un pseudo et un code PIN à 4 chiffres') + '</p>\
+        ' + apiWarning + '\
         <div class="auth-tabs">\
           <button class="auth-tab ' + (isLogin ? 'active' : '') + '" data-action="auth-tab" data-mode="login">Connexion</button>\
           <button class="auth-tab ' + (!isLogin ? 'active' : '') + '" data-action="auth-tab" data-mode="register">Inscription</button>\
@@ -1180,10 +1194,6 @@
         break;
 
       case 'auth':
-        if (!State.apiAvailable) {
-          toast('info', 'Connexion disponible uniquement sur une instance EZGalaxy');
-          break;
-        }
         State.authPin = '';
         State.authPseudo = '';
         State.authError = '';
