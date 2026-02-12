@@ -1,309 +1,454 @@
-# EZGalaxy — Community Data API (Stockage communauté)
+# EZGalaxy SDK — Stockage persistant pour les apps du catalogue
 
-Ce document décrit l’API de stockage **"Community Data"** destinée aux pages/paquets communautaires.
+> **Une seule ligne de code pour sauvegarder des données.**
 
-Objectif : permettre aux contenus communautaires de **stocker et lire des données** sans jamais accéder directement à la base de données de l’instance.
+## Démarrage rapide (30 secondes)
 
-## Modèle de sécurité (résumé)
+Ajoutez le SDK dans votre `index.html` :
 
-- **Pas d’accès SQL** pour la communauté : uniquement une **API HTTP**.
-- Les données sont **isolées par utilisateur** (scope strict par `owner_user_id`).
-- Les données sont regroupées par :
-  - `extension_id` : identifiant du package/extension (ex: `com.ezgalaxy.example`)
-  - `collection` : “table virtuelle” (ex: `scores`, `settings`)
-  - `record_key` : clé du document (ex: `level-1`, `profile`, `2025-12-23`)
-- Le contenu stocké est un **JSON** (champ `data`).
-- Support d’expiration (TTL) via `expires_at`.
+```html
+<script src="/api/ezgalaxy-sdk.js"></script>
+```
 
-> Important : l’API ne permet pas (volontairement) de données partagées entre utilisateurs. Si vous avez besoin de “données globales”, créez un endpoint serveur contrôlé (admin/modération) plutôt que d’ouvrir l’accès en écriture globale.
+C'est tout. Vous pouvez maintenant sauvegarder et lire des données :
+
+```js
+// Sauvegarder
+await ezgalaxy.storage.set('scores', 'level-1', { score: 100, time: 45 });
+
+// Lire
+const record = await ezgalaxy.storage.get('scores', 'level-1');
+console.log(record.data); // { score: 100, time: 45 }
+```
 
 ---
 
-## Pré-requis
+## Concepts clés
 
-- Backend Laravel avec Sanctum (déjà prévu dans les scripts).
-- Authentification via token Sanctum.
+| Concept | Description | Exemple |
+|---------|-------------|---------|
+| **Collection** | Un groupe de données (comme une "table") | `'scores'`, `'settings'`, `'profiles'` |
+| **Clé (key)** | Identifiant unique dans une collection | `'level-1'`, `'user-profile'`, `'config'` |
+| **Data** | Un objet JSON quelconque | `{ score: 100, name: "Alice" }` |
 
-### Obtenir un token
+Les données sont **automatiquement isolées par visiteur/utilisateur**. Chaque personne ne voit que ses propres données.
 
-Endpoint : `POST /api/auth/login`
+---
 
-Body JSON :
+## API complète
 
-```json
-{ "email": "admin@site.tld", "password": "..." }
+### `ezgalaxy.storage.set(collection, key, data, options?)`
+
+Sauvegarde des données. Crée ou remplace.
+
+```js
+// Simple
+await ezgalaxy.storage.set('settings', 'preferences', {
+  lang: 'fr',
+  theme: 'dark',
+  notifications: true
+});
+
+// Avec expiration (TTL en secondes)
+await ezgalaxy.storage.set('sessions', 'token-abc', { valid: true }, { ttl: 3600 });
+// → expire dans 1 heure
 ```
 
-Réponse (exemple) :
+### `ezgalaxy.storage.get(collection, key)`
 
-```json
-{
-  "user": { "id": 1, "email": "admin@site.tld", "is_admin": true },
-  "token": "<SANCTUM_TOKEN>"
+Lit un enregistrement. Retourne l'objet complet ou `null` si non trouvé.
+
+```js
+const record = await ezgalaxy.storage.get('settings', 'preferences');
+
+if (record) {
+  console.log(record.data);       // { lang: 'fr', theme: 'dark', ... }
+  console.log(record.created_at); // "2026-01-15T10:30:00.000000Z"
+  console.log(record.updated_at); // "2026-02-12T14:22:00.000000Z"
+} else {
+  console.log('Pas encore de données sauvegardées');
 }
 ```
 
-Utilisation : ajouter l’en-tête HTTP
+### `ezgalaxy.storage.update(collection, key, data)`
 
-- `Authorization: Bearer <SANCTUM_TOKEN>`
+Mise à jour partielle — fusionne les champs fournis avec les données existantes.
+
+```js
+// Données existantes : { score: 100, time: 45 }
+await ezgalaxy.storage.update('scores', 'level-1', { time: 30 });
+// Résultat : { score: 100, time: 30 }
+
+// Ajouter un nouveau champ
+await ezgalaxy.storage.update('scores', 'level-1', { stars: 3 });
+// Résultat : { score: 100, time: 30, stars: 3 }
+```
+
+> La clé doit déjà exister. Utilisez `set()` pour créer un enregistrement.
+
+### `ezgalaxy.storage.delete(collection, key)`
+
+Supprime un enregistrement.
+
+```js
+await ezgalaxy.storage.delete('scores', 'level-1');
+```
+
+### `ezgalaxy.storage.list(collection, options?)`
+
+Liste tous les enregistrements d'une collection.
+
+```js
+const result = await ezgalaxy.storage.list('scores');
+console.log(result.total);  // nombre total
+console.log(result.items);  // [{ record_key, data, ... }, ...]
+
+// Avec pagination
+const page2 = await ezgalaxy.storage.list('scores', { limit: 10, offset: 10 });
+
+// Filtrer par préfixe de clé
+const levels = await ezgalaxy.storage.list('scores', { prefix: 'level-' });
+```
+
+### `ezgalaxy.storage.clear(collection)`
+
+Supprime TOUS les enregistrements d'une collection.
+
+```js
+await ezgalaxy.storage.clear('scores');
+// → { message: 'Cleared', deleted: 15 }
+```
+
+### `ezgalaxy.storage.count(collection)`
+
+Compte les enregistrements d'une collection.
+
+```js
+const { count } = await ezgalaxy.storage.count('scores');
+console.log(`${count} scores sauvegardés`);
+```
+
+### `ezgalaxy.storage.getOrDefault(collection, key, defaultData)`
+
+Lit un enregistrement ou crée avec des valeurs par défaut s'il n'existe pas.
+
+```js
+const settings = await ezgalaxy.storage.getOrDefault('settings', 'config', {
+  volume: 80,
+  difficulty: 'normal',
+  language: 'fr'
+});
+// → retourne les données existantes OU crée avec ces valeurs par défaut
+```
+
+### `ezgalaxy.user.info()`
+
+Informations sur le visiteur/utilisateur actuel.
+
+```js
+const user = await ezgalaxy.user.info();
+console.log(user.type); // 'visitor', 'user', ou 'dev'
+console.log(user.id);   // UUID du visiteur ou ID utilisateur
+```
 
 ---
 
-## Base URL
+## Exemples concrets
 
-Tous les endpoints ci-dessous sont sous :
+### Jeu avec sauvegarde de score
 
-- `/api/community/...`
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Mon Jeu</title>
+  <script src="/api/ezgalaxy-sdk.js"></script>
+</head>
+<body>
+  <h1>Mon Super Jeu</h1>
+  <p>Score actuel : <span id="score">0</span></p>
+  <button onclick="jouer()">Jouer</button>
+  <button onclick="sauvegarder()">Sauvegarder</button>
 
-Ces routes sont protégées par :
+  <script>
+    let score = 0;
 
-- `auth:sanctum` (obligatoire)
-- `throttle:120,1` (par défaut) : 120 requêtes / minute / token
-
----
-
-## Endpoints
-
-### 1) Lister les records d’une collection
-
-`GET /api/community/{extensionId}/{collection}`
-
-Query params :
-- `limit` (1..200, défaut 50)
-- `offset` (>=0, défaut 0)
-- `prefix` (optionnel) : filtre `record_key` commençant par ce préfixe
-
-Réponse :
-
-```json
-{
-  "extension_id": "com.ezgalaxy.example",
-  "collection": "scores",
-  "owner_user_id": 1,
-  "limit": 50,
-  "offset": 0,
-  "total": 2,
-  "items": [
-    {
-      "record_key": "level-1",
-      "data": { "score": 1200 },
-      "expires_at": null,
-      "created_at": "2025-12-23T12:00:00.000000Z",
-      "updated_at": "2025-12-23T12:00:00.000000Z"
+    // Charger le score au démarrage
+    async function charger() {
+      const record = await ezgalaxy.storage.get('game', 'save');
+      if (record) {
+        score = record.data.score || 0;
+        document.getElementById('score').textContent = score;
+      }
     }
-  ]
-}
+
+    function jouer() {
+      score += Math.floor(Math.random() * 100);
+      document.getElementById('score').textContent = score;
+    }
+
+    async function sauvegarder() {
+      await ezgalaxy.storage.set('game', 'save', {
+        score: score,
+        date: new Date().toISOString()
+      });
+      alert('Score sauvegardé !');
+    }
+
+    charger();
+  </script>
+</body>
+</html>
 ```
 
-Exemple curl :
+### Application avec profil utilisateur
 
-```bash
-curl -s \
-  -H "Authorization: Bearer $TOKEN" \
-  "https://your-host.tld/api/community/com.ezgalaxy.example/scores?limit=50&offset=0"
+```html
+<script src="/api/ezgalaxy-sdk.js"></script>
+<script>
+  // Créer ou récupérer le profil
+  async function initProfile() {
+    const profile = await ezgalaxy.storage.getOrDefault('app', 'profile', {
+      nickname: 'Nouveau joueur',
+      level: 1,
+      xp: 0,
+      created: new Date().toISOString()
+    });
+
+    document.getElementById('nickname').textContent = profile.nickname;
+    document.getElementById('level').textContent = profile.level;
+  }
+
+  // Mettre à jour le profil (fusion partielle)
+  async function gagnerXP(amount) {
+    await ezgalaxy.storage.update('app', 'profile', {
+      xp: currentXP + amount,
+      lastPlayed: new Date().toISOString()
+    });
+  }
+
+  initProfile();
+</script>
+```
+
+### Tableau des scores (leaderboard personnel)
+
+```html
+<script src="/api/ezgalaxy-sdk.js"></script>
+<script>
+  async function ajouterScore(mode, score) {
+    const key = 'score-' + Date.now();
+    await ezgalaxy.storage.set('leaderboard', key, {
+      mode: mode,
+      score: score,
+      date: new Date().toISOString()
+    });
+  }
+
+  async function afficherScores() {
+    const result = await ezgalaxy.storage.list('leaderboard', { limit: 100 });
+    const scores = result.items
+      .map(item => item.data)
+      .sort((a, b) => b.score - a.score);
+
+    scores.forEach(s => {
+      console.log(`${s.mode}: ${s.score} pts (${s.date})`);
+    });
+  }
+</script>
 ```
 
 ---
 
-### 2) Lire un record
+## Mode développement (hors EZGalaxy)
 
-`GET /api/community/{extensionId}/{collection}/{recordKey}`
+Quand vous développez votre app en local (pas dans un iframe EZGalaxy), le SDK utilise automatiquement `localStorage` comme fallback. Toutes les méthodes fonctionnent de la même manière.
 
-Réponse :
+Vous verrez dans la console :
+```
+ EZGalaxy SDK  Dev mode – using localStorage fallback
+```
 
+---
+
+## Règles de nommage
+
+| Champ | Format autorisé | Longueur max |
+|-------|----------------|-------------|
+| Collection | `a-z 0-9 . _ -` (commence par lettre/chiffre) | 120 caractères |
+| Clé (key) | `A-Z a-z 0-9 . _ : @ -` (commence par lettre/chiffre) | 190 caractères |
+
+**Exemples valides :** `scores`, `user-data`, `level.progress`, `score-2026-02-12`
+
+**Exemples invalides :** `_private` (commence par _), `ma collection` (espaces), `données` (accents)
+
+---
+
+## Limites et quotas
+
+| Limite | Valeur par défaut | Configurable |
+|--------|-------------------|-------------|
+| Taille max d'un enregistrement | 16 Ko (JSON) | Oui (.env) |
+| Records par collection | 2 000 | Oui (.env) |
+| Collections par app | 100 | Oui (.env) |
+| TTL maximum | 365 jours | Oui (.env) |
+| Requêtes par minute | 120 | Oui (throttle) |
+
+---
+
+## Gestion des erreurs
+
+Toutes les méthodes retournent des Promises. Utilisez `try/catch` :
+
+```js
+try {
+  await ezgalaxy.storage.set('scores', 'level-1', { score: 100 });
+} catch (error) {
+  console.error('Erreur:', error.message);
+  // Messages possibles :
+  // - "Payload too large"         → données trop volumineuses (>16 Ko)
+  // - "Record quota exceeded"     → trop d'enregistrements dans la collection
+  // - "Collection quota exceeded" → trop de collections pour cette extension
+  // - "Not found"                 → clé inexistante (pour update/delete)
+  // - "Extension not allowed"     → extension pas dans la liste autorisée
+  // - "EZGalaxy: request timeout" → le serveur ne répond pas
+}
+```
+
+---
+
+## API REST directe (avancé)
+
+Si vous préférez appeler l'API REST directement (sans le SDK), voici les endpoints.
+Ils sont normalement appelés par le bridge PageViewer, pas directement par les apps.
+
+| Méthode | URL | Description |
+|---------|-----|-------------|
+| `GET` | `/api/app-storage/{ext}/{col}` | Lister les records |
+| `GET` | `/api/app-storage/{ext}/{col}/{key}` | Lire un record |
+| `PUT` | `/api/app-storage/{ext}/{col}/{key}` | Créer/remplacer |
+| `PATCH` | `/api/app-storage/{ext}/{col}/{key}` | Mise à jour partielle |
+| `DELETE` | `/api/app-storage/{ext}/{col}/{key}` | Supprimer un record |
+| `DELETE` | `/api/app-storage/{ext}/{col}` | Vider une collection |
+| `GET` | `/api/app-storage/{ext}/{col}/count` | Compter les records |
+| `GET` | `/api/app-storage/info` | Info utilisateur |
+
+**Auth :** Token Sanctum (`Authorization: Bearer ...`) OU UUID visiteur (`X-Visitor-UUID: ...`).
+
+**Body (PUT) :**
 ```json
 {
-  "extension_id": "com.ezgalaxy.example",
-  "collection": "settings",
-  "record_key": "profile",
-  "data": { "lang": "fr", "theme": "dark" },
-  "expires_at": null,
-  "created_at": "2025-12-23T12:00:00.000000Z",
-  "updated_at": "2025-12-23T12:00:00.000000Z"
+  "data": { "score": 100 },
+  "expires_in": 3600
 }
 ```
 
-Si le record n’existe pas (ou est expiré) : `404 Not found`.
-
----
-
-### 3) Créer ou remplacer un record (upsert)
-
-`PUT /api/community/{extensionId}/{collection}/{recordKey}`
-
-Body JSON :
-
-- `data` (obligatoire, objet JSON)
-- `expires_in` (optionnel) : TTL en secondes (>=60)
-- `expires_at` (optionnel) : date/heure ISO 8601
-
-Contraintes :
-- fournir **soit** `expires_in` **soit** `expires_at`, jamais les deux
-- TTL plafonné (voir configuration)
-
-Exemple (TTL 1h) :
-
-```bash
-curl -s -X PUT \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"data":{"score":1337},"expires_in":3600}' \
-  "https://your-host.tld/api/community/com.ezgalaxy.example/scores/level-1"
-```
-
-Réponses :
-- `201` si création :
-
+**Body (PATCH) :**
 ```json
-{ "created": true, "record": { "record_key": "level-1", "data": {"score":1337} } }
+{
+  "data": { "time": 30 }
+}
 ```
 
-- `200` si remplacement :
+---
 
-```json
-{ "created": false, "record": { "record_key": "level-1", "data": {"score":1337} } }
+## Architecture technique
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Votre App (iframe sandbox)                         │
+│  ┌───────────────────────┐                          │
+│  │  ezgalaxy-sdk.js      │                          │
+│  │  ezgalaxy.storage.set │──── postMessage ────┐    │
+│  └───────────────────────┘                     │    │
+└────────────────────────────────────────────────│────┘
+                                                 │
+┌────────────────────────────────────────────────│────┐
+│  EZGalaxy (page parent)                        │    │
+│  ┌───────────────────────┐                     │    │
+│  │  PageViewer Bridge    │◄────────────────────┘    │
+│  │  (postMessage relay)  │                          │
+│  └──────────┬────────────┘                          │
+│             │ fetch(/api/app-storage/...)            │
+└─────────────│───────────────────────────────────────┘
+              │
+┌─────────────▼───────────────────────────────────────┐
+│  Backend Laravel                                     │
+│  ┌───────────────────────┐  ┌─────────────────────┐ │
+│  │  AppStorageController │──│  Table: app_storage  │ │
+│  └───────────────────────┘  └─────────────────────┘ │
+└──────────────────────────────────────────────────────┘
 ```
 
-Erreurs possibles :
-- `413 Payload too large` si le JSON dépasse la limite
-- `429 Record quota exceeded` si trop de records dans la collection
-- `429 Collection quota exceeded` si trop de collections pour l’extension
+**Pourquoi un bridge (postMessage) ?**
+- L'iframe sandbox (`allow-scripts` sans `allow-same-origin`) n'a pas accès aux cookies/tokens
+- Le bridge dans la page parent a accès à l'authentification
+- Les données sont isolées par extension : une app ne peut pas accéder aux données d'une autre
 
 ---
 
-### 4) Supprimer un record
+## Configuration serveur (.env)
 
-`DELETE /api/community/{extensionId}/{collection}/{recordKey}`
+```env
+# Activer/désactiver l'API de stockage
+EZ_COMMUNITY_API_ENABLED=true
 
-Réponse :
+# Extensions autorisées (vide = toutes)
+EZ_COMMUNITY_ALLOWED_EXTENSIONS=
 
-```json
-{ "message": "Deleted" }
+# Limites
+EZ_COMMUNITY_MAX_JSON_BYTES=16384
+EZ_COMMUNITY_MAX_RECORDS_PER_COLLECTION=2000
+EZ_COMMUNITY_MAX_COLLECTIONS_PER_EXTENSION=100
+EZ_COMMUNITY_MAX_TTL_SECONDS=31536000
 ```
 
-Si absent : `404 Not found`.
+---
+
+## Migration (base de données)
+
+La table `app_storage` est créée automatiquement lors de l'installation/mise à jour.
+
+Structure :
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `extension_id` | string(120) | ID de l'app (ex: `com.ezgalaxy.example`) |
+| `collection` | string(120) | Nom de la collection |
+| `record_key` | string(190) | Clé du record |
+| `owner_type` | string(10) | `'user'` ou `'visitor'` |
+| `owner_id` | string(255) | ID utilisateur ou UUID visiteur |
+| `data` | json | Les données stockées |
+| `expires_at` | timestamp? | Expiration optionnelle |
+
+Contrainte unique : `(extension_id, collection, record_key, owner_type, owner_id)`
 
 ---
 
-## Validation et format des identifiants
+## Ancien API (Community Data) — rétrocompatibilité
 
-Pour limiter les attaques et les caractères piégeux, l’API impose des patterns conservateurs :
-
-- `extensionId` : `[a-z0-9][a-z0-9._-]{1,119}`
-- `collection` : `[a-z0-9][a-z0-9._-]{0,119}`
-- `recordKey` : `[A-Za-z0-9][A-Za-z0-9._:@-]{0,189}`
-
-Recommandation : utilisez des identifiants stables (reverse-DNS) et des clés sans espaces.
+L'ancien API REST (`/api/community/...`) reste disponible pour les utilisateurs authentifiés via Sanctum.
+Le nouveau SDK (`/api/app-storage/...`) le remplace avec le support visiteur en plus.
 
 ---
 
-## Expiration (TTL)
+## FAQ
 
-- Les records expirés **ne sont pas renvoyés** (index/show).
-- L’API ne supprime pas automatiquement les expirés :
-  - option A : laisser en base (ils ne ressortent pas)
-  - option B (recommandé) : mettre une tâche cron (Laravel scheduler) qui purge régulièrement
+**Q: Les données persistent-elles après un redémarrage du serveur ?**
+Oui. Les données sont stockées en base de données (MySQL/SQLite).
 
-Exemple de logique de purge (à implémenter plus tard côté backend_app) :
+**Q: Un visiteur retrouve-t-il ses données ?**
+Oui, tant qu'il utilise le même navigateur (l'UUID visiteur est stocké dans le localStorage du parent).
 
-- supprimer `community_records` où `expires_at <= now()`
+**Q: Une app peut-elle lire les données d'une autre app ?**
+Non. Le bridge force l'`extension_id` à celui de l'app chargée.
 
----
+**Q: Quelle est la taille max des données ?**
+16 Ko par enregistrement (configurable). Pour stocker plus, découpez en plusieurs clés.
 
-## Configuration (sécurité & quotas)
+**Q: Les données sont-elles partagées entre utilisateurs ?**
+Non. Chaque visiteur/utilisateur ne voit que ses propres données.
 
-Ces variables d’environnement sont lues par le backend (fichier `.env`).
-
-### Interrupteur global
-
-- `EZ_COMMUNITY_API_ENABLED=true|false`
-  - si `false` : l’API répond `404` (non découvrable)
-
-### Allowlist d’extensions (très recommandé en prod)
-
-- `EZ_COMMUNITY_ALLOWED_EXTENSIONS="com.ezgalaxy.example,com.vendor.app"`
-  - si vide/non définie : toutes les extensions sont autorisées
-  - si définie : toute extension hors liste reçoit `403 Extension not allowed`
-
-### Limites
-
-- `EZ_COMMUNITY_MAX_JSON_BYTES` (défaut 16384)
-  - taille max du JSON stocké (mesurée après encodage)
-
-- `EZ_COMMUNITY_MAX_RECORDS_PER_COLLECTION` (défaut 2000)
-  - quota max de records par utilisateur, par `(extension, collection)`
-
-- `EZ_COMMUNITY_MAX_COLLECTIONS_PER_EXTENSION` (défaut 100)
-  - quota max de collections distinctes par utilisateur, par extension
-
-- `EZ_COMMUNITY_MAX_TTL_SECONDS` (défaut 31536000 = 365 jours)
-  - TTL max autorisé
-
-> Les valeurs sont clampées côté serveur (min/max) pour éviter les configs extrêmes.
-
----
-
-## Installation / Mise à jour
-
-### Debian installer (scripts/install.sh)
-
-Le script injecte des valeurs par défaut dans :
-
-- `/var/www/ezgalaxy/backend_app/.env`
-
-Lors des updates, le script :
-- conserve les clés existantes
-- ajoute les clés manquantes
-
-Clés ajoutées (defaults) :
-- `EZ_COMMUNITY_API_ENABLED=true`
-- `EZ_COMMUNITY_MAX_JSON_BYTES=16384`
-- `EZ_COMMUNITY_MAX_RECORDS_PER_COLLECTION=2000`
-- `EZ_COMMUNITY_MAX_COLLECTIONS_PER_EXTENSION=100`
-- `EZ_COMMUNITY_MAX_TTL_SECONDS=31536000`
-
-### Setup dev local (backend/setup.sh)
-
-Le script ajoute aussi ces clés si absentes dans `backend_app/.env`.
-
----
-
-## Bonnes pratiques sécurité (production)
-
-- Activer HTTPS (TLS) et refuser HTTP.
-- Définir une allowlist `EZ_COMMUNITY_ALLOWED_EXTENSIONS`.
-- Garder des quotas stricts (JSON et nombre de records).
-- Ne pas stocker de secrets (tokens, mots de passe) dans `data`.
-- Mettre en place une purge des expirés (cron).
-- Surveiller les abus (logs / métriques) et ajuster le throttling.
-
----
-
-## Codes d’erreur (résumé)
-
-- `401` : token absent/invalide
-- `403` : extension non autorisée (allowlist)
-- `404` : record absent ou API désactivée
-- `413` : JSON trop volumineux
-- `422` : validation (ids invalides, TTL invalide, payload non conforme)
-- `429` : quotas atteints (ou throttle)
-
----
-
-## Détails de stockage (DB)
-
-Table : `community_records`
-
-Champs :
-- `extension_id` (string)
-- `collection` (string)
-- `record_key` (string)
-- `owner_user_id` (FK users)
-- `data` (json)
-- `expires_at` (timestamp nullable + index)
-
-Contrainte unique :
-- `(extension_id, collection, record_key, owner_user_id)`
-
-Index de lookup :
-- `(extension_id, collection, owner_user_id)`
+**Q: Comment tester en local sans serveur EZGalaxy ?**
+Ouvrez directement votre `index.html` dans un navigateur. Le SDK utilise `localStorage` automatiquement.
