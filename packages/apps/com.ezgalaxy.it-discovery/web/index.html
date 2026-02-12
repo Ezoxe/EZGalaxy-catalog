@@ -47,7 +47,15 @@
     })();
   </script>
 
-  <!-- EZGalaxy SDK (loaded dynamically from platform) -->\n  <script>\n    (function() {\n      var s = document.createElement('script');\n      s.src = '/api/ezgalaxy-sdk.js';\n      s.onerror = function() { /* SDK not available — dev/standalone mode */ };\n      document.head.appendChild(s);\n    })();\n  </script>
+  <!-- EZGalaxy SDK (loaded dynamically from platform) -->
+  <script>
+    (function() {
+      var s = document.createElement('script');
+      s.src = '/api/ezgalaxy-sdk.js';
+      s.onerror = function() { /* SDK not available - dev/standalone mode */ };
+      document.head.appendChild(s);
+    })();
+  </script>
 
   <!-- App scripts (order matters: data → effects → app) -->
   <script defer src="./data.js"    onerror="window.__ezScriptError && window.__ezScriptError('./data.js')"></script>
