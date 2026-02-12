@@ -17,9 +17,10 @@
   }
 
   /* ───────── Constants ───────── */
-  const STORAGE_KEY  = 'it-discovery-progress';
-  const COOKIE_NAME  = 'it_discovery_session';
-  const COOKIE_HOURS = 48;
+  const STORAGE_KEY = 'it-discovery-progress';
+  const USER_KEY    = 'it-discovery-user';
+  const EXT_ID      = 'com.ezgalaxy.it-discovery';
+  const EXPIRY_MS   = 48 * 3600 * 1000; // 48 h in ms
 
   const XP_LESSON   = 10;
   const XP_CORRECT  = 5;
@@ -27,22 +28,6 @@
   const XP_STREAK   = 3;
 
   const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
-
-  /* ───────── Cookie helpers ───────── */
-  function setCookie(name, value, hours) {
-    const expires = new Date(Date.now() + hours * 3600000).toUTCString();
-    document.cookie = name + '=' + encodeURIComponent(value) +
-      ';expires=' + expires + ';path=/;SameSite=Lax';
-  }
-
-  function getCookie(name) {
-    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-    return match ? decodeURIComponent(match[1]) : null;
-  }
-
-  function deleteCookie(name) {
-    document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax';
-  }
 
   /* ───────── State ───────── */
   const State = {
@@ -60,7 +45,23 @@
     maxStreak: 0,
     totalCorrect: 0,
     totalAnswered: 0,
-    newBadges: []       // badges earned this action (for display)
+    newBadges: [],
+    // Auth
+    user: null,
+    authMode: 'login',
+    authPin: '',
+    authPseudo: '',
+    authError: '',
+    authLoading: false,
+    // API
+    apiAvailable: false,
+    apiBase: '',
+    apiToken: '',
+    // Scoreboard
+    scoreboard: [],
+    scoreboardLoading: false,
+    // Session
+    sessionStart: Date.now()
   };
 
   /* ───────── Data references ───────── */
@@ -68,58 +69,115 @@
   const Effects = window.ITEffects;
 
   /* ═══════════════════════════════════════════
-     PERSISTENCE  (localStorage + cookie 48 h)
-     ─ Les données sont stockées en localStorage (pas de limite de taille).
-     ─ Un cookie « heartbeat » de 48 h sert de témoin d'expiration.
-     ─ Chaque sauvegarde / chaque visite renouvelle le cookie à 48 h.
-     ─ Si le cookie a expiré → les données localStorage sont effacées.
+     COMMUNITY DATA API
      ═══════════════════════════════════════════ */
-  function refreshCookie() {
-    setCookie(COOKIE_NAME, '1', COOKIE_HOURS);
+  function initAPI() {
+    try {
+      State.apiBase  = localStorage.getItem('ez.community.baseUrl') || '';
+      State.apiToken = localStorage.getItem('ez.community.token') || '';
+      State.apiAvailable = !!(State.apiBase && State.apiToken);
+    } catch (e) { State.apiAvailable = false; }
+  }
+
+  async function apiGet(collection, key) {
+    if (!State.apiAvailable) return null;
+    try {
+      const url = key
+        ? State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '/' + encodeURIComponent(key)
+        : State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '?limit=200';
+      const res = await fetch(url, {
+        headers: { 'Authorization': 'Bearer ' + State.apiToken }
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) { return null; }
+  }
+
+  async function apiPut(collection, key, data) {
+    if (!State.apiAvailable) return null;
+    try {
+      const res = await fetch(
+        State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '/' + encodeURIComponent(key),
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': 'Bearer ' + State.apiToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ data: data })
+        }
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) { return null; }
+  }
+
+  /* ═══════════════════════════════════════════
+     PERSISTENCE (localStorage + timestamp 48 h)
+     ═══════════════════════════════════════════ */
+  function buildSaveData() {
+    return {
+      savedAt: Date.now(),
+      xp: State.xp,
+      completedLessons: State.completedLessons,
+      completedQuizzes: State.completedQuizzes,
+      badges: State.badges,
+      streak: State.streak,
+      maxStreak: State.maxStreak,
+      totalCorrect: State.totalCorrect,
+      totalAnswered: State.totalAnswered
+    };
   }
 
   function saveProgress() {
     try {
-      const save = {
-        xp: State.xp,
-        completedLessons: State.completedLessons,
-        completedQuizzes: State.completedQuizzes,
-        badges: State.badges,
-        streak: State.streak,
-        maxStreak: State.maxStreak,
-        totalCorrect: State.totalCorrect,
-        totalAnswered: State.totalAnswered
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
-      refreshCookie(); // renouvelle le cookie 48 h à chaque sauvegarde
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(buildSaveData()));
     } catch (e) { /* quota exceeded or private mode */ }
+    if (State.user && State.apiAvailable) syncToAPI();
+  }
+
+  function syncToAPI() {
+    if (!State.user || !State.apiAvailable) return;
+    var data = { pseudo: State.user.pseudo, pin: State.user.pin };
+    var sd = buildSaveData();
+    for (var k in sd) data[k] = sd[k];
+    apiPut('users', State.user.pseudo, data).catch(function(){});
   }
 
   function loadProgress() {
     try {
-      // Si le cookie a expiré → la progression est périmée, on nettoie
-      if (!getCookie(COOKIE_NAME)) {
-        localStorage.removeItem(STORAGE_KEY);
-        return;
-      }
-
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const save = JSON.parse(raw);
-      if (save) {
-        State.xp              = save.xp || 0;
-        State.completedLessons = save.completedLessons || {};
-        State.completedQuizzes = save.completedQuizzes || {};
-        State.badges           = save.badges || [];
-        State.streak           = save.streak || 0;
-        State.maxStreak        = save.maxStreak || 0;
-        State.totalCorrect     = save.totalCorrect || 0;
-        State.totalAnswered    = save.totalAnswered || 0;
+      if (!save) return;
+      // Expiry 48 h based on savedAt timestamp
+      if (save.savedAt && (Date.now() - save.savedAt > EXPIRY_MS)) {
+        localStorage.removeItem(STORAGE_KEY);
+        return;
       }
-
-      // L'utilisateur est revenu → on renouvelle le cookie à 48 h
-      refreshCookie();
+      State.xp              = save.xp || 0;
+      State.completedLessons = save.completedLessons || {};
+      State.completedQuizzes = save.completedQuizzes || {};
+      State.badges           = save.badges || [];
+      State.streak           = save.streak || 0;
+      State.maxStreak        = save.maxStreak || 0;
+      State.totalCorrect     = save.totalCorrect || 0;
+      State.totalAnswered    = save.totalAnswered || 0;
     } catch (e) { /* corrupted data */ }
+  }
+
+  function loadUser() {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      if (raw) State.user = JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+  }
+
+  function saveUser() {
+    try {
+      if (State.user) localStorage.setItem(USER_KEY, JSON.stringify(State.user));
+      else localStorage.removeItem(USER_KEY);
+    } catch (e) { /* ignore */ }
   }
 
   function resetProgress() {
@@ -132,20 +190,118 @@
     State.totalCorrect = 0;
     State.totalAnswered = 0;
     localStorage.removeItem(STORAGE_KEY);
-    deleteCookie(COOKIE_NAME);
+    if (State.user && State.apiAvailable) syncToAPI();
+  }
+
+  /* ═══════════════════════════════════════════
+     AUTH HELPERS
+     ═══════════════════════════════════════════ */
+  async function doRegister(pseudo, pin) {
+    const existing = await apiGet('users', pseudo);
+    if (existing && existing.data) return { ok: false, error: 'Ce pseudo est déjà pris !' };
+    var data = { pseudo: pseudo, pin: pin };
+    var sd = buildSaveData();
+    for (var k in sd) data[k] = sd[k];
+    const result = await apiPut('users', pseudo, data);
+    if (!result) return { ok: false, error: 'Erreur serveur. Réessaie plus tard.' };
+    State.user = { pseudo: pseudo, pin: pin };
+    saveUser();
+    return { ok: true };
+  }
+
+  async function doLogin(pseudo, pin) {
+    const existing = await apiGet('users', pseudo);
+    if (!existing || !existing.data) return { ok: false, error: 'Pseudo introuvable.' };
+    if (String(existing.data.pin) !== String(pin)) return { ok: false, error: 'Code PIN incorrect.' };
+    State.user = { pseudo: pseudo, pin: pin };
+    saveUser();
+    // Merge : keep highest XP
+    if ((existing.data.xp || 0) > State.xp) {
+      State.xp              = existing.data.xp || 0;
+      State.completedLessons = existing.data.completedLessons || {};
+      State.completedQuizzes = existing.data.completedQuizzes || {};
+      State.badges           = existing.data.badges || [];
+      State.streak           = existing.data.streak || 0;
+      State.maxStreak        = existing.data.maxStreak || 0;
+      State.totalCorrect     = existing.data.totalCorrect || 0;
+      State.totalAnswered    = existing.data.totalAnswered || 0;
+      saveProgress();
+    } else {
+      syncToAPI();
+    }
+    return { ok: true };
+  }
+
+  async function loadScoreboard() {
+    State.scoreboardLoading = true;
+    render();
+    const data = await apiGet('users');
+    if (data && data.items) {
+      State.scoreboard = data.items
+        .filter(function(item) { return item.data && item.data.pseudo; })
+        .map(function(item) {
+          return {
+            pseudo: item.data.pseudo || item.record_key,
+            xp: item.data.xp || 0,
+            badges: (item.data.badges || []).length,
+            completedLessons: Object.keys(item.data.completedLessons || {}).length,
+            completedQuizzes: Object.keys(item.data.completedQuizzes || {}).length
+          };
+        })
+        .sort(function(a, b) { return b.xp - a.xp; });
+    } else {
+      State.scoreboard = [];
+    }
+    State.scoreboardLoading = false;
+    render();
+  }
+
+  function doLogout() {
+    State.user = null;
+    localStorage.removeItem(USER_KEY);
+    toast('info', 'Déconnecté');
+  }
+
+  async function handleAuthSubmit() {
+    State.authLoading = true;
+    State.authError = '';
+    render();
+    var result;
+    if (State.authMode === 'login') {
+      result = await doLogin(State.authPseudo, State.authPin);
+    } else {
+      result = await doRegister(State.authPseudo, State.authPin);
+    }
+    State.authLoading = false;
+    if (result.ok) {
+      State.authPin = '';
+      State.authPseudo = '';
+      State.authError = '';
+      toast('success', State.authMode === 'login' ? 'Connecté !' : 'Inscription réussie !');
+      if (Effects) Effects.confetti();
+      navigate('modules');
+    } else {
+      State.authError = result.error;
+      State.authPin = '';
+      render();
+    }
   }
 
   /* ═══════════════════════════════════════════
      GAMIFICATION HELPERS
      ═══════════════════════════════════════════ */
-  function getLevel() {
+  function getLevelForXP(xp) {
     const levels = Data.LEVELS;
     let lvl = levels[0];
     for (const l of levels) {
-      if (State.xp >= l.min) lvl = l;
+      if (xp >= l.min) lvl = l;
       else break;
     }
     return lvl;
+  }
+
+  function getLevel() {
+    return getLevelForXP(State.xp);
   }
 
   function getLevelIndex() {
@@ -269,12 +425,14 @@
     let html = '';
     switch (State.screen) {
       case 'home':       html = renderHome(); break;
+      case 'auth':       html = renderAuth(); break;
       case 'modules':    html = renderHeader() + renderModules(); break;
       case 'module':     html = renderHeader() + renderModuleDetail(); break;
       case 'lesson':     html = renderHeader() + renderLesson(); break;
       case 'quiz':       html = renderHeader() + renderQuiz(); break;
       case 'quiz-result': html = renderHeader() + renderQuizResult(); break;
       case 'profile':    html = renderHeader() + renderProfile(); break;
+      case 'scoreboard': html = renderHeader() + renderScoreboard(); break;
       default:           html = renderHome();
     }
 
@@ -291,6 +449,19 @@
         Effects.typewriter(titleEl, 'IT Discovery', 60);
       }
     }
+    if (State.screen === 'scoreboard') {
+      setTimeout(() => { if (Effects) Effects.staggerIn('.scoreboard-row', 60); }, 50);
+    }
+    if (State.screen === 'auth') {
+      const pseudoInput = $id('auth-pseudo');
+      if (pseudoInput) {
+        pseudoInput.addEventListener('input', function(e) {
+          State.authPseudo = e.target.value.trim();
+          updateSubmitButton();
+        });
+        pseudoInput.focus();
+      }
+    }
   }
 
   /* ═══════════════════════════════════════════
@@ -299,26 +470,36 @@
   function renderHeader() {
     const level = getLevel();
     const lvlProg = getLevelProgress();
-    return `
-      <div class="header">
-        <div class="header-left">
-          <span class="header-logo" data-action="home" title="Accueil">💡</span>
-          <span class="header-title" data-action="modules">IT Discovery</span>
-        </div>
-        <div class="header-right">
-          <div class="header-xp" data-action="profile" title="Voir le profil">
-            <span class="header-xp-icon">⚡</span>
-            <span class="header-xp-text" id="header-xp-value">${State.xp} XP</span>
-            <div class="header-xp-bar">
-              <div class="header-xp-fill" style="width:${lvlProg}%"></div>
-            </div>
-          </div>
-          <div class="header-level" data-action="profile" title="Voir le profil">
-            <span class="header-level-icon">${level.icon}</span>
-            <span class="header-level-text">${level.title}</span>
-          </div>
-        </div>
-      </div>`;
+    const userBadge = State.user
+      ? '<span class="header-user" data-action="profile" title="Profil">👤 ' + escapeHtml(State.user.pseudo) + '</span>'
+      : (State.apiAvailable
+        ? '<span class="header-user header-login" data-action="auth" title="Connexion">🔐</span>'
+        : '');
+    const scoreboardBtn = State.apiAvailable
+      ? '<span class="header-scoreboard" data-action="scoreboard" title="Classement">🏆</span>'
+      : '';
+    return '\
+      <div class="header">\
+        <div class="header-left">\
+          <span class="header-logo" data-action="home" title="Accueil">💡</span>\
+          <span class="header-title" data-action="modules">IT Discovery</span>\
+        </div>\
+        <div class="header-right">\
+          ' + scoreboardBtn + '\
+          <div class="header-xp" data-action="profile" title="Voir le profil">\
+            <span class="header-xp-icon">⚡</span>\
+            <span class="header-xp-text" id="header-xp-value">' + State.xp + ' XP</span>\
+            <div class="header-xp-bar">\
+              <div class="header-xp-fill" style="width:' + lvlProg + '%"></div>\
+            </div>\
+          </div>\
+          <div class="header-level" data-action="profile" title="Voir le profil">\
+            <span class="header-level-icon">' + level.icon + '</span>\
+            <span class="header-level-text">' + level.title + '</span>\
+          </div>\
+          ' + userBadge + '\
+        </div>\
+      </div>';
   }
 
   /* ═══════════════════════════════════════════
@@ -341,6 +522,14 @@
         <button class="home-start-btn" data-action="modules">
           🚀 Commencer l'aventure
         </button>
+        <div class="home-secondary-actions">
+          ${State.apiAvailable ? '<button class="home-btn-secondary" data-action="scoreboard">🏆 Classement</button>' : ''}
+          ${State.apiAvailable
+            ? (State.user
+              ? '<button class="home-btn-secondary" data-action="profile">👤 ' + escapeHtml(State.user.pseudo) + '</button>'
+              : '<button class="home-btn-secondary" data-action="auth">🔐 Connexion / Inscription</button>')
+            : ''}
+        </div>
         ${State.xp > 0 ? `
           <div class="home-stats">
             <div class="home-stat">
@@ -476,6 +665,32 @@
           return `<div class="content-block content-list">
             <div class="content-list-title">${escapeHtml(block.title)}</div>
             <ul>${block.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+          </div>`;
+        case 'diagram':
+          return `<div class="content-block content-diagram">
+            <div class="diagram-label">📐 Schéma</div>
+            <pre class="diagram-pre">${escapeHtml(block.text)}</pre>
+          </div>`;
+        case 'steps':
+          return `<div class="content-block content-steps">
+            <div class="steps-title">🔄 ${escapeHtml(block.title)}</div>
+            <div class="steps-flow">${block.steps.map((step, i) =>
+              `<div class="step-item" style="animation-delay:${i * 0.15}s">
+                <div class="step-number">${i + 1}</div>
+                <div class="step-text">${escapeHtml(step)}</div>
+                ${i < block.steps.length - 1 ? '<div class="step-arrow">↓</div>' : ''}
+              </div>`
+            ).join('')}</div>
+          </div>`;
+        case 'interactive-reveal':
+          return `<div class="content-block content-interactive">
+            <div class="interactive-title">🤔 ${escapeHtml(block.question)}</div>
+            <div class="reveal-options">${block.options.map((opt, i) =>
+              `<div class="reveal-option" data-action="reveal">
+                <div class="reveal-question">${escapeHtml(opt.text)}</div>
+                <div class="reveal-answer">${escapeHtml(opt.revealed)}</div>
+              </div>`
+            ).join('')}</div>
           </div>`;
         default:
           return `<div class="content-block content-paragraph">${escapeHtml(block.text || '')}</div>`;
@@ -642,6 +857,11 @@
     const completedQuizzes = Object.keys(State.completedQuizzes).length;
     const accuracy = State.totalAnswered > 0
       ? Math.round((State.totalCorrect / State.totalAnswered) * 100) : 0;
+    const perfectQuizzes = Object.values(State.completedQuizzes).filter(q => q.score === q.total).length;
+    const fullModules = Data.MODULES.filter(mod => {
+      const allL = mod.lessons.every((_, i) => State.completedLessons[mod.id + '-' + i]);
+      return allL && State.completedQuizzes[mod.id];
+    }).length;
 
     const badgesHtml = Data.BADGES.map(b => {
       const earned = State.badges.includes(b.id);
@@ -653,11 +873,22 @@
         </div>`;
     }).join('');
 
+    const userSection = State.user
+      ? `<div class="profile-user-badge">
+           <span class="profile-user-icon">👤</span>
+           <span class="profile-user-pseudo">${escapeHtml(State.user.pseudo)}</span>
+           <button class="profile-logout-btn" data-action="logout">Déconnexion</button>
+         </div>`
+      : (State.apiAvailable
+        ? `<button class="profile-login-btn" data-action="auth">🔐 Se connecter pour sauvegarder en ligne</button>`
+        : '');
+
     return `
       <div class="profile-view">
         <button class="btn-back" data-action="modules">← Retour aux modules</button>
 
         <div class="profile-header-card">
+          ${userSection}
           <span class="profile-level-icon">${level.icon}</span>
           <h2 class="profile-level-title">${level.title}</h2>
           <p class="profile-level-sub">Niveau ${lvlIdx + 1} — ${State.xp} XP</p>
@@ -686,6 +917,22 @@
             <div class="profile-stat-value" style="color:var(--neon-green)">${accuracy}%</div>
             <div class="profile-stat-label">Précision</div>
           </div>
+          <div class="profile-stat">
+            <div class="profile-stat-value" style="color:var(--neon-amber)">${State.maxStreak}</div>
+            <div class="profile-stat-label">Meilleur Streak 🔥</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-value" style="color:var(--neon-pink)">${perfectQuizzes}</div>
+            <div class="profile-stat-label">Quiz Parfaits 💎</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-value" style="color:var(--neon-blue)">${State.totalAnswered}</div>
+            <div class="profile-stat-label">Questions 📊</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-value" style="color:var(--neon-green)">${fullModules}/${Data.MODULES.length}</div>
+            <div class="profile-stat-label">Modules 100% 🎯</div>
+          </div>
         </div>
 
         <div class="profile-badges-title">🏅 Badges (${State.badges.length}/${Data.BADGES.length})</div>
@@ -695,6 +942,118 @@
           <button class="profile-reset-btn" data-action="reset">🗑️ Réinitialiser la progression</button>
         </div>
       </div>`;
+  }
+
+  /* ═══════════════════════════════════════════
+     RENDER: AUTH (Login / Register)
+     ═══════════════════════════════════════════ */
+  function renderAuth() {
+    const isLogin = State.authMode === 'login';
+    const pinDots = [];
+    for (var i = 0; i < 4; i++) {
+      pinDots.push('<div class="pin-dot ' + (i < State.authPin.length ? 'filled' : '') + '">' + (i < State.authPin.length ? '●' : '○') + '</div>');
+    }
+    const numKeys = [1,2,3,4,5,6,7,8,9,null,0,'back'];
+    const numpad = numKeys.map(function(n) {
+      if (n === null) return '<div class="numpad-key empty"></div>';
+      if (n === 'back') return '<div class="numpad-key backspace" data-action="pin-backspace">⌫</div>';
+      return '<div class="numpad-key" data-action="pin-digit" data-digit="' + n + '">' + n + '</div>';
+    }).join('');
+
+    const ready = State.authPin.length === 4 && State.authPseudo.length > 0;
+
+    return '\
+    <div class="auth-view">\
+      <div class="auth-card">\
+        <div class="auth-hero-icon">🔐</div>\
+        <h2 class="auth-title">' + (isLogin ? 'Connexion' : 'Inscription') + '</h2>\
+        <p class="auth-subtitle">' + (isLogin ? 'Entre ton pseudo et ton code PIN' : 'Choisis un pseudo et un code PIN à 4 chiffres') + '</p>\
+        <div class="auth-tabs">\
+          <button class="auth-tab ' + (isLogin ? 'active' : '') + '" data-action="auth-tab" data-mode="login">Connexion</button>\
+          <button class="auth-tab ' + (!isLogin ? 'active' : '') + '" data-action="auth-tab" data-mode="register">Inscription</button>\
+        </div>\
+        <div class="auth-field">\
+          <label class="auth-label">Pseudo</label>\
+          <input type="text" class="auth-input" id="auth-pseudo" maxlength="20" placeholder="Ton pseudo..." value="' + escapeHtml(State.authPseudo) + '" autocomplete="off">\
+        </div>\
+        <div class="auth-field">\
+          <label class="auth-label">Code PIN (4 chiffres)</label>\
+          <div class="pin-display">' + pinDots.join('') + '</div>\
+        </div>\
+        <div class="numpad">' + numpad + '</div>\
+        ' + (State.authError ? '<div class="auth-error">' + escapeHtml(State.authError) + '</div>' : '') + '\
+        <button class="auth-submit-btn ' + (State.authLoading ? 'loading' : '') + ' ' + (!ready ? 'disabled' : '') + '"\
+                data-action="auth-submit" ' + (!ready || State.authLoading ? 'disabled' : '') + '>\
+          ' + (State.authLoading ? '⏳ Chargement...' : (isLogin ? '🔓 Se connecter' : '✨ S\'inscrire')) + '\
+        </button>\
+        <button class="auth-skip-btn" data-action="modules">Continuer en invité →</button>\
+      </div>\
+    </div>';
+  }
+
+  /* ═══════════════════════════════════════════
+     RENDER: SCOREBOARD
+     ═══════════════════════════════════════════ */
+  function renderScoreboard() {
+    if (State.scoreboardLoading) {
+      return '<div class="scoreboard-view"><div class="scoreboard-loading"><div class="loading-spinner"></div><p>Chargement du classement...</p></div></div>';
+    }
+
+    const rows = State.scoreboard.map(function(entry, i) {
+      const rank = i + 1;
+      var medal = rank <= 3 ? ['🥇','🥈','🥉'][rank - 1] : '#' + rank;
+      var lvl = getLevelForXP(entry.xp);
+      var isMe = State.user && State.user.pseudo === entry.pseudo;
+      return '\
+        <div class="scoreboard-row ' + (isMe ? 'highlight-me' : '') + ' ' + (rank <= 3 ? 'top-3' : '') + '">\
+          <div class="scoreboard-rank">' + medal + '</div>\
+          <div class="scoreboard-user">\
+            <span class="scoreboard-pseudo">' + escapeHtml(entry.pseudo) + '</span>\
+            <span class="scoreboard-level">' + lvl.icon + ' ' + lvl.title + '</span>\
+          </div>\
+          <div class="scoreboard-xp">⚡ ' + entry.xp + ' XP</div>\
+          <div class="scoreboard-badges">🏅 ' + entry.badges + '</div>\
+        </div>';
+    }).join('');
+
+    var emptyMsg = '<div class="scoreboard-empty"><span class="scoreboard-empty-icon">📭</span><p>Aucun joueur inscrit pour l\'instant.</p><p>Inscris-toi pour apparaître ici !</p></div>';
+
+    return '\
+      <div class="scoreboard-view">\
+        <button class="btn-back" data-action="modules">← Retour</button>\
+        <div class="scoreboard-header">\
+          <h2>🏆 Classement</h2>\
+          <p>Les meilleurs explorateurs IT</p>\
+          <button class="scoreboard-refresh-btn" data-action="refresh-scoreboard">🔄 Actualiser</button>\
+        </div>\
+        ' + (State.scoreboard.length === 0 ? emptyMsg : '<div class="scoreboard-list">' + rows + '</div>') + '\
+        ' + (!State.user && State.apiAvailable ? '<div class="scoreboard-cta"><button class="auth-submit-btn" data-action="auth">🔐 S\'inscrire pour apparaître</button></div>' : '') + '\
+      </div>';
+  }
+
+  /* ═══════════════════════════════════════════
+     PIN/AUTH DOM HELPERS (no full re-render)
+     ═══════════════════════════════════════════ */
+  function updatePinDisplay() {
+    var dots = $$('.pin-dot');
+    dots.forEach(function(dot, i) {
+      if (i < State.authPin.length) {
+        dot.className = 'pin-dot filled';
+        dot.textContent = '●';
+      } else {
+        dot.className = 'pin-dot';
+        dot.textContent = '○';
+      }
+    });
+  }
+
+  function updateSubmitButton() {
+    var btn = $('.auth-submit-btn');
+    if (!btn) return;
+    var ready = State.authPin.length === 4 && State.authPseudo.length > 0;
+    btn.disabled = !ready || State.authLoading;
+    if (ready) btn.classList.remove('disabled');
+    else btn.classList.add('disabled');
   }
 
   /* ═══════════════════════════════════════════
@@ -801,6 +1160,60 @@
           }
         );
         break;
+
+      case 'auth':
+        State.authPin = '';
+        State.authPseudo = '';
+        State.authError = '';
+        State.authLoading = false;
+        navigate('auth');
+        break;
+
+      case 'auth-tab':
+        State.authMode = target.dataset.mode || 'login';
+        State.authPin = '';
+        State.authError = '';
+        render();
+        break;
+
+      case 'pin-digit':
+        if (State.authPin.length < 4) {
+          State.authPin += target.dataset.digit;
+          updatePinDisplay();
+          updateSubmitButton();
+        }
+        break;
+
+      case 'pin-backspace':
+        if (State.authPin.length > 0) {
+          State.authPin = State.authPin.slice(0, -1);
+          updatePinDisplay();
+          updateSubmitButton();
+        }
+        break;
+
+      case 'auth-submit':
+        if (State.authLoading || State.authPin.length < 4 || !State.authPseudo) break;
+        handleAuthSubmit();
+        break;
+
+      case 'scoreboard':
+        navigate('scoreboard');
+        loadScoreboard();
+        break;
+
+      case 'refresh-scoreboard':
+        loadScoreboard();
+        break;
+
+      case 'logout':
+        doLogout();
+        navigate('home');
+        break;
+
+      case 'reveal':
+        target.closest('.reveal-option').classList.toggle('revealed');
+        break;
     }
   }
 
@@ -876,6 +1289,8 @@
      INIT
      ═══════════════════════════════════════════ */
   document.addEventListener('DOMContentLoaded', () => {
+    initAPI();
+    loadUser();
     loadProgress();
 
     // Init particle system

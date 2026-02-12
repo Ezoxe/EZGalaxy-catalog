@@ -5,15 +5,15 @@
   "capabilities": [
     {
       "name": "network.outgoing",
-      "enabled": false,
-      "details": { "allowedOrigins": [] },
-      "justification": "Aucun accès réseau nécessaire — tout le contenu est embarqué localement."
+      "enabled": true,
+      "details": { "allowedOrigins": ["*"] },
+      "justification": "Accès à l'API Community Data pour le scoreboard et la sauvegarde en ligne des progressions."
     },
     {
       "name": "communityDataApi",
-      "enabled": false,
-      "details": { "collections": [], "dataTypes": [] },
-      "justification": "La progression est sauvegardée uniquement en localStorage."
+      "enabled": true,
+      "details": { "collections": ["users"], "dataTypes": ["pseudo", "pin", "progression", "scores"] },
+      "justification": "Stockage des profils utilisateurs (pseudo + PIN) et de leurs progressions pour le classement communautaire."
     }
   ]
 }

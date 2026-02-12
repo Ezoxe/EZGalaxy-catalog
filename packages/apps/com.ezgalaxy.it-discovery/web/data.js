@@ -68,7 +68,8 @@
             'Carte graphique (GPU) — pour l\'affichage et les jeux'
           ]},
           { type: 'fun-fact', text: 'Le premier ordinateur (ENIAC, 1945) pesait 30 tonnes et occupait une pièce entière ! Aujourd\'hui, ton smartphone est des millions de fois plus puissant 📱' },
-          { type: 'highlight', text: 'Un SSD est jusqu\'à 100x plus rapide qu\'un ancien disque dur mécanique. C\'est pour ça que les ordis modernes démarrent en quelques secondes !' }
+          { type: 'highlight', text: 'Un SSD est jusqu\'à 100x plus rapide qu\'un ancien disque dur mécanique. C\'est pour ça que les ordis modernes démarrent en quelques secondes !' },
+          { type: 'diagram', text: '┌─────────────────────────┐\n│       🧠  CPU           │ ← Cerveau (calculs)\n├─────────────────────────┤\n│       📋  RAM           │ ← Bureau (temporaire)\n├─────────────────────────┤\n│       📦  SSD / HDD     │ ← Armoire (permanent)\n├─────────────────────────┤\n│       🎮  GPU           │ ← Graphismes & jeux\n└────────────┬────────────┘\n             │\n     ┌───────┴───────┐\n     │  🔌 Carte mère │ ← Relie tout ensemble\n     └───────────────┘\n             │\n     ┌───────┴───────┐\n     │  ⚡ Alim       │ ← Fournit l\'énergie\n     └───────────────┘' }
         ]
       },
       {
@@ -166,7 +167,17 @@
           { type: 'analogy', text: '📞 Le DNS, c\'est l\'annuaire d\'Internet. Tu connais le nom (youtube.com) mais pas le "numéro de téléphone" (adresse IP). Le DNS le cherche pour toi !' },
           { type: 'analogy', text: '📦 Les données ne voyagent pas en un seul morceau. Elles sont découpées en petits "paquets" (comme des lettres séparées) qui peuvent prendre des chemins différents et se recombinent à l\'arrivée.' },
           { type: 'fun-fact', text: 'Un paquet de données peut traverser le monde entier en moins de 100 millisecondes. C\'est plus rapide qu\'un clignement d\'œil (300 ms) ! ⚡' },
-          { type: 'highlight', text: 'HTTPS (le cadenas 🔒 dans l\'adresse) signifie que la connexion est chiffrée. Personne ne peut lire tes données entre ton ordi et le serveur !' }
+          { type: 'highlight', text: 'HTTPS (le cadenas 🔒 dans l\'adresse) signifie que la connexion est chiffrée. Personne ne peut lire tes données entre ton ordi et le serveur !' },
+          { type: 'steps', title: 'Le voyage d\'une page web (clic → affichage)', steps: [
+            'Tu tapes "www.google.fr" dans ton navigateur 🖥️',
+            'Le DNS traduit ce nom en adresse IP (ex: 142.250.74.227) 📖',
+            'Ton PC envoie des paquets via ta box Internet 📦',
+            'Les routeurs relaient les paquets à travers le réseau 🔄',
+            'Les paquets arrivent au serveur de destination 🏢',
+            'Le serveur prépare la page et renvoie les données 📤',
+            'Ton navigateur reçoit et assemble les paquets 🧩',
+            'La page s\'affiche sur ton écran ! ✨'
+          ]}
         ]
       },
       {
@@ -246,7 +257,13 @@
           { type: 'analogy', text: '🏠 Imagine que ta maison, ton casier, ton journal intime et ta console avaient tous la même serrure et la même clé. Si quelqu\'un trouve la clé, il a accès à tout ! C\'est pareil avec les mots de passe : chaque compte doit avoir le sien.' },
           { type: 'highlight', text: 'Astuce : utilise une "phrase de passe" ! Par exemple : "MonChatMange3Pizzas!" est un excellent mot de passe : long, avec des majuscules, un chiffre et un symbole, et facile à retenir !' },
           { type: 'paragraph', text: 'La double authentification (2FA) ajoute une deuxième vérification : un code par SMS, une notification sur ton téléphone, ou une clé de sécurité. Même si quelqu\'un vole ton mot de passe, il ne pourra pas entrer sans le 2e facteur !' },
-          { type: 'fun-fact', text: 'Un mot de passe de 6 lettres minuscules peut être craqué en 10 secondes. Avec 12 caractères mixtes ? Plusieurs milliers d\'années ! 🔐' }
+          { type: 'fun-fact', text: 'Un mot de passe de 6 lettres minuscules peut être craqué en 10 secondes. Avec 12 caractères mixtes ? Plusieurs milliers d\'années ! 🔐' },
+          { type: 'interactive-reveal', question: 'Quel mot de passe est le plus sécurisé ? (clique pour vérifier)', options: [
+            { text: '123456', revealed: '❌ C\'est le mot de passe le plus utilisé au monde ! Un hacker le craque en moins d\'1 seconde.' },
+            { text: 'MonChat2024', revealed: '⚠️ Mieux, mais les infos personnelles (nom d\'animal, année) sont faciles à deviner avec l\'ingénierie sociale.' },
+            { text: 'K9#mP$2x!Lq4', revealed: '✅ Excellent ! Long (12 car.), complexe et aléatoire. Utilise un gestionnaire de mots de passe pour t\'en souvenir !' },
+            { text: 'MonChienAdore3Tacos!', revealed: '✅ Super choix ! C\'est une "phrase de passe" : longue, mémorisable et avec des caractères variés. Difficile à craquer !' }
+          ]}
         ]
       },
       {
@@ -312,7 +329,15 @@
           ]},
           { type: 'paragraph', text: 'Un algorithme, c\'est une suite d\'étapes logiques pour résoudre un problème. Tu en utilises tous les jours sans le savoir : une recette de cuisine, les instructions d\'un jeu de société, l\'itinéraire Google Maps... ce sont tous des algorithmes !' },
           { type: 'fun-fact', text: 'Le premier programme informatique a été écrit en 1843 par Ada Lovelace, une femme ! Elle est considérée comme la première programmeuse de l\'histoire 👩‍💻' },
-          { type: 'highlight', text: 'Ce site web que tu utilises en ce moment a été entièrement codé en HTML, CSS et JavaScript. 100% des sites web que tu visites utilisent ces 3 langages !' }
+          { type: 'highlight', text: 'Ce site web que tu utilises en ce moment a été entièrement codé en HTML, CSS et JavaScript. 100% des sites web que tu visites utilisent ces 3 langages !' },
+          { type: 'steps', title: 'Comment on écrit un programme (les étapes)', steps: [
+            'Comprendre le problème à résoudre 🤔',
+            'Imaginer l\'algorithme (la solution, étape par étape) 📝',
+            'Choisir le bon langage de programmation 🗣️',
+            'Écrire le code dans un éditeur (VS Code par exemple) ⌨️',
+            'Tester et déboguer (corriger les erreurs) 🐛',
+            'Publier le programme pour que les gens l\'utilisent 🚀'
+          ]}
         ]
       },
       {
@@ -332,7 +357,8 @@
           ]},
           { type: 'analogy', text: '🍔 Un site web, c\'est comme un restaurant. Le Frontend, c\'est la salle : le décor, le menu, le serveur qui prend ta commande. Le Backend, c\'est la cuisine : là où le plat est préparé et la recette stockée.' },
           { type: 'highlight', text: 'Un développeur "full-stack", c\'est quelqu\'un qui sait coder le frontend ET le backend. C\'est l\'un des métiers les plus demandés dans l\'informatique !' },
-          { type: 'fun-fact', text: 'Le premier site web a été créé en 1991 par Tim Berners-Lee au CERN. Il était tout simple : du texte et des liens, aucune image, aucun style. Aujourd\'hui il y a plus de 2 milliards de sites web ! 🌍' }
+          { type: 'fun-fact', text: 'Le premier site web a été créé en 1991 par Tim Berners-Lee au CERN. Il était tout simple : du texte et des liens, aucune image, aucun style. Aujourd\'hui il y a plus de 2 milliards de sites web ! 🌍' },
+          { type: 'diagram', text: '┌──────────────── Navigateur (Frontend) ────────────────┐\n│                                                       │\n│   HTML ──── Structure (titres, textes, boutons)       │\n│   CSS  ──── Design (couleurs, animations)             │\n│   JS   ──── Logique (clics, formulaires)              │\n│                                                       │\n└────────────────────────┬──────────────────────────────┘\n                         │ Requête HTTP\n                         ▼\n┌──────────────── Serveur (Backend) ─────────────────────┐\n│                                                       │\n│   Python/Node.js ──── Logique métier                  │\n│   API            ──── Point d\'entrée des données      │\n│   Base de données ─── Stockage (MySQL, MongoDB...)    │\n│                                                       │\n└───────────────────────────────────────────────────────┘' }
         ]
       },
       {
