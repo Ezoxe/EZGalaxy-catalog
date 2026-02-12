@@ -3,12 +3,9 @@
   "id": "com.ezgalaxy.it-discovery",
   "title": "IT Discovery",
   "function": "Découvre l'informatique de manière ludique et interactive — modules, quiz, badges et gamification pour les 14 ans et +",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "createdAt": "2026-02-12",
   "author": "EZGalaxy",
   "entry": "web/index.html",
-  "screenshots": [],
-  "network": {
-    "allowOutgoing": true
-  }
+  "screenshots": []
 }

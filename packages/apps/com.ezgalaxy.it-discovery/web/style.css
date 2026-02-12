@@ -1849,53 +1849,6 @@ body::after {
   margin-top: 2px;
 }
 
-.auth-warning-checking {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.25);
-  color: var(--neon-blue);
-}
-
-.auth-warning-checking .auth-warning-icon {
-  animation: spin 1.2s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* ═══════════════════════════════════════════
-   EZ LOGIN STEPS INDICATOR
-   ═══════════════════════════════════════════ */
-.ez-login-steps {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 18px;
-}
-
-.ez-step {
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.35);
-  border: 1px solid rgba(255,255,255,0.08);
-  transition: all 0.3s;
-}
-
-.ez-step.active {
-  background: rgba(99, 102, 241, 0.15);
-  color: var(--neon-blue);
-  border-color: rgba(99, 102, 241, 0.4);
-}
-
-.ez-step.done {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--neon-green);
-  border-color: rgba(16, 185, 129, 0.3);
-}
-
 /* ═══════════════════════════════════════════
    SCOREBOARD
    ═══════════════════════════════════════════ */

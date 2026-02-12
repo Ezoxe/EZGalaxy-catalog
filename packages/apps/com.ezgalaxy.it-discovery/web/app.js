@@ -49,19 +49,12 @@
     // Auth
     user: null,
     authMode: 'login',
-    authStep: 'ezlogin',  // 'ezlogin' | 'pseudo'
     authPin: '',
     authPseudo: '',
     authError: '',
     authLoading: false,
-    ezEmail: '',
-    ezPassword: '',
-    // API
+    // API (SDK)
     apiAvailable: false,
-    apiChecking: true,
-    apiNeedsLogin: false,
-    apiBase: '',
-    apiToken: '',
     // Scoreboard
     scoreboard: [],
     scoreboardLoading: false,
@@ -74,161 +67,53 @@
   const Effects = window.ITEffects;
 
   /* ═══════════════════════════════════════════
-     COMMUNITY DATA API
+     EZGALAXY SDK STORAGE
      ═══════════════════════════════════════════ */
 
-  /* --- Auth helpers --------------------------------------------------- */
-  function getCsrfToken() {
-    try {
-      var match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-      return match ? decodeURIComponent(match[1]) : '';
-    } catch (e) { return ''; }
+  function sdkReady() {
+    return !!(window.ezgalaxy && window.ezgalaxy.storage);
   }
 
-  function buildHeaders(withBody) {
-    var h = { 'Accept': 'application/json' };
-    if (State.apiToken) h['Authorization'] = 'Bearer ' + State.apiToken;
-    var xsrf = getCsrfToken();
-    if (xsrf) h['X-XSRF-TOKEN'] = xsrf;
-    if (withBody) h['Content-Type'] = 'application/json';
-    return h;
+  function initAPI() {
+    State.apiAvailable = sdkReady();
   }
 
-  /* --- Central fetch wrapper ------------------------------------------ */
-  async function apiFetchRaw(url, method, body) {
-    var opts = {
-      method: method || 'GET',
-      headers: buildHeaders(!!body),
-      credentials: 'include'           // sends session cookie (Sanctum SPA)
-    };
-    if (body) opts.body = JSON.stringify(body);
-    return await fetch(url, opts);
-  }
-
-  /* --- Init ----------------------------------------------------------- */
-  async function initAPI() {
-    try {
-      // 1. Read platform-injected values
-      State.apiBase  = localStorage.getItem('ez.community.baseUrl') || '';
-      State.apiToken = localStorage.getItem('ez.community.token') || '';
-
-      // 1b. Also check for app-stored Sanctum token (from previous ezLogin)
-      if (!State.apiToken) {
-        State.apiToken = localStorage.getItem('ez.itd.token') || '';
-      }
-
-      // 2. Fallback: same-origin (like terminal / gamestudio)
-      if (!State.apiBase) {
-        if (location.origin && location.origin !== 'null') {
-          State.apiBase = location.origin;
-        } else if (document.referrer) {
-          try { State.apiBase = new URL(document.referrer).origin; } catch(e) {}
+  // Re-check SDK availability after a short delay (dynamic script load)
+  function deferredInitAPI() {
+    if (!State.apiAvailable && !sdkReady()) {
+      // SDK still loading — retry up to 3 seconds
+      var attempts = 0;
+      var timer = setInterval(function() {
+        attempts++;
+        if (sdkReady()) {
+          clearInterval(timer);
+          State.apiAvailable = true;
+          render();
+        } else if (attempts >= 30) {
+          clearInterval(timer);
         }
-      }
-
-      if (!State.apiBase) {
-        State.apiAvailable = false;
-        State.apiChecking  = false;
-        return;
-      }
-
-      // 3. Probe the API
-      var probeUrl = State.apiBase + '/api/community/' + EXT_ID + '/users?limit=1';
-      var res = await apiFetchRaw(probeUrl, 'GET');
-
-      if (res.ok || res.status === 404) {
-        // Already authenticated → direct access
-        State.apiAvailable  = true;
-        State.apiNeedsLogin = false;
-        State.authStep      = 'pseudo';
-      } else if (res.status === 401) {
-        // API exists but user must log in to EZGalaxy first
-        State.apiAvailable  = true;
-        State.apiNeedsLogin = true;
-        State.authStep      = 'ezlogin';
-      } else {
-        State.apiAvailable = false;
-      }
-    } catch (e) {
-      // Network error → API unreachable
-      State.apiAvailable = false;
+      }, 100);
     }
-    State.apiChecking = false;
-  }
-
-  /* --- EZGalaxy Login -------------------------------------------------- */
-  async function ezLogin(email, password) {
-    var loginUrl = State.apiBase + '/api/auth/login';
-    var res = await fetch(loginUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ email: email, password: password })
-    });
-    if (!res.ok) {
-      var errBody = null;
-      try { errBody = await res.json(); } catch(e) {}
-      throw new Error((errBody && errBody.message) || 'Identifiants incorrects (HTTP ' + res.status + ')');
-    }
-    var data = await res.json();
-    // Store Sanctum token
-    State.apiToken = data.token;
-    State.apiNeedsLogin = false;
-    State.authStep = 'pseudo';
-    try { localStorage.setItem('ez.itd.token', data.token); } catch(e) {}
-    return data;
-  }
-
-  async function handleEzLogin() {
-    if (!State.ezEmail || !State.ezPassword) return;
-    State.authLoading = true;
-    State.authError = '';
-    render();
-    try {
-      await ezLogin(State.ezEmail, State.ezPassword);
-      State.authLoading = false;
-      State.ezPassword = '';
-      toast('success', 'Connecté à EZGalaxy !');
-      render();
-    } catch (e) {
-      State.authLoading = false;
-      State.authError = e.message || 'Erreur de connexion.';
-      render();
-    }
-  }
-
-  /* --- CRUD ----------------------------------------------------------- */
-  function handleApiAuthError() {
-    // Token expired or revoked → back to EZGalaxy login
-    State.apiNeedsLogin = true;
-    State.authStep = 'ezlogin';
-    State.apiToken = '';
-    try { localStorage.removeItem('ez.itd.token'); } catch(e) {}
   }
 
   async function apiGet(collection, key) {
-    if (!State.apiAvailable || State.apiNeedsLogin) return null;
+    if (!State.apiAvailable) return null;
     try {
-      var url = key
-        ? State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '/' + encodeURIComponent(key)
-        : State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '?limit=200';
-      var res = await apiFetchRaw(url, 'GET');
-      if (res.status === 401) { handleApiAuthError(); return null; }
-      if (!res.ok) return null;
-      return await res.json();
+      if (key) {
+        var record = await ezgalaxy.storage.get(collection, key);
+        return record;  // { data, record_key, ... } or null
+      }
+      // list all
+      var result = await ezgalaxy.storage.list(collection, { limit: 200 });
+      return result;    // { items: [...], total }
     } catch (e) { return null; }
   }
 
   async function apiPut(collection, key, data) {
-    if (!State.apiAvailable || State.apiNeedsLogin) return null;
+    if (!State.apiAvailable) return null;
     try {
-      var res = await apiFetchRaw(
-        State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '/' + encodeURIComponent(key),
-        'PUT',
-        { data: data }
-      );
-      if (res.status === 401) { handleApiAuthError(); return null; }
-      if (!res.ok) return null;
-      return await res.json();
+      await ezgalaxy.storage.set(collection, key, data);
+      return { ok: true };
     } catch (e) { return null; }
   }
 
@@ -317,12 +202,12 @@
      AUTH HELPERS
      ═══════════════════════════════════════════ */
   async function doRegister(pseudo, pin) {
-    const existing = await apiGet('users', pseudo);
+    var existing = await apiGet('users', pseudo);
     if (existing && existing.data) return { ok: false, error: 'Ce pseudo est déjà pris !' };
-    var data = { pseudo: pseudo, pin: pin };
+    var d = { pseudo: pseudo, pin: pin };
     var sd = buildSaveData();
-    for (var k in sd) data[k] = sd[k];
-    const result = await apiPut('users', pseudo, data);
+    for (var k in sd) d[k] = sd[k];
+    var result = await apiPut('users', pseudo, d);
     if (!result) return { ok: false, error: 'Erreur serveur. Réessaie plus tard.' };
     State.user = { pseudo: pseudo, pin: pin };
     saveUser();
@@ -330,7 +215,7 @@
   }
 
   async function doLogin(pseudo, pin) {
-    const existing = await apiGet('users', pseudo);
+    var existing = await apiGet('users', pseudo);
     if (!existing || !existing.data) return { ok: false, error: 'Pseudo introuvable.' };
     if (String(existing.data.pin) !== String(pin)) return { ok: false, error: 'Code PIN incorrect.' };
     State.user = { pseudo: pseudo, pin: pin };
@@ -383,13 +268,8 @@
   }
 
   async function handleAuthSubmit() {
-    if (State.apiChecking) {
-      State.authError = 'Vérification en cours, patiente un instant…';
-      render();
-      return;
-    }
-    if (!State.apiAvailable || State.apiNeedsLogin) {
-      State.authError = 'API non disponible. Cette fonctionnalité nécessite une instance EZGalaxy connectée.';
+    if (!State.apiAvailable) {
+      State.authError = 'Stockage non disponible. Cette fonctionnalité nécessite une instance EZGalaxy.';
       render();
       return;
     }
@@ -583,25 +463,6 @@
       setTimeout(() => { if (Effects) Effects.staggerIn('.scoreboard-row', 60); }, 50);
     }
     if (State.screen === 'auth') {
-      // EZGalaxy login form inputs
-      const ezEmailInput = $id('ez-email');
-      const ezPasswordInput = $id('ez-password');
-      if (ezEmailInput) {
-        ezEmailInput.addEventListener('input', function(e) {
-          State.ezEmail = e.target.value.trim();
-          updateEzLoginButton();
-        });
-        ezEmailInput.focus();
-      }
-      if (ezPasswordInput) {
-        ezPasswordInput.addEventListener('input', function(e) {
-          State.ezPassword = e.target.value;
-          updateEzLoginButton();
-        });
-        ezPasswordInput.addEventListener('keydown', function(e) {
-          if (e.key === 'Enter' && State.ezEmail && State.ezPassword) handleEzLogin();
-        });
-      }
       // Pseudo+PIN form input
       const pseudoInput = $id('auth-pseudo');
       if (pseudoInput) {
@@ -1092,22 +953,6 @@
      RENDER: AUTH (Login / Register)
      ═══════════════════════════════════════════ */
   function renderAuth() {
-    /* ---- Step check ---- */
-    if (State.apiChecking) {
-      return '\
-      <div class="auth-view">\
-        <div class="auth-card">\
-          <div class="auth-hero-icon">🔄</div>\
-          <h2 class="auth-title">Connexion à EZGalaxy</h2>\
-          <div class="auth-warning auth-warning-checking">\
-            <span class="auth-warning-icon">🔄</span>\
-            <div><strong>Vérification de la connexion…</strong><br>Détection de l\'API en cours.</div>\
-          </div>\
-          <button class="auth-skip-btn" data-action="modules">Continuer en invité →</button>\
-        </div>\
-      </div>';
-    }
-
     if (!State.apiAvailable) {
       return '\
       <div class="auth-view">\
@@ -1116,49 +961,13 @@
           <h2 class="auth-title">Mode hors-ligne</h2>\
           <div class="auth-warning">\
             <span class="auth-warning-icon">⚠️</span>\
-            <div><strong>API non détectée</strong><br>L\'inscription et la connexion nécessitent une instance EZGalaxy avec l\'API Community Data activée.</div>\
+            <div><strong>Stockage non disponible</strong><br>L\'inscription nécessite d\'utiliser cette app sur une instance EZGalaxy.</div>\
           </div>\
           <button class="auth-skip-btn" data-action="modules">Continuer en invité →</button>\
         </div>\
       </div>';
     }
 
-    /* ──────────────────────────────────────────
-       STEP 1 : EZGalaxy Login (email / password)
-       ────────────────────────────────────────── */
-    if (State.apiNeedsLogin) {
-      var ezReady = State.ezEmail.length > 0 && State.ezPassword.length > 0;
-      return '\
-      <div class="auth-view">\
-        <div class="auth-card">\
-          <div class="auth-hero-icon">🌐</div>\
-          <h2 class="auth-title">Connexion EZGalaxy</h2>\
-          <p class="auth-subtitle">Connecte-toi avec ton compte EZGalaxy pour accéder à la sauvegarde et au classement.</p>\
-          <div class="ez-login-steps">\
-            <div class="ez-step active">1. Compte EZGalaxy</div>\
-            <div class="ez-step">2. Pseudo &amp; PIN</div>\
-          </div>\
-          <div class="auth-field">\
-            <label class="auth-label">Email</label>\
-            <input type="email" class="auth-input" id="ez-email" placeholder="ton.email@exemple.fr" value="' + escapeHtml(State.ezEmail) + '" autocomplete="email">\
-          </div>\
-          <div class="auth-field">\
-            <label class="auth-label">Mot de passe</label>\
-            <input type="password" class="auth-input" id="ez-password" placeholder="••••••••" value="" autocomplete="current-password">\
-          </div>\
-          ' + (State.authError ? '<div class="auth-error">' + escapeHtml(State.authError) + '</div>' : '') + '\
-          <button class="auth-submit-btn ' + (State.authLoading ? 'loading' : '') + ' ' + (!ezReady ? 'disabled' : '') + '"\
-                  data-action="ez-login-submit" ' + (!ezReady || State.authLoading ? 'disabled' : '') + '>\
-            ' + (State.authLoading ? '⏳ Connexion...' : '🔑 Se connecter à EZGalaxy') + '\
-          </button>\
-          <button class="auth-skip-btn" data-action="modules">Continuer en invité →</button>\
-        </div>\
-      </div>';
-    }
-
-    /* ──────────────────────────────────────────
-       STEP 2 : Pseudo + PIN
-       ────────────────────────────────────────── */
     const isLogin = State.authMode === 'login';
     const pinDots = [];
     for (var i = 0; i < 4; i++) {
@@ -1179,10 +988,6 @@
         <div class="auth-hero-icon">🔐</div>\
         <h2 class="auth-title">' + (isLogin ? 'Connexion' : 'Inscription') + '</h2>\
         <p class="auth-subtitle">' + (isLogin ? 'Entre ton pseudo et ton code PIN' : 'Choisis un pseudo et un code PIN à 4 chiffres') + '</p>\
-        <div class="ez-login-steps">\
-          <div class="ez-step done">✓ Compte EZGalaxy</div>\
-          <div class="ez-step active">2. Pseudo &amp; PIN</div>\
-        </div>\
         <div class="auth-tabs">\
           <button class="auth-tab ' + (isLogin ? 'active' : '') + '" data-action="auth-tab" data-mode="login">Connexion</button>\
           <button class="auth-tab ' + (!isLogin ? 'active' : '') + '" data-action="auth-tab" data-mode="register">Inscription</button>\
@@ -1210,24 +1015,8 @@
      RENDER: SCOREBOARD
      ═══════════════════════════════════════════ */
   function renderScoreboard() {
-    // API en cours de vérification
-    if (State.apiChecking) {
-      return '<div class="scoreboard-view"><div class="scoreboard-loading"><div class="loading-spinner"></div><p>Vérification de la connexion…</p></div></div>';
-    }
-
-    // API non disponible ou nécessite login → message explicatif
-    if (!State.apiAvailable || State.apiNeedsLogin) {
-      var scoreMsg = State.apiNeedsLogin
-        ? '<p>Connecte-toi d\'abord avec ton compte EZGalaxy pour voir le classement.</p>\
-           <button class="auth-submit-btn" data-action="auth" style="margin-top:12px">🔑 Se connecter</button>'
-        : '<p>Le classement nécessite une connexion à une instance EZGalaxy.</p>\
-           <p class="scoreboard-offline-sub">Quand tu utilises cette app sur une plateforme EZGalaxy,<br>tu peux t\'inscrire, sauvegarder ta progression en ligne<br>et comparer tes stats avec les autres !</p>\
-           <div class="scoreboard-offline-features">\
-              <div class="scoreboard-feature">🥇 Classement par XP</div>\
-              <div class="scoreboard-feature">👤 Pseudo + Code PIN</div>\
-              <div class="scoreboard-feature">📊 Comparaison des stats</div>\
-              <div class="scoreboard-feature">☁️ Sauvegarde en ligne</div>\
-           </div>';
+    // API non disponible → message explicatif
+    if (!State.apiAvailable) {
       return '\
         <div class="scoreboard-view">\
           <button class="btn-back" data-action="modules">← Retour</button>\
@@ -1238,7 +1027,14 @@
           <div class="scoreboard-offline">\
             <span class="scoreboard-offline-icon">🌐</span>\
             <h3>Classement non disponible</h3>\
-            ' + scoreMsg + '\
+            <p>Le classement nécessite d\'utiliser cette app sur une instance EZGalaxy.</p>\
+            <p class="scoreboard-offline-sub">Quand tu utilises cette app sur une plateforme EZGalaxy,<br>tu peux t\'inscrire, sauvegarder ta progression en ligne<br>et comparer tes stats avec les autres !</p>\
+            <div class="scoreboard-offline-features">\
+              <div class="scoreboard-feature">🥇 Classement par XP</div>\
+              <div class="scoreboard-feature">👤 Pseudo + Code PIN</div>\
+              <div class="scoreboard-feature">📊 Comparaison des stats</div>\
+              <div class="scoreboard-feature">☁️ Sauvegarde en ligne</div>\
+            </div>\
           </div>\
         </div>';
     }
@@ -1299,15 +1095,6 @@
     var btn = $('.auth-submit-btn');
     if (!btn) return;
     var ready = State.authPin.length === 4 && State.authPseudo.length > 0;
-    btn.disabled = !ready || State.authLoading;
-    if (ready) btn.classList.remove('disabled');
-    else btn.classList.add('disabled');
-  }
-
-  function updateEzLoginButton() {
-    var btn = $('[data-action="ez-login-submit"]');
-    if (!btn) return;
-    var ready = State.ezEmail.length > 0 && State.ezPassword.length > 0;
     btn.disabled = !ready || State.authLoading;
     if (ready) btn.classList.remove('disabled');
     else btn.classList.add('disabled');
@@ -1454,14 +1241,9 @@
         handleAuthSubmit();
         break;
 
-      case 'ez-login-submit':
-        if (State.authLoading || !State.ezEmail || !State.ezPassword) break;
-        handleEzLogin();
-        break;
-
       case 'scoreboard':
         navigate('scoreboard');
-        if (State.apiAvailable && !State.apiNeedsLogin) loadScoreboard();
+        if (State.apiAvailable) loadScoreboard();
         break;
 
       case 'refresh-scoreboard':
@@ -1551,17 +1333,18 @@
      INIT
      ═══════════════════════════════════════════ */
   document.addEventListener('DOMContentLoaded', () => {
+    initAPI();
     loadUser();
     loadProgress();
 
     // Init particle system
     if (Effects) Effects.initParticles();
 
-    // Render app immediately (API status = checking)
+    // Small delay for loading screen, then render
     setTimeout(() => { render(); }, 600);
 
-    // Probe API in background, then re-render with definitive status
-    initAPI().then(function() { render(); });
+    // SDK may load after app.js — keep checking
+    deferredInitAPI();
   });
 
 })();

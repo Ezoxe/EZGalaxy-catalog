@@ -4,16 +4,10 @@
   "updatedAt": "2026-02-12",
   "capabilities": [
     {
-      "name": "network.outgoing",
-      "enabled": true,
-      "details": { "allowedOrigins": ["*"] },
-      "justification": "Accès à l'API Community Data pour le scoreboard et la sauvegarde en ligne des progressions."
-    },
-    {
       "name": "communityDataApi",
       "enabled": true,
       "details": { "collections": ["users"], "dataTypes": ["pseudo", "pin", "progression", "scores"] },
-      "justification": "Stockage des profils utilisateurs (pseudo + PIN) et de leurs progressions pour le classement communautaire."
+      "justification": "Stockage des profils utilisateurs (pseudo + PIN) et de leurs progressions pour le classement communautaire via le SDK ezgalaxy.storage."
     }
   ]
 }
