@@ -1849,6 +1849,20 @@ body::after {
   margin-top: 2px;
 }
 
+.auth-warning-checking {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: var(--neon-blue);
+}
+
+.auth-warning-checking .auth-warning-icon {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ═══════════════════════════════════════════
    SCOREBOARD
    ═══════════════════════════════════════════ */

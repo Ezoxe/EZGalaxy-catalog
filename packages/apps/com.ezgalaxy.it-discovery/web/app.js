@@ -55,6 +55,7 @@
     authLoading: false,
     // API
     apiAvailable: false,
+    apiChecking: true,
     apiBase: '',
     apiToken: '',
     // Scoreboard
@@ -71,23 +72,79 @@
   /* ═══════════════════════════════════════════
      COMMUNITY DATA API
      ═══════════════════════════════════════════ */
-  function initAPI() {
+
+  /* --- Auth helpers --------------------------------------------------- */
+  function getCsrfToken() {
     try {
-      State.apiBase  = localStorage.getItem('ez.community.baseUrl') || '';
-      State.apiToken = localStorage.getItem('ez.community.token') || '';
-      State.apiAvailable = !!(State.apiBase && State.apiToken);
-    } catch (e) { State.apiAvailable = false; }
+      var match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+      return match ? decodeURIComponent(match[1]) : '';
+    } catch (e) { return ''; }
   }
 
+  function buildHeaders(withBody) {
+    var h = { 'Accept': 'application/json' };
+    if (State.apiToken) h['Authorization'] = 'Bearer ' + State.apiToken;
+    var xsrf = getCsrfToken();
+    if (xsrf) h['X-XSRF-TOKEN'] = xsrf;
+    if (withBody) h['Content-Type'] = 'application/json';
+    return h;
+  }
+
+  /* --- Central fetch wrapper ------------------------------------------ */
+  async function apiFetchRaw(url, method, body) {
+    var opts = {
+      method: method || 'GET',
+      headers: buildHeaders(!!body),
+      credentials: 'include'           // sends session cookie (Sanctum SPA)
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return await fetch(url, opts);
+  }
+
+  /* --- Init ----------------------------------------------------------- */
+  async function initAPI() {
+    try {
+      // 1. Read platform-injected values
+      State.apiBase  = localStorage.getItem('ez.community.baseUrl') || '';
+      State.apiToken = localStorage.getItem('ez.community.token')   || '';
+
+      // 2. Fallback: same-origin pattern (like terminal / gamestudio)
+      if (!State.apiBase && location.protocol.startsWith('http')) {
+        State.apiBase = location.origin;
+      }
+
+      if (!State.apiBase) {
+        State.apiAvailable = false;
+        State.apiChecking  = false;
+        return;
+      }
+
+      // 3. If no Bearer token, init CSRF cookie (Sanctum SPA mode)
+      if (!State.apiToken) {
+        try {
+          await fetch(State.apiBase + '/sanctum/csrf-cookie', { credentials: 'include' });
+        } catch (e) { /* CSRF init failure is non-fatal */ }
+      }
+
+      // 4. Probe: lightweight request to confirm the API responds
+      var probeUrl = State.apiBase + '/api/community/' + EXT_ID + '/users?limit=1';
+      var res = await apiFetchRaw(probeUrl, 'GET');
+      // 200 = data exists, 404 = collection empty but API works
+      State.apiAvailable = (res.ok || res.status === 404);
+    } catch (e) {
+      State.apiAvailable = false;
+    }
+    State.apiChecking = false;
+  }
+
+  /* --- CRUD ----------------------------------------------------------- */
   async function apiGet(collection, key) {
     if (!State.apiAvailable) return null;
     try {
-      const url = key
+      var url = key
         ? State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '/' + encodeURIComponent(key)
         : State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '?limit=200';
-      const res = await fetch(url, {
-        headers: { 'Authorization': 'Bearer ' + State.apiToken }
-      });
+      var res = await apiFetchRaw(url, 'GET');
       if (!res.ok) return null;
       return await res.json();
     } catch (e) { return null; }
@@ -96,16 +153,10 @@
   async function apiPut(collection, key, data) {
     if (!State.apiAvailable) return null;
     try {
-      const res = await fetch(
+      var res = await apiFetchRaw(
         State.apiBase + '/api/community/' + EXT_ID + '/' + collection + '/' + encodeURIComponent(key),
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': 'Bearer ' + State.apiToken,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ data: data })
-        }
+        'PUT',
+        { data: data }
       );
       if (!res.ok) return null;
       return await res.json();
@@ -263,6 +314,11 @@
   }
 
   async function handleAuthSubmit() {
+    if (State.apiChecking) {
+      State.authError = 'Vérification en cours, patiente un instant…';
+      render();
+      return;
+    }
     if (!State.apiAvailable) {
       State.authError = 'API non disponible. Cette fonctionnalité nécessite une instance EZGalaxy connectée.';
       render();
@@ -962,7 +1018,12 @@
     const ready = State.authPin.length === 4 && State.authPseudo.length > 0;
 
     var apiWarning = '';
-    if (!State.apiAvailable) {
+    if (State.apiChecking) {
+      apiWarning = '<div class="auth-warning auth-warning-checking">\
+        <span class="auth-warning-icon">🔄</span>\
+        <div><strong>Vérification de la connexion…</strong><br>Détection de l\'API en cours.</div>\
+      </div>';
+    } else if (!State.apiAvailable) {
       apiWarning = '<div class="auth-warning">\
         <span class="auth-warning-icon">⚠️</span>\
         <div><strong>Mode hors-ligne</strong><br>L\'API n\'est pas détectée. L\'inscription et la connexion nécessitent une instance EZGalaxy avec l\'API Community Data activée.</div>\
@@ -1003,6 +1064,11 @@
      RENDER: SCOREBOARD
      ═══════════════════════════════════════════ */
   function renderScoreboard() {
+    // API en cours de vérification
+    if (State.apiChecking) {
+      return '<div class="scoreboard-view"><div class="scoreboard-loading"><div class="loading-spinner"></div><p>Vérification de la connexion…</p></div></div>';
+    }
+
     // API non disponible → message explicatif
     if (!State.apiAvailable) {
       return '\
@@ -1321,17 +1387,17 @@
      INIT
      ═══════════════════════════════════════════ */
   document.addEventListener('DOMContentLoaded', () => {
-    initAPI();
     loadUser();
     loadProgress();
 
     // Init particle system
     if (Effects) Effects.initParticles();
 
-    // Small delay for loading screen, then render
-    setTimeout(() => {
-      render();
-    }, 600);
+    // Render app immediately (API status = checking)
+    setTimeout(() => { render(); }, 600);
+
+    // Probe API in background, then re-render with definitive status
+    initAPI().then(function() { render(); });
   });
 
 })();
