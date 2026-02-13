@@ -58,6 +58,7 @@
     // Scoreboard
     scoreboard: [],
     scoreboardLoading: false,
+    scoreboardDebug: '',
     // Session
     sessionStart: Date.now(),
     // Quiz timer (invisible tiebreaker)
@@ -79,6 +80,19 @@
 
   function initAPI() {
     State.apiAvailable = sdkReady();
+    console.log('[SDK] initAPI: sdkReady=' + State.apiAvailable,
+      'ezgalaxy=' + !!window.ezgalaxy,
+      'storage=' + !!(window.ezgalaxy && window.ezgalaxy.storage),
+      'app=' + !!(window.ezgalaxy && window.ezgalaxy.app),
+      'isInsideEZGalaxy=' + (window.ezgalaxy && window.ezgalaxy.isInsideEZGalaxy));
+    // Call SDK ready() to ensure bridge handshake
+    if (State.apiAvailable && typeof ezgalaxy.ready === 'function') {
+      ezgalaxy.ready().then(function(info) {
+        console.log('[SDK] Bridge ready:', info);
+      }).catch(function(err) {
+        console.warn('[SDK] Bridge ready failed:', err);
+      });
+    }
   }
 
   // Re-check SDK availability after a short delay (dynamic script load)
@@ -91,9 +105,19 @@
         if (sdkReady()) {
           clearInterval(timer);
           State.apiAvailable = true;
+          console.log('[SDK] deferredInitAPI: SDK loaded after ' + (attempts * 100) + 'ms');
+          // Call SDK ready() to ensure bridge handshake
+          if (typeof ezgalaxy.ready === 'function') {
+            ezgalaxy.ready().then(function(info) {
+              console.log('[SDK] Bridge ready (deferred):', info);
+            }).catch(function(err) {
+              console.warn('[SDK] Bridge ready (deferred) failed:', err);
+            });
+          }
           render();
         } else if (attempts >= 30) {
           clearInterval(timer);
+          console.warn('[SDK] deferredInitAPI: SDK NOT loaded after 3 seconds');
         }
       }, 100);
     }
@@ -165,7 +189,7 @@
     if (!State.user || !State.apiAvailable) return;
     try {
       var pseudo = State.user.pseudo;
-      await ezgalaxy.app.set('leaderboard', 'player-' + pseudo, {
+      var payload = {
         pseudo: pseudo,
         xp: State.xp,
         totalTimeMs: State.quizTotalTimeMs || 0,
@@ -173,8 +197,13 @@
         lessons: Object.keys(State.completedLessons).length,
         quizzes: Object.keys(State.completedQuizzes).length,
         updatedAt: new Date().toISOString()
-      });
-    } catch (e) { /* ignore sync errors */ }
+      };
+      console.log('[Leaderboard] syncToLeaderboard: writing player-' + pseudo, payload);
+      var res = await ezgalaxy.app.set('leaderboard', 'player-' + pseudo, payload);
+      console.log('[Leaderboard] syncToLeaderboard: success', res);
+    } catch (e) {
+      console.error('[Leaderboard] syncToLeaderboard: FAILED', e);
+    }
   }
 
   function loadProgress() {
@@ -270,11 +299,18 @@
 
   async function loadScoreboard() {
     State.scoreboardLoading = true;
+    State.scoreboardDebug = '';
     render();
     try {
+      // Sync current user first to ensure we are in the leaderboard
+      await syncToLeaderboard();
+
       if (State.apiAvailable) {
+        console.log('[Leaderboard] loadScoreboard: calling ezgalaxy.app.list...');
         var result = await ezgalaxy.app.list('leaderboard', { limit: 100 });
+        console.log('[Leaderboard] loadScoreboard: raw result', JSON.stringify(result));
         var items = (result && Array.isArray(result.items)) ? result.items : [];
+        State.scoreboardDebug = 'API: ' + items.length + '/' + (result && result.total || '?') + ' entrées';
         State.scoreboard = items
           .map(function(item) { return item.data; })
           .filter(function(d) { return d && d.pseudo; })
@@ -282,11 +318,15 @@
             if ((b.xp || 0) !== (a.xp || 0)) return (b.xp || 0) - (a.xp || 0);
             return (a.totalTimeMs || 999999999) - (b.totalTimeMs || 999999999);
           });
+        console.log('[Leaderboard] loadScoreboard: ' + State.scoreboard.length + ' joueurs affichés');
       } else {
         State.scoreboard = [];
+        State.scoreboardDebug = 'SDK non disponible';
       }
     } catch (e) {
+      console.error('[Leaderboard] loadScoreboard: FAILED', e);
       State.scoreboard = [];
+      State.scoreboardDebug = 'Erreur: ' + (e.message || e);
     }
     State.scoreboardLoading = false;
     render();
@@ -1098,6 +1138,7 @@
         ' + (State.scoreboard.length === 0 ? emptyMsg : '<div class="scoreboard-list">' + rows + '</div>') + '\
         ' + (!State.user ? '<div class="scoreboard-cta"><button class="auth-submit-btn" data-action="auth">🔐 S\'inscrire pour apparaître</button></div>' : '') + '\
         <div class="scoreboard-note">En cas d\'égalité de points, le temps total aux quiz départage les joueurs.</div>\
+        ' + (State.scoreboardDebug ? '<div class="scoreboard-note" style="font-size:0.7em;opacity:0.5;margin-top:4px">' + escapeHtml(State.scoreboardDebug) + '</div>' : '') + '\
       </div>';
   }
 
@@ -1273,7 +1314,7 @@
 
       case 'scoreboard':
         navigate('scoreboard');
-        if (State.apiAvailable) loadScoreboard();
+        loadScoreboard();
         break;
 
       case 'refresh-scoreboard':
