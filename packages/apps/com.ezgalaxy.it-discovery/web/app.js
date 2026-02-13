@@ -29,11 +29,6 @@
 
   const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-  // Shared leaderboard: a fixed visitor UUID so ALL users read/write the same record.
-  // The SDK isolates data per visitor — this bypasses that for the leaderboard.
-  const LB_UUID = 'a0000000-0000-4000-8000-1eadeb0a4d00';
-  const LB_API  = '/api/app-storage/' + EXT_ID + '/leaderboard/global';
-
   /* ───────── State ───────── */
   const State = {
     screen: 'home',
@@ -79,7 +74,7 @@
      ═══════════════════════════════════════════ */
 
   function sdkReady() {
-    return !!(window.ezgalaxy && window.ezgalaxy.storage);
+    return !!(window.ezgalaxy && window.ezgalaxy.storage && window.ezgalaxy.app);
   }
 
   function initAPI() {
@@ -160,57 +155,17 @@
   }
 
   /* ═══════════════════════════════════════════
-     SHARED LEADERBOARD (direct REST API)
-     Uses a fixed visitor UUID so ALL users
-     read/write the same leaderboard record.
+     SHARED LEADERBOARD (ezgalaxy.app.*)
+     Uses the app-level shared storage so ALL
+     users see the same leaderboard entries.
+     Each player has their own key: player-{pseudo}
      ═══════════════════════════════════════════ */
 
-  async function getSharedLeaderboard() {
-    try {
-      var resp = await fetch(LB_API, {
-        headers: { 'X-Visitor-UUID': LB_UUID, 'Accept': 'application/json' }
-      });
-      if (!resp.ok) return [];
-      var record = await resp.json();
-      if (record && record.data && Array.isArray(record.data.entries)) {
-        return record.data.entries;
-      }
-      return [];
-    } catch (e) { return []; }
-  }
-
-  async function putSharedLeaderboard(entries) {
-    try {
-      await fetch(LB_API, {
-        method: 'PUT',
-        headers: {
-          'X-Visitor-UUID': LB_UUID,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ data: { entries: entries } })
-      });
-    } catch (e) { /* ignore */ }
-  }
-
-  function sortLeaderboard(entries) {
-    return entries
-      .filter(function(e) { return e && e.pseudo; })
-      .sort(function(a, b) {
-        if ((b.xp || 0) !== (a.xp || 0)) return (b.xp || 0) - (a.xp || 0);
-        return (a.totalTimeMs || 999999999) - (b.totalTimeMs || 999999999);
-      });
-  }
-
   async function syncToLeaderboard() {
-    if (!State.user) return;
+    if (!State.user || !State.apiAvailable) return;
     try {
-      var entries = await getSharedLeaderboard();
       var pseudo = State.user.pseudo;
-      var filtered = entries.filter(function(e) {
-        return e && e.pseudo && e.pseudo.toLowerCase() !== pseudo.toLowerCase();
-      });
-      filtered.push({
+      await ezgalaxy.app.set('leaderboard', 'player-' + pseudo, {
         pseudo: pseudo,
         xp: State.xp,
         totalTimeMs: State.quizTotalTimeMs || 0,
@@ -219,8 +174,6 @@
         quizzes: Object.keys(State.completedQuizzes).length,
         updatedAt: new Date().toISOString()
       });
-      filtered = sortLeaderboard(filtered).slice(0, 50);
-      await putSharedLeaderboard(filtered);
     } catch (e) { /* ignore sync errors */ }
   }
 
@@ -319,8 +272,19 @@
     State.scoreboardLoading = true;
     render();
     try {
-      var entries = await getSharedLeaderboard();
-      State.scoreboard = sortLeaderboard(entries);
+      if (State.apiAvailable) {
+        var result = await ezgalaxy.app.list('leaderboard', { limit: 100 });
+        var items = (result && Array.isArray(result.items)) ? result.items : [];
+        State.scoreboard = items
+          .map(function(item) { return item.data; })
+          .filter(function(d) { return d && d.pseudo; })
+          .sort(function(a, b) {
+            if ((b.xp || 0) !== (a.xp || 0)) return (b.xp || 0) - (a.xp || 0);
+            return (a.totalTimeMs || 999999999) - (b.totalTimeMs || 999999999);
+          });
+      } else {
+        State.scoreboard = [];
+      }
     } catch (e) {
       State.scoreboard = [];
     }
@@ -1083,6 +1047,23 @@
      RENDER: SCOREBOARD
      ═══════════════════════════════════════════ */
   function renderScoreboard() {
+    // SDK non disponible (mode local/dev)
+    if (!State.apiAvailable) {
+      return '\
+        <div class="scoreboard-view">\
+          <button class="btn-back" data-action="modules">← Retour</button>\
+          <div class="scoreboard-header">\
+            <h2>🏆 Classement</h2>\
+            <p>Les meilleurs explorateurs IT</p>\
+          </div>\
+          <div class="scoreboard-offline">\
+            <span class="scoreboard-offline-icon">🌐</span>\
+            <h3>Classement non disponible</h3>\
+            <p>Le classement nécessite d\'utiliser cette app sur une instance EZGalaxy.</p>\
+          </div>\
+        </div>';
+    }
+
     if (State.scoreboardLoading) {
       return '<div class="scoreboard-view"><div class="scoreboard-loading"><div class="loading-spinner"></div><p>Chargement du classement...</p></div></div>';
     }
@@ -1292,7 +1273,7 @@
 
       case 'scoreboard':
         navigate('scoreboard');
-        loadScoreboard();
+        if (State.apiAvailable) loadScoreboard();
         break;
 
       case 'refresh-scoreboard':

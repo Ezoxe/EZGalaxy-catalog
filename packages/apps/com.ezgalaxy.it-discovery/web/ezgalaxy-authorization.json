@@ -4,18 +4,13 @@
   "updatedAt": "2026-02-13",
   "capabilities": [
     {
-      "name": "network.outgoing",
-      "enabled": true,
-      "details": {
-        "allowedOrigins": ["same-origin"]
-      },
-      "justification": "Appels REST directs vers /api/app-storage/ pour le classement partage entre tous les joueurs (le SDK isole les donnees par visiteur)."
-    },
-    {
       "name": "communityDataApi",
       "enabled": true,
-      "details": { "collections": ["users"], "dataTypes": ["pseudo", "pin", "progression", "scores"] },
-      "justification": "Stockage des profils utilisateurs (pseudo + PIN) et de leurs progressions via le SDK ezgalaxy.storage."
+      "details": {
+        "collections": ["users", "leaderboard"],
+        "dataTypes": ["pseudo", "pin", "progression", "scores", "leaderboard"]
+      },
+      "justification": "Stockage des profils utilisateurs (pseudo + PIN) via ezgalaxy.storage et classement partage entre tous les joueurs via ezgalaxy.app."
     }
   ]
 }

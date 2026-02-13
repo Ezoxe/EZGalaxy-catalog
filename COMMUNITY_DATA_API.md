@@ -31,7 +31,9 @@ console.log(record.data); // { score: 100, time: 45 }
 | **Clé (key)** | Identifiant unique dans une collection | `'level-1'`, `'user-profile'`, `'config'` |
 | **Data** | Un objet JSON quelconque | `{ score: 100, name: "Alice" }` |
 
-Les données sont **automatiquement isolées par visiteur/utilisateur**. Chaque personne ne voit que ses propres données.
+Les données `storage` sont **automatiquement isolées par visiteur/utilisateur**. Chaque personne ne voit que ses propres données.
+
+Les données `app` sont **partagées** entre tous les utilisateurs de l'application. Idéal pour les classements, la config publique, etc.
 
 ---
 
@@ -153,6 +155,110 @@ console.log(user.id);   // UUID du visiteur ou ID utilisateur
 
 ---
 
+## API App — Stockage partagé de l'application
+
+`ezgalaxy.app` est un espace de stockage **partagé** qui appartient à l'application elle-même (pas à un utilisateur). Toute personne utilisant l'app peut lire et écrire dans cet espace. C'est l'endroit idéal pour :
+- **Classements** (leaderboards)
+- **Statistiques globales**
+- **Configuration partagée**
+- **Données publiques** de l'application
+
+Les mêmes filtres de sécurité s'appliquent (taille max, quotas, validation des clés).
+
+### `ezgalaxy.app.set(collection, key, data, options?)`
+
+Sauvegarde des données au niveau de l'application. Crée ou remplace.
+
+```js
+// Ajouter un score au classement
+await ezgalaxy.app.set('leaderboard', 'player-alice', {
+  pseudo: 'Alice',
+  score: 1500,
+  date: new Date().toISOString()
+});
+
+// Avec expiration
+await ezgalaxy.app.set('daily-challenge', 'today', { theme: 'espace' }, { ttl: 86400 });
+```
+
+### `ezgalaxy.app.get(collection, key)`
+
+Lit un enregistrement app-level.
+
+```js
+const record = await ezgalaxy.app.get('leaderboard', 'player-alice');
+if (record) {
+  console.log(record.data); // { pseudo: 'Alice', score: 1500, ... }
+}
+```
+
+### `ezgalaxy.app.update(collection, key, data)`
+
+Mise à jour partielle (merge) d'un enregistrement app-level.
+
+```js
+await ezgalaxy.app.update('leaderboard', 'player-alice', { score: 1800 });
+// Le pseudo et la date restent inchangés
+```
+
+### `ezgalaxy.app.delete(collection, key)`
+
+Supprime un enregistrement app-level.
+
+```js
+await ezgalaxy.app.delete('leaderboard', 'player-alice');
+```
+
+### `ezgalaxy.app.list(collection, options?)`
+
+Liste les enregistrements app-level d'une collection.
+
+```js
+const result = await ezgalaxy.app.list('leaderboard');
+console.log(result.total);  // nombre total d'entrées
+console.log(result.items);  // [{ record_key, data, ... }, ...]
+
+// Avec tri et pagination
+const top10 = await ezgalaxy.app.list('leaderboard', {
+  limit: 10,
+  sort_by: 'updated_at',   // 'created_at' (défaut), 'updated_at', 'record_key'
+  sort_order: 'desc'       // 'desc' (défaut) ou 'asc'
+});
+
+// Filtrer par préfixe
+const weekScores = await ezgalaxy.app.list('leaderboard', { prefix: 'week-07-' });
+```
+
+### `ezgalaxy.app.clear(collection)`
+
+Supprime TOUS les enregistrements app-level d'une collection.
+
+```js
+await ezgalaxy.app.clear('leaderboard');
+```
+
+### `ezgalaxy.app.count(collection)`
+
+Compte les enregistrements app-level d'une collection.
+
+```js
+const { count } = await ezgalaxy.app.count('leaderboard');
+console.log(`${count} entrées au classement`);
+```
+
+### `ezgalaxy.app.getOrDefault(collection, key, defaultData)`
+
+Lit ou crée avec des valeurs par défaut.
+
+```js
+const config = await ezgalaxy.app.getOrDefault('config', 'settings', {
+  maxPlayers: 100,
+  gameMode: 'classic'
+});
+```
+
+---
+
 ## Exemples concrets
 
 ### Jeu avec sauvegarde de score
@@ -232,30 +338,59 @@ console.log(user.id);   // UUID du visiteur ou ID utilisateur
 </script>
 ```
 
-### Tableau des scores (leaderboard personnel)
+### Classement global (leaderboard multi-joueurs)
 
 ```html
 <script src="/api/ezgalaxy-sdk.js"></script>
 <script>
-  async function ajouterScore(mode, score) {
-    const key = 'score-' + Date.now();
-    await ezgalaxy.storage.set('leaderboard', key, {
-      mode: mode,
+  // Quand un joueur termine une partie, son score est sauvegardé
+  // dans l'espace partagé de l'app (visible par tous)
+  async function sauvegarderScore(pseudo, score) {
+    // Utiliser le pseudo comme clé → chaque joueur n'a qu'une entrée
+    await ezgalaxy.app.set('leaderboard', 'player-' + pseudo, {
+      pseudo: pseudo,
       score: score,
       date: new Date().toISOString()
     });
   }
 
-  async function afficherScores() {
-    const result = await ezgalaxy.storage.list('leaderboard', { limit: 100 });
+  // Mettre à jour le score d'un joueur existant
+  async function mettreAJourScore(pseudo, nouveauScore) {
+    await ezgalaxy.app.update('leaderboard', 'player-' + pseudo, {
+      score: nouveauScore,
+      date: new Date().toISOString()
+    });
+  }
+
+  // Afficher le classement complet
+  async function afficherClassement() {
+    const result = await ezgalaxy.app.list('leaderboard', { limit: 100 });
     const scores = result.items
       .map(item => item.data)
       .sort((a, b) => b.score - a.score);
 
-    scores.forEach(s => {
-      console.log(`${s.mode}: ${s.score} pts (${s.date})`);
+    const ol = document.getElementById('classement');
+    ol.innerHTML = '';
+    scores.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.textContent = `${i + 1}. ${s.pseudo} — ${s.score} pts`;
+      ol.appendChild(li);
     });
   }
+
+  // Nombre total de joueurs
+  async function nombreJoueurs() {
+    const { count } = await ezgalaxy.app.count('leaderboard');
+    document.getElementById('nb-joueurs').textContent = count + ' joueurs';
+  }
+
+  // Supprimer un joueur du classement
+  async function supprimerJoueur(pseudo) {
+    await ezgalaxy.app.delete('leaderboard', 'player-' + pseudo);
+  }
+
+  afficherClassement();
+  nombreJoueurs();
 </script>
 ```
 
@@ -325,14 +460,22 @@ Ils sont normalement appelés par le bridge PageViewer, pas directement par les 
 
 | Méthode | URL | Description |
 |---------|-----|-------------|
-| `GET` | `/api/app-storage/{ext}/{col}` | Lister les records |
-| `GET` | `/api/app-storage/{ext}/{col}/{key}` | Lire un record |
+| `GET` | `/api/app-storage/{ext}/{col}` | Lister mes records |
+| `GET` | `/api/app-storage/{ext}/{col}/{key}` | Lire un de mes records |
 | `PUT` | `/api/app-storage/{ext}/{col}/{key}` | Créer/remplacer |
 | `PATCH` | `/api/app-storage/{ext}/{col}/{key}` | Mise à jour partielle |
 | `DELETE` | `/api/app-storage/{ext}/{col}/{key}` | Supprimer un record |
 | `DELETE` | `/api/app-storage/{ext}/{col}` | Vider une collection |
-| `GET` | `/api/app-storage/{ext}/{col}/count` | Compter les records |
+| `GET` | `/api/app-storage/{ext}/{col}/count` | Compter mes records |
 | `GET` | `/api/app-storage/info` | Info utilisateur |
+| | | **Données partagées de l'app** |
+| `GET` | `/api/app-storage/@app/{ext}/{col}` | Lister les records app |
+| `GET` | `/api/app-storage/@app/{ext}/{col}/{key}` | Lire un record app |
+| `PUT` | `/api/app-storage/@app/{ext}/{col}/{key}` | Créer/remplacer un record app |
+| `PATCH` | `/api/app-storage/@app/{ext}/{col}/{key}` | Mise à jour partielle app |
+| `DELETE` | `/api/app-storage/@app/{ext}/{col}/{key}` | Supprimer un record app |
+| `DELETE` | `/api/app-storage/@app/{ext}/{col}` | Vider une collection app |
+| `GET` | `/api/app-storage/@app/{ext}/{col}/count` | Compter les records app |
 
 **Auth :** Token Sanctum (`Authorization: Bearer ...`) OU UUID visiteur (`X-Visitor-UUID: ...`).
 
@@ -385,6 +528,10 @@ Ils sont normalement appelés par le bridge PageViewer, pas directement par les 
 - L'iframe sandbox (`allow-scripts` sans `allow-same-origin`) n'a pas accès aux cookies/tokens
 - Le bridge dans la page parent a accès à l'authentification
 - Les données sont isolées par extension : une app ne peut pas accéder aux données d'une autre
+
+**Deux espaces de stockage :**
+- `ezgalaxy.storage.*` → données **privées** (isolées par `owner_type` + `owner_id`)
+- `ezgalaxy.app.*` → données **partagées** de l'app (stockées avec `owner_type='app'`)
 
 ---
 
@@ -442,13 +589,18 @@ Oui. Les données sont stockées en base de données (MySQL/SQLite).
 Oui, tant qu'il utilise le même navigateur (l'UUID visiteur est stocké dans le localStorage du parent).
 
 **Q: Une app peut-elle lire les données d'une autre app ?**
-Non. Le bridge force l'`extension_id` à celui de l'app chargée.
+Non. Le bridge force l'`extension_id` à celui de l'app chargée. Chaque app est isolée.
 
 **Q: Quelle est la taille max des données ?**
 16 Ko par enregistrement (configurable). Pour stocker plus, découpez en plusieurs clés.
 
 **Q: Les données sont-elles partagées entre utilisateurs ?**
-Non. Chaque visiteur/utilisateur ne voit que ses propres données.
+Il y a deux espaces de stockage :
+- `ezgalaxy.storage.*` — **privé**, chaque utilisateur ne voit que ses propres données.
+- `ezgalaxy.app.*` — **partagé**, toute personne utilisant l'app peut lire et écrire dans cet espace. Idéal pour les classements, config partagée, etc.
+
+**Q: Une app peut-elle lire les données privées d'un autre utilisateur ?**
+Non. Les données `storage.*` restent strictement isolées par utilisateur. Seul l'espace `app.*` est partagé.
 
 **Q: Comment tester en local sans serveur EZGalaxy ?**
 Ouvrez directement votre `index.html` dans un navigateur. Le SDK utilise `localStorage` automatiquement.
