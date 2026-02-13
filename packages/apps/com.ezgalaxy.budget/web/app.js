@@ -210,7 +210,7 @@
 
   function markUpdated() {
     App.budget.meta.updatedAt = new Date().toISOString();
-    if (App.cloudEnabled && App.token) {
+    if (App.cloudEnabled) {
       scheduleCloudSave();
     }
   }
@@ -747,21 +747,6 @@
   // Community Data API
   // ------------------------------
 
-  async function cloudLogin(email, password) {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`Login failed (${res.status}): ${txt || res.statusText}`);
-    }
-    const data = await res.json();
-    if (!data || !data.token) throw new Error('Login response missing token');
-    return data.token;
-  }
-
   function packForCloud(budget) {
     if (!window.LZString) {
       throw new Error('Compression indisponible (LZString non chargé).');
@@ -800,30 +785,12 @@
     return obj;
   }
 
-  async function communityFetch(path, { method = 'GET', body = null } = {}) {
-    if (!App.token) throw new Error('Not authenticated (token missing)');
-    const headers = { 'Authorization': `Bearer ${App.token}` };
-    let payload;
-    if (body !== null) {
-      headers['Content-Type'] = 'application/json';
-      payload = JSON.stringify(body);
-    }
-    const res = await fetch(path, { method, headers, body: payload });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      const err = new Error(`API ${method} ${path} failed (${res.status}): ${txt || res.statusText}`);
-      err.status = res.status;
-      throw err;
-    }
-    return res.json().catch(() => ({}));
-  }
-
   async function cloudLoad() {
     App.cloudBusy = true;
     render();
     try {
-      const url = `/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(COMMUNITY_COLLECTION)}/${encodeURIComponent(COMMUNITY_RECORD_KEY)}`;
-      const record = await communityFetch(url);
+      const record = await ezgalaxy.storage.get(COMMUNITY_COLLECTION, COMMUNITY_RECORD_KEY);
+      if (!record) throw new Error('Aucune donnée cloud trouvée');
       const loaded = unpackFromCloud(record.data);
       App.budget = loaded;
       App.cloudLastSyncAt = new Date().toISOString();
@@ -843,17 +810,11 @@
 
   async function cloudSave() {
     if (!App.cloudEnabled) return;
-    if (!App.token) {
-      toast('warning', 'Cloud', 'Token manquant (connectez-vous).');
-      return;
-    }
 
     App.cloudBusy = true;
     render();
     try {
-      const url = `/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(COMMUNITY_COLLECTION)}/${encodeURIComponent(COMMUNITY_RECORD_KEY)}`;
-      const body = { data: packForCloud(App.budget) };
-      await communityFetch(url, { method: 'PUT', body });
+      await ezgalaxy.storage.set(COMMUNITY_COLLECTION, COMMUNITY_RECORD_KEY, packForCloud(App.budget));
       App.cloudLastSyncAt = new Date().toISOString();
       App.cloudLastError = null;
       toast('success', 'Cloud', 'Sauvegarde cloud OK.');
@@ -2016,38 +1977,33 @@
           <h3>Mode & Sécurité</h3>
           <div class="ez-muted">
             Par défaut, rien n’est sauvegardé en cloud. La sauvegarde cloud est un opt-in explicite.
-            Le token EZGalaxy est conservé en mémoire uniquement (perdu au refresh).
+            Le SDK EZGalaxy gère l'authentification automatiquement.
           </div>
         </div>
 
         <div class="card" style="grid-column: span 6;">
-          <h3>Sauvegarde cloud (Community Data API)</h3>
+          <h3>Sauvegarde cloud (EZGalaxy SDK)</h3>
           <div style="display:flex; gap: 10px; flex-wrap: wrap; align-items: center;">
             <button class="btn ${App.cloudEnabled ? 'primary' : ''}" data-act="toggleCloud">${App.cloudEnabled ? 'Cloud activé' : 'Activer cloud'}</button>
             <span class="badge">${App.cloudBusy ? '…' : (App.cloudLastSyncAt ? `Sync: ${escapeHtml(App.cloudLastSyncAt)}` : 'Pas de sync')}</span>
           </div>
           <div class="ez-hr"></div>
 
-          <div class="field" style="margin: 8px 0;"><label>Email</label><input data-login="email" placeholder="email" /></div>
-          <div class="field" style="margin: 8px 0;"><label>Mot de passe</label><input type="password" data-login="password" placeholder="••••••" /></div>
           <div style="display:flex; gap: 10px; flex-wrap: wrap;">
-            <button class="btn primary" data-act="login">Se connecter</button>
-            <button class="btn" data-act="forgetToken">Oublier token</button>
             <button class="btn" data-act="cloudLoad">Charger</button>
             <button class="btn" data-act="cloudSave">Sauvegarder</button>
           </div>
           ${App.cloudLastError ? `<div class="ez-hr"></div><div class="ez-muted">Erreur: ${escapeHtml(App.cloudLastError)}</div>` : ''}
           <div class="ez-hr"></div>
           <details>
-            <summary class="ez-muted">Documentation API (Community Data)</summary>
+            <summary class="ez-muted">Documentation API (EZGalaxy SDK)</summary>
             <div class="ez-muted" style="margin-top:8px;">
-              <div><span class="ez-code">POST /api/auth/login</span> → { token }</div>
-              <div><span class="ez-code">GET /api/community/${EXTENSION_ID}/${COMMUNITY_COLLECTION}</span></div>
-              <div><span class="ez-code">GET /api/community/${EXTENSION_ID}/${COMMUNITY_COLLECTION}/${COMMUNITY_RECORD_KEY}</span></div>
-              <div><span class="ez-code">PUT /api/community/${EXTENSION_ID}/${COMMUNITY_COLLECTION}/${COMMUNITY_RECORD_KEY}</span> body: { data: {...} }</div>
-              <div><span class="ez-code">DELETE /api/community/${EXTENSION_ID}/${COMMUNITY_COLLECTION}/${COMMUNITY_RECORD_KEY}</span></div>
-              <div style="margin-top:8px;">Headers: <span class="ez-code">Authorization: Bearer &lt;SANCTUM_TOKEN&gt;</span></div>
-              <div style="margin-top:8px;">Limites typiques: 16KB JSON, throttle 120 req/min/token (voir doc instance).</div>
+              <div><span class="ez-code">ezgalaxy.storage.get(collection, key)</span> → record | null</div>
+              <div><span class="ez-code">ezgalaxy.storage.set(collection, key, data)</span> → créer/remplacer</div>
+              <div><span class="ez-code">ezgalaxy.storage.delete(collection, key)</span> → supprimer</div>
+              <div><span class="ez-code">ezgalaxy.storage.list(collection, options?)</span> → { total, items }</div>
+              <div style="margin-top:8px;">SDK : <span class="ez-code">&lt;script src="/api/ezgalaxy-sdk.js"&gt;&lt;/script&gt;</span></div>
+              <div style="margin-top:8px;">Limites typiques: 16KB JSON, throttle 120 req/min (voir doc instance).</div>
             </div>
           </details>
         </div>
@@ -2190,24 +2146,6 @@
     if (act === 'toggleCloud') {
       App.cloudEnabled = !App.cloudEnabled;
       toast('success', 'Cloud', App.cloudEnabled ? 'Cloud activé (opt-in).' : 'Cloud désactivé.');
-      render();
-      return;
-    }
-
-    if (act === 'login') {
-      const email = $('[data-login="email"]', root).value;
-      const password = $('[data-login="password"]', root).value;
-      if (!email || !password) throw new Error('Email/mot de passe requis');
-      const token = await cloudLogin(email, password);
-      App.token = token;
-      toast('success', 'Auth', 'Token récupéré (mémoire seulement).');
-      render();
-      return;
-    }
-
-    if (act === 'forgetToken') {
-      App.token = null;
-      toast('warning', 'Auth', 'Token oublié (mémoire).');
       render();
       return;
     }

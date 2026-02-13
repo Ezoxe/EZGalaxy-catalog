@@ -465,14 +465,6 @@
   }
 
   /* ── Cloud persistence ──────────────────────────────────── */
-  async function communityFetch(url, options = {}) {
-    if (!_state.auth || !_state.auth.token) throw new Error('Not authenticated');
-    const headers = { 'Authorization': 'Bearer ' + _state.auth.token, 'Content-Type': 'application/json', 'Accept': 'application/json' };
-    const res = await fetch(url, { ...options, headers });
-    if (res.status === 401) { logout(); throw new Error('Session expired'); }
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || 'Error ' + res.status); }
-    return res;
-  }
 
   async function login(email, password) {
     setState({ cloudStatus: 'syncing' }, { silent: true }); _notify();
@@ -503,9 +495,7 @@
       for (const [col, payload] of Object.entries(collections)) {
         const json = JSON.stringify(payload);
         const compressed = typeof LZString !== 'undefined' ? LZString.compressToUTF16(json) : json;
-        await communityFetch(`/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(col)}/main`, {
-          method: 'PUT', body: JSON.stringify({ data: { v: 2, compressed: typeof LZString !== 'undefined', payload: compressed, updatedAt: new Date().toISOString() } })
-        });
+        await ezgalaxy.storage.set(col, 'main', { v: 2, compressed: typeof LZString !== 'undefined', payload: compressed, updatedAt: new Date().toISOString() });
       }
       setState({ cloudStatus: 'connected' }, { silent: true }); _notify();
     } catch (e) { console.error('[Store] Cloud save failed:', e); setState({ cloudStatus: 'error' }, { silent: true }); _notify(); }
@@ -518,14 +508,15 @@
       const loaded = {};
       for (const col of ['tasks', 'collaborators', 'settings', 'history', 'metrics']) {
         try {
-          const res = await communityFetch(`/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(col)}/main`);
-          const record = await res.json(); const d = record.data;
+          const record = await ezgalaxy.storage.get(col, 'main');
+          if (!record) continue;
+          const d = record.data;
           let parsed;
           if (d && d.compressed && typeof LZString !== 'undefined') parsed = JSON.parse(LZString.decompressFromUTF16(d.payload));
           else if (d && d.payload) parsed = typeof d.payload === 'string' ? JSON.parse(d.payload) : d.payload;
           else parsed = d;
           if (parsed) Object.assign(loaded, parsed);
-        } catch (e) { if (!String(e).includes('404')) console.warn(`[Store] ${col}:`, e); }
+        } catch (e) { console.warn(`[Store] ${col}:`, e); }
       }
       const def = buildDefaultState();
       setState({

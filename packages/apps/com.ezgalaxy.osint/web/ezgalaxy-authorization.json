@@ -15,10 +15,10 @@
       "name": "communityDataApi",
       "enabled": true,
       "details": {
-        "collections": [],
-        "dataTypes": []
+        "collections": ["settings", "saved_searches", "entities", "notes"],
+        "dataTypes": ["user-settings", "search-queries", "osint-entities", "investigation-notes"]
       },
-      "justification": "TODO: Décrire les sauvegardes et données stockées via la Community Data API."
+      "justification": "Stockage des paramètres utilisateur, recherches sauvegardées, entités et notes d'investigation via le SDK ezgalaxy.storage. Données isolées par utilisateur."
     }
   ]
 }

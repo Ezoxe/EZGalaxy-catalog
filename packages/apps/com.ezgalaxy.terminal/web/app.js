@@ -5,8 +5,6 @@
   const COLLECTION_PRESETS = 'presets';
 
   const STORAGE_STATE = 'ez.term.customizer.state.v1';
-  const STORAGE_API_BASE = 'ez.community.baseUrl';
-  const STORAGE_API_TOKEN = 'ez.community.token';
 
   const $ = (id) => document.getElementById(id);
 
@@ -394,63 +392,6 @@
     const safe = cleaned.length ? cleaned : 'preset';
     const leadingSafe = safe.replace(/^[^A-Za-z0-9]+/, 'p');
     return leadingSafe.slice(0, 80);
-  }
-
-  function getApiBaseUrl() {
-    const stored = localStorage.getItem(STORAGE_API_BASE);
-    return stored || location.origin;
-  }
-
-  function getApiToken() {
-    return localStorage.getItem(STORAGE_API_TOKEN) || '';
-  }
-
-  function ensureApiToken() {
-    let token = getApiToken();
-    if (token) return token;
-
-    token = window.prompt('Token API (Authorization: Bearer ...)\n\nVous pouvez le coller ici; il sera stocké en localStorage.', '');
-    if (token && token.trim()) {
-      localStorage.setItem(STORAGE_API_TOKEN, token.trim());
-      return token.trim();
-    }
-
-    return '';
-  }
-
-  async function apiFetch(path, options = {}) {
-    const baseUrl = getApiBaseUrl().replace(/\/$/, '');
-    const url = `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
-
-    const headers = new Headers(options.headers || {});
-    headers.set('Accept', 'application/json');
-
-    const token = getApiToken();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-
-    if (options.body && !(options.body instanceof FormData)) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const res = await fetch(url, { ...options, headers });
-
-    const text = await res.text();
-    let data = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = text;
-    }
-
-    if (!res.ok) {
-      const msg = typeof data === 'object' && data && data.message ? data.message : `HTTP ${res.status}`;
-      const error = new Error(msg);
-      error.status = res.status;
-      error.data = data;
-      throw error;
-    }
-
-    return data;
   }
 
   // Interactive terminal emulator state
@@ -2009,13 +1950,7 @@
   }
 
   async function loadPresets() {
-    const token = ensureApiToken();
-    if (!token) {
-      toast('warning', 'Token manquant', 'Impossible de charger les presets sans token API.');
-      return [];
-    }
-
-    const data = await apiFetch(`/api/community/${EXTENSION_ID}/${COLLECTION_PRESETS}?limit=200&offset=0`);
+    const data = await ezgalaxy.storage.list(COLLECTION_PRESETS, { limit: 200 });
     return Array.isArray(data?.items) ? data.items : [];
   }
 
@@ -2045,20 +1980,11 @@
   }
 
   async function upsertPreset(recordKey, data) {
-    const token = ensureApiToken();
-    if (!token) throw new Error('Token manquant');
-
-    return apiFetch(`/api/community/${EXTENSION_ID}/${COLLECTION_PRESETS}/${encodeURIComponent(recordKey)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ data }),
-    });
+    return ezgalaxy.storage.set(COLLECTION_PRESETS, recordKey, data);
   }
 
   async function deletePreset(recordKey) {
-    const token = ensureApiToken();
-    if (!token) throw new Error('Token manquant');
-
-    return apiFetch(`/api/community/${EXTENSION_ID}/${COLLECTION_PRESETS}/${encodeURIComponent(recordKey)}`, { method: 'DELETE' });
+    return ezgalaxy.storage.delete(COLLECTION_PRESETS, recordKey);
   }
 
   function renderPresetsList(items, onApply, onDelete) {

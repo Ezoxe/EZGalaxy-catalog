@@ -160,29 +160,7 @@
     } catch (e) { return false; }
   }
 
-  /* ---------- Cloud — Community Data API ---------------------- */
-  async function communityFetch(url, options = {}) {
-    if (!state.auth.token) throw new Error('Non connecté');
-    const headers = {
-      'Authorization': `Bearer ${state.auth.token}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(options.headers || {})
-    };
-    const res = await fetch(url, { ...options, headers });
-    if (res.status === 401) {
-      setState({ auth: { token: null, user: null }, cloudStatus: 'disconnected' });
-      safeLS.removeItem(LS_AUTH);
-      throw new Error('Session expirée — reconnectez-vous');
-    }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const e = new Error(err.message || `Erreur ${res.status}`);
-      e.status = res.status;
-      throw e;
-    }
-    return res;
-  }
+  /* ---------- Cloud — EZGalaxy SDK Storage ---------------------- */
 
   async function login(email, password) {
     const res = await fetch('/api/auth/login', {
@@ -222,10 +200,7 @@
         ? LZString.compressToUTF16(JSON.stringify(payload))
         : JSON.stringify(payload);
 
-      await communityFetch(`/api/community/${EXTENSION_ID}/profiles/main`, {
-        method: 'PUT',
-        body: JSON.stringify({ data: { compressed: typeof LZString !== 'undefined', payload: compressed } })
-      });
+      await ezgalaxy.storage.set('profiles', 'main', { compressed: typeof LZString !== 'undefined', payload: compressed });
       setState({ cloudStatus: 'connected' });
       return true;
     } catch (e) {
@@ -237,8 +212,11 @@
   async function cloudLoad() {
     setState({ cloudStatus: 'syncing' });
     try {
-      const res = await communityFetch(`/api/community/${EXTENSION_ID}/profiles/main`);
-      const record = await res.json();
+      const record = await ezgalaxy.storage.get('profiles', 'main');
+      if (!record) {
+        setState({ cloudStatus: 'connected' });
+        return false;
+      }
       const d = record.data;
       let payload;
       if (d && d.compressed && typeof LZString !== 'undefined') {
@@ -266,11 +244,6 @@
       setState({ cloudStatus: 'connected' });
       return false;
     } catch (e) {
-      // 404 = no saved data yet (fresh account) — this is normal, not an error
-      if (e.status === 404 || (e.message && (e.message.includes('404') || e.message.toLowerCase().includes('not found')))) {
-        setState({ cloudStatus: 'connected' });
-        return false;
-      }
       setState({ cloudStatus: 'error' });
       throw e;
     }

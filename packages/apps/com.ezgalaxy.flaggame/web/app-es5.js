@@ -5,8 +5,6 @@
 
   var EXTENSION_ID = 'com.ezgalaxy.flaggame';
   var STORAGE_PSEUDO = 'ez.flaggame.pseudo';
-  var STORAGE_API_BASE = 'ez.community.baseUrl';
-  var STORAGE_API_TOKEN = 'ez.community.token';
   var STORAGE_COUNTRIES_CACHE = 'ez.flaggame.countries.cache.v1';
   var STORAGE_LOCAL_LB = 'ez.flaggame.leaderboards.local.v1';
 
@@ -136,51 +134,16 @@
     }, 3000);
   }
 
-  function xhrJson(method, url, token, body, cb) {
-    var xhr = new XMLHttpRequest();
-    try {
-      xhr.open(method, url, true);
-    } catch (e) {
-      cb(0, null, null);
-      return;
-    }
-    try {
-      xhr.setRequestHeader('Accept', 'application/json');
-      if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-      if (body) xhr.setRequestHeader('Content-Type', 'application/json');
-    } catch (e2) {
-      cb(0, null, null);
-      return;
-    }
-
-    xhr.onreadystatechange = function () {
-      if (xhr.readyState !== 4) return;
-      var status = xhr.status;
-      var json = null;
-      try { json = xhr.responseText ? JSON.parse(xhr.responseText) : null; } catch (e) { json = null; }
-      cb(status, json, xhr.responseText);
-    };
-
-    xhr.onerror = function () {
-      cb(0, null, null);
-    };
-
-    xhr.send(body ? JSON.stringify(body) : null);
-  }
-
-  function getApiConfig() {
-    var baseUrl = storageGet(STORAGE_API_BASE);
-    var token = storageGet(STORAGE_API_TOKEN);
-    return { baseUrl: baseUrl, token: token, available: !!(baseUrl && token) };
+  function sdkAvailable() {
+    return !!(window.ezgalaxy && window.ezgalaxy.storage);
   }
 
   function updateStorageStatus() {
     var el = $id('storage-status');
     if (!el) return;
-    var api = getApiConfig();
     var parts = [];
     parts.push(StorageState.persistent ? '💾 Stockage local: OK' : '💾 Stockage local: BLOQUÉ (scores non persistants)');
-    parts.push(api.available ? '☁️ Cloud: configuré' : '☁️ Cloud: non configuré');
+    parts.push(sdkAvailable() ? '☁️ Cloud: SDK disponible' : '☁️ Cloud: SDK non disponible');
     el.textContent = parts.join(' — ');
   }
 
@@ -240,24 +203,23 @@
   }
 
   function fetchLeaderboard(mode, cb) {
-    var api = getApiConfig();
     var local = getLocalLeaderboards()[mode] || [];
-    if (!api.available) return cb(local);
+    if (!sdkAvailable()) return cb(local);
 
     var recordKey = 'lb_' + mode;
-    var url = api.baseUrl + '/api/community/' + EXTENSION_ID + '/leaderboards/' + recordKey;
-    xhrJson('GET', url, api.token, null, function (status, json) {
-      if (status !== 200 || !json) return cb(local);
-      var items = json.data && json.data.items ? json.data.items : [];
+    ezgalaxy.storage.get('leaderboards', recordKey).then(function (record) {
+      if (!record) return cb(local);
+      var items = record.data && record.data.items ? record.data.items : [];
       cb(sanitizeLeaderboard(items));
+    }).catch(function () {
+      cb(local);
     });
   }
 
   function saveScore(mode, pseudo, score, cb) {
     var localRes = saveLocalScore(mode, pseudo, score);
 
-    var api = getApiConfig();
-    if (!api.available) {
+    if (!sdkAvailable()) {
       if (!StorageState.persistent && !StorageState.warned) {
         StorageState.warned = true;
         toast('error', 'Stockage local bloqué: score non persistant');
@@ -268,11 +230,10 @@
     }
 
     var recordKey = 'lb_' + mode;
-    var url = api.baseUrl + '/api/community/' + EXTENSION_ID + '/leaderboards/' + recordKey;
 
-    xhrJson('GET', url, api.token, null, function (status, json) {
+    ezgalaxy.storage.get('leaderboards', recordKey).then(function (record) {
       var items = [];
-      if (status === 200 && json && json.data && json.data.items) items = json.data.items;
+      if (record && record.data && record.data.items) items = record.data.items;
       var merged = sanitizeLeaderboard(items);
 
       var existingCloudScore = 0;
@@ -292,15 +253,16 @@
       next.sort(function (a, b) { return b.score - a.score; });
       next = next.slice(0, 10);
 
-      xhrJson('PUT', url, api.token, { data: { items: next } }, function (status2) {
-        if (status2 === 200 || status2 === 201) {
-          toast('success', 'Score enregistré (cloud)');
-          cb({ api: true, local: true, isNew: localRes.isNew || (bestCloud > existingCloudScore), best: Math.max(localRes.best, bestCloud) });
-        } else {
-          toast('error', 'Cloud KO (local OK)');
-          cb({ api: false, local: true, isNew: localRes.isNew, best: localRes.best });
-        }
+      ezgalaxy.storage.set('leaderboards', recordKey, { items: next }).then(function () {
+        toast('success', 'Score enregistré (cloud)');
+        cb({ api: true, local: true, isNew: localRes.isNew || (bestCloud > existingCloudScore), best: Math.max(localRes.best, bestCloud) });
+      }).catch(function () {
+        toast('error', 'Cloud KO (local OK)');
+        cb({ api: false, local: true, isNew: localRes.isNew, best: localRes.best });
       });
+    }).catch(function () {
+      toast('error', 'Cloud KO (local OK)');
+      cb({ api: false, local: true, isNew: localRes.isNew, best: localRes.best });
     });
   }
 

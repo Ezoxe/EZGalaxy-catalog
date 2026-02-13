@@ -81,15 +81,6 @@ function logout(){
   UI.toast('Déconnecté du cloud','info');
 }
 
-async function communityFetch(url,options={}){
-  if(!state.auth.token)throw new Error('Non authentifié');
-  const headers={'Authorization':`Bearer ${state.auth.token}`,'Content-Type':'application/json','Accept':'application/json',...(options.headers||{})};
-  const res=await fetch(url,{...options,headers});
-  if(res.status===401){logout();throw new Error('Session expirée')}
-  if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.message||`Erreur ${res.status}`)}
-  return res;
-}
-
 /* ── Project CRUD ── */
 function newProject(name='Sans titre',mode='2d'){
   const id='proj_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
@@ -159,13 +150,11 @@ function loadProjectsList(){
 /* ── Cloud Sync ── */
 async function saveProjectCloud(project){
   if(!project)project=state.currentProject;
-  if(!project||!state.auth.token)return false;
+  if(!project)return false;
   setState({auth:{...state.auth,status:'syncing'}});
   try{
     const compressed=LZString.compressToUTF16(JSON.stringify(project));
-    await communityFetch(`/api/community/${EXTENSION_ID}/projects/${project.id}`,{
-      method:'PUT',body:JSON.stringify({data:{compressed:true,payload:compressed,name:project.name,mode:project.mode,updatedAt:project.updatedAt}})
-    });
+    await ezgalaxy.storage.set('projects', project.id, {compressed:true,payload:compressed,name:project.name,mode:project.mode,updatedAt:project.updatedAt});
     setState({auth:{...state.auth,status:'connected'}});
     UI.toast('Projet sauvegardé dans le cloud','success');
     return true;
@@ -176,11 +165,10 @@ async function saveProjectCloud(project){
 }
 
 async function loadProjectCloud(id){
-  if(!state.auth.token)return null;
   try{
-    const res=await communityFetch(`/api/community/${EXTENSION_ID}/projects/${id}`);
-    const record=await res.json();
-    const data=record.data||record;
+    const record=await ezgalaxy.storage.get('projects', id);
+    if(!record)return null;
+    const data=record.data;
     let project;
     if(data.compressed&&data.payload){
       const json=LZString.decompressFromUTF16(data.payload);
@@ -193,17 +181,14 @@ async function loadProjectCloud(id){
 }
 
 async function listProjectsCloud(){
-  if(!state.auth.token)return[];
   try{
-    const res=await communityFetch(`/api/community/${EXTENSION_ID}/projects?limit=50`);
-    const data=await res.json();
-    return(data.data||data||[]).map(r=>({id:r.record_key||r.id,name:r.data?.name||'Sans titre',mode:r.data?.mode||'2d',updatedAt:r.data?.updatedAt||r.updated_at,cloud:true}));
+    const data=await ezgalaxy.storage.list('projects', {limit:50});
+    return(data.items||[]).map(r=>({id:r.record_key||r.id,name:r.data?.name||'Sans titre',mode:r.data?.mode||'2d',updatedAt:r.data?.updatedAt||r.updated_at,cloud:true}));
   }catch(e){return[]}
 }
 
 async function deleteProjectCloud(id){
-  if(!state.auth.token)return;
-  try{await communityFetch(`/api/community/${EXTENSION_ID}/projects/${id}`,{method:'DELETE'})}catch(e){}
+  try{await ezgalaxy.storage.delete('projects', id)}catch(e){}
 }
 
 /* ── Settings persistence ── */
@@ -220,7 +205,7 @@ function startAutoSave(){
   _autoSaveTimer=setInterval(()=>{
     if(state.currentProject){
       saveProjectLocal(state.currentProject);
-      if(state.auth.token)saveProjectCloud(state.currentProject);
+      saveProjectCloud(state.currentProject);
     }
   },AUTO_SAVE_INTERVAL);
 }

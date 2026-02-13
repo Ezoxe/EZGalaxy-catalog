@@ -126,34 +126,23 @@
   }
 
   async function communityList(collection, { limit = 200, offset = 0, prefix = '' } = {}) {
-    const qp = new URLSearchParams();
-    qp.set('limit', String(clamp(limit, 1, 200)));
-    qp.set('offset', String(Math.max(0, offset)));
-    if (prefix) qp.set('prefix', prefix);
-    return apiFetchJson(`/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(collection)}?${qp.toString()}`);
+    return ezgalaxy.storage.list(collection, { limit, offset, prefix: prefix || undefined });
   }
 
   async function communityGet(collection, recordKey) {
-    return apiFetchJson(`/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(collection)}/${encodeURIComponent(recordKey)}`);
+    return ezgalaxy.storage.get(collection, recordKey);
   }
 
   async function communityPut(collection, recordKey, data) {
-    return apiFetchJson(`/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(collection)}/${encodeURIComponent(recordKey)}`,
-      {
-        method: 'PUT',
-        body: { data }
-      }
-    );
+    return ezgalaxy.storage.set(collection, recordKey, data);
   }
 
   async function communityDelete(collection, recordKey) {
-    return apiFetchJson(`/api/community/${encodeURIComponent(EXTENSION_ID)}/${encodeURIComponent(collection)}/${encodeURIComponent(recordKey)}`,
-      { method: 'DELETE' }
-    );
+    return ezgalaxy.storage.delete(collection, recordKey);
   }
 
   async function loadSettingsFromCloud() {
-    if (!App.cloudEnabled || !App.token) return;
+    if (!App.cloudEnabled) return;
 
     try {
       const rec = await communityGet('settings', 'profile');
@@ -185,7 +174,7 @@
   }
 
   async function saveSettingsToCloud() {
-    if (!App.cloudEnabled || !App.token) return;
+    if (!App.cloudEnabled) return;
     const data = {
       schemaVersion: 1,
       ui: {
@@ -213,7 +202,7 @@
   }
 
   async function refreshSavedLists() {
-    if (!App.cloudEnabled || !App.token) return;
+    if (!App.cloudEnabled) return;
 
     try {
       const searches = await communityList('saved_searches', { limit: 200, offset: 0 });

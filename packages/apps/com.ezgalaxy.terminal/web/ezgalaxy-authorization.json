@@ -15,10 +15,10 @@
       "name": "communityDataApi",
       "enabled": true,
       "details": {
-        "collections": [],
-        "dataTypes": []
+        "collections": ["presets"],
+        "dataTypes": ["terminal-preset", "theme", "custom-commands"]
       },
-      "justification": "TODO: Décrire les presets/thèmes stockés via la Community Data API."
+      "justification": "Stockage des presets personnalisés du terminal (thèmes, commandes, configurations) via le SDK ezgalaxy.storage. Chaque preset est un enregistrement individuel dans la collection."
     }
   ]
 }

@@ -18,10 +18,10 @@
       "name": "communityDataApi",
       "enabled": true,
       "details": {
-        "collections": [],
-        "dataTypes": []
+        "collections": ["leaderboards"],
+        "dataTypes": ["player-score", "game-mode", "difficulty"]
       },
-      "justification": "TODO: Décrire les données de classement stockées via la Community Data API."
+      "justification": "Stockage des classements (leaderboards) par mode de jeu et difficulté via le SDK ezgalaxy.storage. Chaque entrée contient le pseudo, le score et le temps du joueur."
     }
   ]
 }

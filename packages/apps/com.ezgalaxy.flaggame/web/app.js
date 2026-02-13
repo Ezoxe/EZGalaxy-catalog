@@ -4,8 +4,6 @@
   // ===== Configuration =====
   const EXTENSION_ID = 'com.ezgalaxy.flaggame';
   const STORAGE_PSEUDO = 'ez.flaggame.pseudo';
-  const STORAGE_API_BASE = 'ez.community.baseUrl';
-  const STORAGE_API_TOKEN = 'ez.community.token';
   const STORAGE_COUNTRIES_CACHE = 'ez.flaggame.countries.cache.v1';
   const STORAGE_LOCAL_LB = 'ez.flaggame.leaderboards.local.v1';
   const FLAG_CDN = 'https://flagcdn.com/256x192';
@@ -422,10 +420,8 @@
   };
 
   // ===== API Functions =====
-  function getApiConfig() {
-    const baseUrl = localStorage.getItem(STORAGE_API_BASE);
-    const token = localStorage.getItem(STORAGE_API_TOKEN);
-    return { baseUrl, token, available: !!(baseUrl && token) };
+  function sdkAvailable() {
+    return !!(window.ezgalaxy && window.ezgalaxy.storage);
   }
 
   function getLocalLeaderboards() {
@@ -473,19 +469,14 @@
   }
 
   async function fetchLeaderboard(mode) {
-    const { baseUrl, token, available } = getApiConfig();
     const local = getLocalLeaderboards()[mode] || [];
-    if (!available) return local;
+    if (!sdkAvailable()) return local;
 
     try {
       const recordKey = `lb_${mode}`;
-      const res = await fetch(`${baseUrl}/api/community/${EXTENSION_ID}/leaderboards/${recordKey}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.status === 404) return local;
-      if (!res.ok) return local;
-      const data = await res.json();
-      const items = data && data.data && Array.isArray(data.data.items) ? data.data.items : [];
+      const record = await ezgalaxy.storage.get('leaderboards', recordKey);
+      if (!record) return local;
+      const items = record.data && Array.isArray(record.data.items) ? record.data.items : [];
       return sanitizeLeaderboardItems(items);
     } catch (e) {
       console.warn('Failed to fetch leaderboard:', e);
@@ -494,11 +485,10 @@
   }
 
   async function saveScore(mode, pseudo, score) {
-    const { baseUrl, token, available } = getApiConfig();
     // Always save locally so it works offline.
     const localResult = saveLocalScore(mode, pseudo, score);
 
-    if (!available) {
+    if (!sdkAvailable()) {
       toast('info', 'Score sauvegardé localement');
       return { local: true, api: false, leaderboard: localResult.leaderboard, best: localResult.best, isNew: localResult.isNew };
     }
@@ -507,14 +497,10 @@
       const recordKey = `lb_${mode}`;
       // Read existing leaderboard record
       let items = [];
-      const existingRes = await fetch(
-        `${baseUrl}/api/community/${EXTENSION_ID}/leaderboards/${recordKey}`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
+      const existing = await ezgalaxy.storage.get('leaderboards', recordKey);
 
-      if (existingRes.ok) {
-        const existing = await existingRes.json();
-        items = existing && existing.data && Array.isArray(existing.data.items) ? existing.data.items : [];
+      if (existing) {
+        items = existing.data && Array.isArray(existing.data.items) ? existing.data.items : [];
       }
 
       // Merge/update best score per pseudo
@@ -527,16 +513,7 @@
       withoutPseudo.sort((a, b) => b.score - a.score);
       const next = withoutPseudo.slice(0, 10);
 
-      await fetch(`${baseUrl}/api/community/${EXTENSION_ID}/leaderboards/${recordKey}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          data: { items: next }
-        })
-      });
+      await ezgalaxy.storage.set('leaderboards', recordKey, { items: next });
 
       toast('success', 'Score sauvegardé (cloud)');
       return { local: true, api: true, leaderboard: next, best: localResult.best, isNew: localResult.isNew || (!existingCloud || bestCloudScore > existingCloud.score) };

@@ -15,10 +15,10 @@
       "name": "communityDataApi",
       "enabled": true,
       "details": {
-        "collections": [],
-        "dataTypes": []
+        "collections": ["budget"],
+        "dataTypes": ["accounts", "transactions", "categories", "user-preferences"]
       },
-      "justification": "TODO: Décrire quelles données sont lues/écrites via la Community Data API."
+      "justification": "Sauvegarde et restauration du budget personnel de l'utilisateur (comptes, transactions, catégories, préférences) via le SDK ezgalaxy.storage. Données compressées avec LZString avant envoi."
     }
   ]
 }
