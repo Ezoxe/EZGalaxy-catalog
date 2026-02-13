@@ -135,7 +135,7 @@
   }
 
   function sdkAvailable() {
-    return !!(window.ezgalaxy && window.ezgalaxy.storage);
+    return !!(window.ezgalaxy && window.ezgalaxy.app);
   }
 
   function updateStorageStatus() {
@@ -207,7 +207,7 @@
     if (!sdkAvailable()) return cb(local);
 
     var recordKey = 'lb_' + mode;
-    ezgalaxy.storage.get('leaderboards', recordKey).then(function (record) {
+    ezgalaxy.app.get('leaderboards', recordKey).then(function (record) {
       if (!record) return cb(local);
       var items = record.data && record.data.items ? record.data.items : [];
       cb(sanitizeLeaderboard(items));
@@ -231,7 +231,7 @@
 
     var recordKey = 'lb_' + mode;
 
-    ezgalaxy.storage.get('leaderboards', recordKey).then(function (record) {
+    ezgalaxy.app.get('leaderboards', recordKey).then(function (record) {
       var items = [];
       if (record && record.data && record.data.items) items = record.data.items;
       var merged = sanitizeLeaderboard(items);
@@ -253,7 +253,7 @@
       next.sort(function (a, b) { return b.score - a.score; });
       next = next.slice(0, 10);
 
-      ezgalaxy.storage.set('leaderboards', recordKey, { items: next }).then(function () {
+      ezgalaxy.app.set('leaderboards', recordKey, { items: next }).then(function () {
         toast('success', 'Score enregistré (cloud)');
         cb({ api: true, local: true, isNew: localRes.isNew || (bestCloud > existingCloudScore), best: Math.max(localRes.best, bestCloud) });
       }).catch(function () {

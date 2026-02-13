@@ -421,7 +421,7 @@
 
   // ===== API Functions =====
   function sdkAvailable() {
-    return !!(window.ezgalaxy && window.ezgalaxy.storage);
+    return !!(window.ezgalaxy && window.ezgalaxy.app);
   }
 
   function getLocalLeaderboards() {
@@ -474,7 +474,7 @@
 
     try {
       const recordKey = `lb_${mode}`;
-      const record = await ezgalaxy.storage.get('leaderboards', recordKey);
+      const record = await ezgalaxy.app.get('leaderboards', recordKey);
       if (!record) return local;
       const items = record.data && Array.isArray(record.data.items) ? record.data.items : [];
       return sanitizeLeaderboardItems(items);
@@ -497,7 +497,7 @@
       const recordKey = `lb_${mode}`;
       // Read existing leaderboard record
       let items = [];
-      const existing = await ezgalaxy.storage.get('leaderboards', recordKey);
+      const existing = await ezgalaxy.app.get('leaderboards', recordKey);
 
       if (existing) {
         items = existing.data && Array.isArray(existing.data.items) ? existing.data.items : [];
@@ -513,7 +513,7 @@
       withoutPseudo.sort((a, b) => b.score - a.score);
       const next = withoutPseudo.slice(0, 10);
 
-      await ezgalaxy.storage.set('leaderboards', recordKey, { items: next });
+      await ezgalaxy.app.set('leaderboards', recordKey, { items: next });
 
       toast('success', 'Score sauvegardé (cloud)');
       return { local: true, api: true, leaderboard: next, best: localResult.best, isNew: localResult.isNew || (!existingCloud || bestCloudScore > existingCloud.score) };

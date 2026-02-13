@@ -1,6 +1,6 @@
 /* ================================================================
    FinVest — store.js  (State Management & Persistence)
-   Pub/sub store + Cloud sync via Community Data API + localStorage
+   Pub/sub store + Cloud sync via EZGalaxy SDK Storage + localStorage
    Exposes: window.Store
    ================================================================ */
 (() => {

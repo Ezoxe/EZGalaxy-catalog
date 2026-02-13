@@ -9,7 +9,7 @@
       "details": {
         "allowedOrigins": ["api.rss2json.com", "news.google.com"]
       },
-      "justification": "Appels réseau vers same-origin EZGalaxy (/api/auth/login, /api/community/...) pour authentification et Community Data API. Accès externe à api.rss2json.com (proxy RSS→JSON) et news.google.com (flux RSS) pour le fil d'actualité financière personnalisé."
+      "justification": "Appels réseau vers same-origin EZGalaxy (/api/auth/login, /api/app-storage/...) pour authentification et SDK ezgalaxy.storage. Accès externe à api.rss2json.com (proxy RSS→JSON) et news.google.com (flux RSS) pour le fil d'actualité financière personnalisé."
     },
     {
       "name": "communityDataApi",

@@ -892,7 +892,7 @@
 
         <div class="card" style="grid-column: span 6;">
           <h3>Notes</h3>
-          <div class="small">Les notes sont sauvées via Community Data API (opt-in). Sans cloud activé, elles ne sont pas persistées.</div>
+          <div class="small">Les notes sont sauvées via le SDK EZGalaxy (opt-in). Sans cloud activé, elles ne sont pas persistées.</div>
           <div class="field" style="margin-top: 10px;">
             <label>Texte</label>
             <textarea id="note" placeholder="Observations, hypothèses, liens…">${escapeHtml(note)}</textarea>
@@ -1071,7 +1071,7 @@
             </div>
 
             <div>
-              <div style="font-weight: 900;">Cloud (Community Data API)</div>
+              <div style="font-weight: 900;">Cloud (EZGalaxy SDK)</div>
               <div class="small" style="margin-top: 6px;">Sauvegarde des réglages, recherches, entités et notes — isolée par utilisateur.</div>
               <div style="margin-top: 10px; display:flex; gap: 10px; flex-wrap: wrap;">
                 <button class="btn ${cloud ? 'primary' : ''}" id="toggle-cloud" ${App.token ? '' : 'disabled'}>${cloud ? 'Cloud: ON' : 'Cloud: OFF'}</button>

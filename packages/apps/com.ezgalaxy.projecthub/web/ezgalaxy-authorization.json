@@ -9,7 +9,7 @@
       "details": {
         "allowedOrigins": []
       },
-      "justification": "Autorise les appels réseau vers les endpoints same-origin d'EZGalaxy (/api/community/...) pour la persistance des données du dashboard (tâches, collaborateurs, métriques)."
+      "justification": "Autorise les appels réseau vers les endpoints same-origin d'EZGalaxy (/api/app-storage/..., /api/auth/...) pour la persistance des données du dashboard via le SDK ezgalaxy.storage."
     },
     {
       "name": "communityDataApi",

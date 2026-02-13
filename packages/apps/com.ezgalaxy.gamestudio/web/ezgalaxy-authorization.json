@@ -7,7 +7,7 @@
       "name": "network.outgoing",
       "enabled": true,
       "details": { "allowedOrigins": [] },
-      "justification": "Accès same-origin uniquement pour la Community Data API (sauvegarde/chargement projets)."
+      "justification": "Accès same-origin uniquement pour le SDK ezgalaxy.storage (sauvegarde/chargement projets via /api/app-storage/...)."
     },
     {
       "name": "communityDataApi",

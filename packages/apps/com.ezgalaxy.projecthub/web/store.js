@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    Project Hub — Store (State Management + Cloud Persistence)
-   v2.0.0 — Pure vanilla JS pub/sub store with Community Data API
+   v2.0.0 — Pure vanilla JS pub/sub store with EZGalaxy SDK Storage
    ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';

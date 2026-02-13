@@ -744,7 +744,7 @@
   }
 
   // ------------------------------
-  // Community Data API
+  // EZGalaxy SDK Storage
   // ------------------------------
 
   function packForCloud(budget) {

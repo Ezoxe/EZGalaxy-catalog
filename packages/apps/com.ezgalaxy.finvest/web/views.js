@@ -111,7 +111,7 @@
   function showLoginModal() {
     let emailVal = '', passVal = '';
     const m = modal({
-      title: 'Connexion — Community Data API',
+      title: 'Connexion — EZGalaxy Cloud',
       body: [
         el('p', { className: 'text-muted', textContent: 'Connectez-vous pour sauvegarder vos données sur le cloud EZGalaxy.' }),
         el('label', { className: 'form-label', textContent: 'Email' }),

@@ -1,6 +1,6 @@
 /**
  * Game Studio — State Management + Cloud Persistence
- * Pub/sub store, Community Data API, auth, LZString compression
+ * Pub/sub store, EZGalaxy SDK Storage, auth, LZString compression
  */
 (function(){'use strict';
 
@@ -51,7 +51,7 @@ function lsSet(key,val){
 }
 function lsRemove(key){try{localStorage.removeItem(LS_PREFIX+key)}catch(e){}}
 
-/* ── Auth — Community Data API ── */
+/* ── Auth — EZGalaxy SDK Storage ── */
 function loadAuth(){
   const token=localStorage.getItem(LS_TOKEN_KEY);
   const user=lsGet('auth_user_data');

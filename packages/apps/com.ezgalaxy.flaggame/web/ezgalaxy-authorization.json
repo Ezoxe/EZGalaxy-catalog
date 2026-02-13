@@ -21,7 +21,7 @@
         "collections": ["leaderboards"],
         "dataTypes": ["player-score", "game-mode", "difficulty"]
       },
-      "justification": "Stockage des classements (leaderboards) par mode de jeu et difficulté via le SDK ezgalaxy.storage. Chaque entrée contient le pseudo, le score et le temps du joueur."
+      "justification": "Stockage des classements partagés (leaderboards) par mode de jeu et difficulté via le SDK ezgalaxy.app (données visibles par tous les joueurs). Chaque entrée contient le pseudo, le score et le temps du joueur."
     }
   ]
 }
