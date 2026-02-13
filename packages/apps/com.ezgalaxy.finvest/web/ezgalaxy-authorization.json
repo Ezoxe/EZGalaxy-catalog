@@ -7,22 +7,29 @@
       "name": "network.outgoing",
       "enabled": true,
       "details": {
-        "allowedOrigins": ["api.rss2json.com", "news.google.com"]
+        "allowedOrigins": ["api.rss2json.com", "news.google.com", "finnhub.io", "www.alphavantage.co", "v6.exchangerate-api.com", "api.coingecko.com", "api.frankfurter.app"]
       },
-      "justification": "Appels réseau vers same-origin EZGalaxy (/api/auth/login, /api/app-storage/...) pour authentification et SDK ezgalaxy.storage. Accès externe à api.rss2json.com (proxy RSS→JSON) et news.google.com (flux RSS) pour le fil d'actualité financière personnalisé."
+      "justification": "Appels réseau vers same-origin EZGalaxy (/api/auth/login, /api/app-storage/...) pour authentification et SDK ezgalaxy.storage. Accès externes : api.rss2json.com (proxy RSS→JSON), news.google.com (flux RSS), finnhub.io (cours actions temps réel), alphavantage.co (historiques OHLCV et indicateurs techniques), exchangerate-api.com (taux de change), api.coingecko.com (crypto), api.frankfurter.app (taux BCE). Quota pool persisté via Community Data API pour éviter le dépassement des limites gratuites."
     },
     {
       "name": "communityDataApi",
       "enabled": true,
       "details": {
-        "collections": ["profiles", "analyses", "settings"],
+        "collections": ["profiles", "analyses", "settings", "transactions", "snapshots", "positions", "watchlist", "xp", "challenges", "api-quotas"],
         "dataTypes": [
           "profiles: profil financier complet de l'utilisateur (revenus, dépenses, patrimoine, dettes, objectifs, profil de risque)",
           "analyses: dernière analyse financière générée (scores, allocations, projections)",
-          "settings: préférences utilisateur (hypothèses, affichage)"
+          "settings: préférences utilisateur (hypothèses, affichage)",
+          "transactions: historique des transactions budgétaires (catégorie, montant, date, label)",
+          "snapshots: snapshots mensuels du patrimoine (patrimoine net, épargne, score, date)",
+          "positions: positions du portefeuille (symbole, quantité, prix d'achat moyen)",
+          "watchlist: liste de surveillance des actifs (symboles)",
+          "xp: points d'expérience gamification",
+          "challenges: défis mensuels complétés",
+          "api-quotas: pool de quotas API (compteurs d'utilisation Finnhub, Alpha Vantage, ExchangeRate-API, dates de reset)"
         ]
       },
-      "justification": "Stockage des données financières personnelles de l'utilisateur : profil investisseur, résultats d'analyse, et préférences. Données isolées par utilisateur (scope owner_user_id). Compression LZString appliquée avant envoi."
+      "justification": "Stockage des données financières personnelles de l'utilisateur : profil investisseur, résultats d'analyse, préférences, portefeuille, transactions et progression gamification. Données isolées par utilisateur (scope owner_user_id). Compression LZString appliquée avant envoi."
     },
     {
       "name": "downloads",

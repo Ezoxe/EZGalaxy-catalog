@@ -64,7 +64,17 @@
     currentView: 'overview',
     settings: { ...defaultSettings },
     auth: { token: null, user: null },
-    cloudStatus: 'disconnected' // disconnected | connected | syncing | error
+    cloudStatus: 'disconnected', // disconnected | connected | syncing | error
+    // ── New Phase-1 fields ──────────────────────────────────
+    xp: 0,
+    transactions: [],         // {id, date, amount, category, label, recurring}
+    snapshots: [],            // monthly patrimony snapshots
+    positions: [],            // portfolio positions {symbol, name, quantity, avgPrice}
+    watchlist: [],            // ticker symbols
+    completedChallenges: [],  // challenge ids
+    journalEntries: [],       // {date, text, mood}
+    notifications: [],        // {id, type, title, body, read, date}
+    onboardingDone: false
   };
 
   const listeners = [];
@@ -116,6 +126,93 @@
     return analysis;
   }
 
+  /* ---------- XP / Gamification -------------------------------- */
+  function addXP(amount, action) {
+    const newXP = (state.xp || 0) + amount;
+    setState({ xp: newXP });
+    console.log(`[Store] +${amount} XP (${action}) → total ${newXP}`);
+    return newXP;
+  }
+
+  /* ---------- Transactions ------------------------------------- */
+  function addTransaction(tx) {
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const transactions = [...(state.transactions || []), { id, date: new Date().toISOString(), ...tx }];
+    setState({ transactions });
+    addXP(5, 'transaction_added');
+    return id;
+  }
+
+  function removeTransaction(id) {
+    setState({ transactions: (state.transactions || []).filter(t => t.id !== id) });
+  }
+
+  /* ---------- Snapshots ---------------------------------------- */
+  function addSnapshot(snap) {
+    const snapshots = [...(state.snapshots || []), { date: new Date().toISOString(), ...snap }];
+    setState({ snapshots });
+    addXP(20, 'snapshot_taken');
+  }
+
+  /* ---------- Positions ---------------------------------------- */
+  function addPosition(pos) {
+    const positions = [...(state.positions || [])];
+    const existing = positions.find(p => p.symbol === pos.symbol);
+    if (existing) {
+      const totalQty = existing.quantity + pos.quantity;
+      existing.avgPrice = (existing.avgPrice * existing.quantity + pos.avgPrice * pos.quantity) / totalQty;
+      existing.quantity = totalQty;
+    } else {
+      positions.push(pos);
+    }
+    setState({ positions });
+    addXP(10, 'position_added');
+  }
+
+  function removePosition(symbol) {
+    setState({ positions: (state.positions || []).filter(p => p.symbol !== symbol) });
+  }
+
+  /* ---------- Watchlist ---------------------------------------- */
+  function toggleWatchlist(symbol) {
+    const wl = [...(state.watchlist || [])];
+    const idx = wl.indexOf(symbol);
+    if (idx >= 0) wl.splice(idx, 1);
+    else wl.push(symbol);
+    setState({ watchlist: wl });
+  }
+
+  /* ---------- Challenges --------------------------------------- */
+  function completeChallenge(challengeId) {
+    if ((state.completedChallenges || []).includes(challengeId)) return;
+    setState({ completedChallenges: [...(state.completedChallenges || []), challengeId] });
+    addXP(30, 'challenge_completed');
+  }
+
+  /* ---------- Notifications ------------------------------------ */
+  function addNotification(notif) {
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 4);
+    const notifications = [{ id, read: false, date: new Date().toISOString(), ...notif }, ...(state.notifications || [])].slice(0, 50);
+    setState({ notifications });
+  }
+
+  function markNotificationsRead() {
+    setState({ notifications: (state.notifications || []).map(n => ({ ...n, read: true })) });
+  }
+
+  /* ---------- Journal ----------------------------------------- */
+  function addJournalEntry(entry) {
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+    const journalEntries = [...(state.journalEntries || []), { id, date: new Date().toISOString(), ...entry }];
+    setState({ journalEntries });
+    addXP(10, 'journal_entry');
+    return id;
+  }
+
+  function removeJournalEntry(id) {
+    setState({ journalEntries: (state.journalEntries || []).filter(e => e.id !== id) });
+  }
+
   /* ---------- localStorage ------------------------------------ */
   function saveLocal() {
     try {
@@ -126,7 +223,16 @@
         profile: state.profile,
         analysis: state.analysis,
         currentView: state.currentView,
-        settings: state.settings
+        settings: state.settings,
+        xp: state.xp || 0,
+        transactions: state.transactions || [],
+        snapshots: state.snapshots || [],
+        positions: state.positions || [],
+        watchlist: state.watchlist || [],
+        completedChallenges: state.completedChallenges || [],
+        journalEntries: state.journalEntries || [],
+        notifications: state.notifications || [],
+        onboardingDone: state.onboardingDone || false
       };
       safeLS.setItem(LS_KEY, JSON.stringify(payload));
     } catch (e) { /* quota exceeded — silent */ }
@@ -145,7 +251,16 @@
         profile: { ...defaultProfile, ...saved.profile },
         analysis: saved.analysis || null,
         currentView: saved.currentView || 'overview',
-        settings: { ...defaultSettings, ...saved.settings }
+        settings: { ...defaultSettings, ...saved.settings },
+        xp: saved.xp || 0,
+        transactions: saved.transactions || [],
+        snapshots: saved.snapshots || [],
+        positions: saved.positions || [],
+        watchlist: saved.watchlist || [],
+        completedChallenges: saved.completedChallenges || [],
+        journalEntries: saved.journalEntries || [],
+        notifications: saved.notifications || [],
+        onboardingDone: saved.onboardingDone || false
       };
       // Restore auth token separately
       try {
@@ -194,6 +309,15 @@
         step: state.step,
         questionnaireStep: state.questionnaireStep,
         currentView: state.currentView,
+        xp: state.xp || 0,
+        transactions: state.transactions || [],
+        snapshots: state.snapshots || [],
+        positions: state.positions || [],
+        watchlist: state.watchlist || [],
+        completedChallenges: state.completedChallenges || [],
+        journalEntries: state.journalEntries || [],
+        notifications: state.notifications || [],
+        onboardingDone: state.onboardingDone || false,
         savedAt: new Date().toISOString()
       };
       const compressed = typeof LZString !== 'undefined'
@@ -234,7 +358,16 @@
           settings: { ...defaultSettings, ...(payload.settings || {}) },
           step: payload.step || (payload.analysis ? 'dashboard' : 'welcome'),
           questionnaireStep: payload.questionnaireStep || 0,
-          currentView: payload.currentView || 'overview'
+          currentView: payload.currentView || 'overview',
+          xp: payload.xp || state.xp || 0,
+          transactions: payload.transactions || state.transactions || [],
+          snapshots: payload.snapshots || state.snapshots || [],
+          positions: payload.positions || state.positions || [],
+          watchlist: payload.watchlist || state.watchlist || [],
+          completedChallenges: payload.completedChallenges || state.completedChallenges || [],
+          journalEntries: payload.journalEntries || state.journalEntries || [],
+          notifications: payload.notifications || state.notifications || [],
+          onboardingDone: payload.onboardingDone || state.onboardingDone || false
         };
         saveLocal();
         setState({ cloudStatus: 'connected' });
@@ -445,6 +578,15 @@
     login, logout,
     cloudSave, cloudLoad,
     exportJSON, importJSON,
+    // ── New Phase-1 API ────────────────────────────────────
+    addXP,
+    addTransaction, removeTransaction,
+    addSnapshot,
+    addPosition, removePosition,
+    toggleWatchlist,
+    completeChallenge,
+    addNotification, markNotificationsRead,
+    addJournalEntry, removeJournalEntry,
     init,
     defaultProfile, defaultSettings
   };

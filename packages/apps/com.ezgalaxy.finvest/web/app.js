@@ -20,7 +20,12 @@
     { key: 'radar',             label: 'Radar financier',    icon: 'shield' },
     { key: 'scorecard',         label: 'Scorecard',          icon: 'award' },
 
-    { type: 'divider', label: '🔧 Outils d\'analyse' },
+    { type: 'divider', label: '� Marchés & Investissements' },
+    { key: 'bourse',            label: 'Bourse en direct',   icon: 'trending-up', badge: 'NEW' },
+    { key: 'portefeuille',      label: 'Mon portefeuille',   icon: 'briefcase', badge: 'NEW' },
+    { key: 'immobilier',        label: 'Simulateur immo',    icon: 'home', badge: 'NEW' },
+
+    { type: 'divider', label: '�🔧 Outils d\'analyse' },
     { key: 'projections',       label: 'Projections',        icon: 'trending-up' },
     { key: 'retirement',        label: 'Retraite',           icon: 'clock' },
     { key: 'retraiteImmersive', label: 'Retraite immersive', icon: 'compass' },
@@ -74,9 +79,15 @@
     // Sidebar header
     const header = UI.el('div', { className: 'sidebar__header' }, [
       UI.el('span', { className: 'sidebar__logo', textContent: '💹' }),
-      UI.el('span', { className: 'sidebar__title', textContent: 'FinVest' })
+      UI.el('span', { className: 'sidebar__title', textContent: 'FinVest' }),
+      UI.createNotificationBell ? UI.createNotificationBell() : UI.el('span')
     ]);
     sidebar.appendChild(header);
+
+    // Search hint
+    const searchHint = UI.el('div', { className: 'sidebar__search-hint', onClick: () => { if (UI.openSearch) UI.openSearch(); } });
+    searchHint.innerHTML = '<span>🔍 Rechercher...</span><kbd>Ctrl+K</kbd>';
+    sidebar.appendChild(searchHint);
 
     // Nav links
     const nav = UI.el('nav', { className: 'sidebar__nav', id: 'sidebar-nav' });
@@ -90,7 +101,11 @@
         href: '#',
         dataset: { view: item.key },
         onClick: e => { e.preventDefault(); navigateTo(item.key); }
-      }, [UI.icon(item.icon, 18), UI.el('span', { className: 'nav-link__label', textContent: item.label })]);
+      }, [
+        UI.icon(item.icon, 18),
+        UI.el('span', { className: 'nav-link__label', textContent: item.label }),
+        ...(item.badge ? [UI.el('span', { className: 'nav-badge nav-badge--new', textContent: item.badge })] : [])
+      ]);
       nav.appendChild(link);
     }
     sidebar.appendChild(nav);
@@ -256,7 +271,41 @@
     // Subscribe to store changes for cloud indicator
     Store.subscribe(() => updateCloudIndicator());
 
-    console.log('[FinVest] Application initialized');
+    // ── Keyboard shortcuts ──────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      // Ctrl+K → Search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (UI.openSearch) UI.openSearch();
+      }
+      // Escape → close sidebar on mobile
+      if (e.key === 'Escape') {
+        const sb = document.getElementById('sidebar');
+        if (sb && sb.classList.contains('sidebar--open')) {
+          sb.classList.remove('sidebar--open');
+          sidebarCollapsed = false;
+        }
+      }
+    });
+
+    // ── Onboarding (first visit) ────────────────────────────────
+    const s = Store.getState();
+    if (!s.onboardingDone && s.step === 'dashboard' && UI.startOnboarding) {
+      setTimeout(() => {
+        UI.startOnboarding();
+        Store.setState({ onboardingDone: true });
+      }, 1500);
+    }
+
+    // ── Generate initial notifications ──────────────────────────
+    if (s.analysis && window.FinMarket) {
+      const notifs = window.FinMarket.generateNotifications(s.profile, s.analysis);
+      for (const n of notifs.slice(0, 5)) {
+        Store.addNotification(n);
+      }
+    }
+
+    console.log('[FinVest] Application initialized — Phase 1+2 enhancements loaded');
   }
 
   /* ---------- Expose globals --------------------------------- */
