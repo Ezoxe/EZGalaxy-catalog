@@ -9,12 +9,24 @@
 (() => {
   'use strict';
 
-  /* ─────────── API Keys ──────────────────────────────────────── */
+  /* ─────────── API Keys (loaded from KeyVault at runtime) ───── */
+  /* Keys are NEVER hardcoded — they are stored securely in
+     ezgalaxy.app via the admin panel (AccessControl.saveKeys).
+     See access-control.js KeyVault section. */
   const API_KEYS = {
-    finnhub:      'd67quthr01qobepj21t0d67quthr01qobepj21tg',
-    alphavantage: 'SQ28RIEJMDYB3J9E',
-    exchangerate: 'fde50d4f38a7a06ca9a313cf'
+    finnhub:      null,
+    alphavantage: null,
+    exchangerate: null
   };
+
+  /** Populate keys from vault — called during init() */
+  function loadKeysFromVault() {
+    if (typeof AccessControl !== 'undefined') {
+      API_KEYS.finnhub      = AccessControl.getKey('finnhub');
+      API_KEYS.alphavantage = AccessControl.getKey('alphavantage');
+      API_KEYS.exchangerate = AccessControl.getKey('exchangerate');
+    }
+  }
 
   /* ─────────── Endpoints ─────────────────────────────────────── */
   const BASE = {
@@ -261,6 +273,19 @@
      GENERIC FETCH WRAPPER
      ================================================================ */
   async function apiFetch(api, url, cacheKey, ttl) {
+    // 0. Access control gate
+    if (typeof AccessControl !== 'undefined') {
+      if (!AccessControl.canUseFullAPI()) {
+        // Restricted mode: 1 req/min global across all APIs
+        if (!AccessControl.canMakeRestrictedCall()) {
+          console.warn(`[FinAPI] Restricted mode — global limit reached`);
+          const lsCached = cacheLSGet(cacheKey);
+          if (lsCached) return lsCached;
+          return null;
+        }
+      }
+    }
+
     // 1. In-memory cache
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
@@ -285,6 +310,10 @@
     // 4. Actual fetch
     try {
       trackRequest(api);
+      // Track against restricted pool if user isn't fully authorized
+      if (typeof AccessControl !== 'undefined' && !AccessControl.canUseFullAPI()) {
+        AccessControl.trackRestrictedCall();
+      }
       const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!res.ok) {
         console.warn(`[FinAPI] ${api} HTTP ${res.status} for ${cacheKey}`);
@@ -688,6 +717,7 @@
     if (initPromise) return initPromise;
     initPromise = (async () => {
       console.log('[FinAPI] Initializing API connector...');
+      loadKeysFromVault();
       await loadQuotas();
       initialized = true;
 

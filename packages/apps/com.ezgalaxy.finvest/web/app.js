@@ -64,6 +64,8 @@
     { key: 'partage',           label: 'Partager',           icon: 'share' },
 
     { type: 'divider', label: '⚙️ Système' },
+    { key: 'permissions',       label: 'Mes autorisations', icon: 'lock' },
+    { key: 'admin',             label: 'Administration',    icon: 'shield', adminOnly: true },
     { key: 'themes',            label: 'Thèmes',            icon: 'palette' },
     { key: 'settings',          label: 'Paramètres',        icon: 'settings' }
   ];
@@ -96,6 +98,8 @@
         nav.appendChild(UI.el('div', { className: 'nav-divider', textContent: item.label }));
         continue;
       }
+      // Hide admin-only items for non-admins
+      if (item.adminOnly && typeof AccessControl !== 'undefined' && !AccessControl.isAdmin()) continue;
       const link = UI.el('a', {
         className: 'nav-link',
         href: '#',
@@ -175,11 +179,18 @@
       main.querySelectorAll('.chart-canvas').forEach(c => UI.destroyChart(c));
 
       // Render new view
-      const viewFn = Views[view];
-      if (viewFn) {
-        viewFn(main);
+      // Built-in access control views
+      if (view === 'admin' && typeof AccessControl !== 'undefined') {
+        AccessControl.renderAdminPanel(main);
+      } else if (view === 'permissions' && typeof AccessControl !== 'undefined') {
+        AccessControl.renderMyPermissions(main);
       } else {
-        main.innerHTML = `<div class="empty-state"><h3>Vue inconnue : ${view}</h3></div>`;
+        const viewFn = Views[view];
+        if (viewFn) {
+          viewFn(main);
+        } else {
+          main.innerHTML = `<div class="empty-state"><h3>Vue inconnue : ${view}</h3></div>`;
+        }
       }
 
       main.classList.remove('main--transitioning');
@@ -305,7 +316,32 @@
       }
     }
 
-    console.log('[FinVest] Application initialized — Phase 1+2 enhancements loaded');
+    // ── Access Control init ─────────────────────────────────
+    if (typeof AccessControl !== 'undefined') {
+      AccessControl.init().then(() => {
+        // Rebuild sidebar after permissions load (admin items visibility)
+        const nav = document.getElementById('sidebar-nav');
+        if (nav && AccessControl.isAdmin()) {
+          // Re-render sidebar to show admin item
+          buildShell();
+          renderApp();
+        }
+      }).catch(() => {});
+    }
+
+    // ── AI Chat init ─────────────────────────────────────────
+    if (typeof FinAI !== 'undefined') {
+      FinAI.init();
+    }
+
+    // ── Update AI context on navigation ─────────────────────
+    Store.subscribe((s) => {
+      if (typeof FinAI !== 'undefined' && s.currentView) {
+        FinAI.setPageContext(s.currentView);
+      }
+    });
+
+    console.log('[FinVest] Application initialized — Phase 1+2+3 (Admin + AI) loaded');
   }
 
   /* ---------- Expose globals --------------------------------- */
