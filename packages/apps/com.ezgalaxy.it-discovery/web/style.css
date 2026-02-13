@@ -1984,6 +1984,15 @@ body::after {
   padding: 12px 28px;
 }
 
+.scoreboard-note {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 0.78rem;
+  color: var(--ez-muted);
+  opacity: 0.65;
+  font-style: italic;
+}
+
 .scoreboard-loading {
   text-align: center;
   padding: 60px 20px;

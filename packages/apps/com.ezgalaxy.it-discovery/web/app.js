@@ -59,7 +59,10 @@
     scoreboard: [],
     scoreboardLoading: false,
     // Session
-    sessionStart: Date.now()
+    sessionStart: Date.now(),
+    // Quiz timer (invisible tiebreaker)
+    quizTotalTimeMs: 0,
+    quizTimerStart: null
   };
 
   /* ───────── Data references ───────── */
@@ -130,7 +133,8 @@
       streak: State.streak,
       maxStreak: State.maxStreak,
       totalCorrect: State.totalCorrect,
-      totalAnswered: State.totalAnswered
+      totalAnswered: State.totalAnswered,
+      quizTotalTimeMs: State.quizTotalTimeMs
     };
   }
 
@@ -147,6 +151,34 @@
     var sd = buildSaveData();
     for (var k in sd) data[k] = sd[k];
     apiPut('users', State.user.pseudo, data).catch(function(){});
+    syncToLeaderboard();
+  }
+
+  async function syncToLeaderboard() {
+    if (!State.user || !State.apiAvailable) return;
+    try {
+      var record = await ezgalaxy.storage.get('leaderboard', 'global');
+      var entries = (record && record.data && Array.isArray(record.data.entries)) ? record.data.entries : [];
+      var pseudo = State.user.pseudo;
+      var filtered = entries.filter(function(e) {
+        return e && e.pseudo && e.pseudo.toLowerCase() !== pseudo.toLowerCase();
+      });
+      filtered.push({
+        pseudo: pseudo,
+        xp: State.xp,
+        totalTimeMs: State.quizTotalTimeMs || 0,
+        badges: State.badges.length,
+        lessons: Object.keys(State.completedLessons).length,
+        quizzes: Object.keys(State.completedQuizzes).length,
+        updatedAt: new Date().toISOString()
+      });
+      filtered.sort(function(a, b) {
+        if ((b.xp || 0) !== (a.xp || 0)) return (b.xp || 0) - (a.xp || 0);
+        return (a.totalTimeMs || 999999999) - (b.totalTimeMs || 999999999);
+      });
+      filtered = filtered.slice(0, 50);
+      await ezgalaxy.storage.set('leaderboard', 'global', { entries: filtered });
+    } catch (e) { /* ignore sync errors */ }
   }
 
   function loadProgress() {
@@ -168,6 +200,7 @@
       State.maxStreak        = save.maxStreak || 0;
       State.totalCorrect     = save.totalCorrect || 0;
       State.totalAnswered    = save.totalAnswered || 0;
+      State.quizTotalTimeMs  = save.quizTotalTimeMs || 0;
     } catch (e) { /* corrupted data */ }
   }
 
@@ -194,6 +227,7 @@
     State.maxStreak = 0;
     State.totalCorrect = 0;
     State.totalAnswered = 0;
+    State.quizTotalTimeMs = 0;
     localStorage.removeItem(STORAGE_KEY);
     if (State.user && State.apiAvailable) syncToAPI();
   }
@@ -230,6 +264,7 @@
       State.maxStreak        = existing.data.maxStreak || 0;
       State.totalCorrect     = existing.data.totalCorrect || 0;
       State.totalAnswered    = existing.data.totalAnswered || 0;
+      State.quizTotalTimeMs  = existing.data.quizTotalTimeMs || 0;
       saveProgress();
     } else {
       syncToAPI();
@@ -240,21 +275,23 @@
   async function loadScoreboard() {
     State.scoreboardLoading = true;
     render();
-    const data = await apiGet('users');
-    if (data && data.items) {
-      State.scoreboard = data.items
-        .filter(function(item) { return item.data && item.data.pseudo; })
-        .map(function(item) {
-          return {
-            pseudo: item.data.pseudo || item.record_key,
-            xp: item.data.xp || 0,
-            badges: (item.data.badges || []).length,
-            completedLessons: Object.keys(item.data.completedLessons || {}).length,
-            completedQuizzes: Object.keys(item.data.completedQuizzes || {}).length
-          };
-        })
-        .sort(function(a, b) { return b.xp - a.xp; });
-    } else {
+    try {
+      if (State.apiAvailable) {
+        var record = await ezgalaxy.storage.get('leaderboard', 'global');
+        if (record && record.data && Array.isArray(record.data.entries)) {
+          State.scoreboard = record.data.entries
+            .filter(function(e) { return e && e.pseudo; })
+            .sort(function(a, b) {
+              if ((b.xp || 0) !== (a.xp || 0)) return (b.xp || 0) - (a.xp || 0);
+              return (a.totalTimeMs || 999999999) - (b.totalTimeMs || 999999999);
+            });
+        } else {
+          State.scoreboard = [];
+        }
+      } else {
+        State.scoreboard = [];
+      }
+    } catch (e) {
       State.scoreboard = [];
     }
     State.scoreboardLoading = false;
@@ -289,6 +326,7 @@
       State.authError = '';
       toast('success', State.authMode === 'login' ? 'Connecté !' : 'Inscription réussie !');
       if (Effects) Effects.confetti();
+      syncToLeaderboard();
       navigate('modules');
     } else {
       State.authError = result.error;
@@ -1072,6 +1110,7 @@
         </div>\
         ' + (State.scoreboard.length === 0 ? emptyMsg : '<div class="scoreboard-list">' + rows + '</div>') + '\
         ' + (!State.user ? '<div class="scoreboard-cta"><button class="auth-submit-btn" data-action="auth">🔐 S\'inscrire pour apparaître</button></div>' : '') + '\
+        <div class="scoreboard-note">En cas d\'égalité de points, le temps total aux quiz départage les joueurs.</div>\
       </div>';
   }
 
@@ -1144,6 +1183,7 @@
         break;
 
       case 'back-to-module':
+        State.quizTimerStart = null;
         navigate('module', { module: State.currentModule });
         break;
 
@@ -1167,6 +1207,7 @@
         State.quizAnswers = [];
         State.quizAnswered = false;
         State.newBadges = [];
+        State.quizTimerStart = Date.now();
         navigate('quiz');
         break;
 
@@ -1175,6 +1216,7 @@
         State.quizAnswers = [];
         State.quizAnswered = false;
         State.newBadges = [];
+        State.quizTimerStart = Date.now();
         navigate('quiz');
         break;
 
@@ -1187,6 +1229,7 @@
         State.quizAnswered = false;
         if (State.currentQuiz < getCurrentModule().quiz.length - 1) {
           State.currentQuiz++;
+          State.quizTimerStart = Date.now();
           render();
         } else {
           navigate('quiz-result');
@@ -1283,6 +1326,12 @@
     if (!mod) return;
     const q = mod.quiz[State.currentQuiz];
     if (!q) return;
+
+    // Stop quiz timer — accumulate elapsed time for tiebreaker
+    if (State.quizTimerStart) {
+      State.quizTotalTimeMs += Date.now() - State.quizTimerStart;
+      State.quizTimerStart = null;
+    }
 
     State.quizAnswered = true;
     State.quizAnswers[State.currentQuiz] = answerIdx;
