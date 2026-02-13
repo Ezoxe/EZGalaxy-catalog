@@ -89,9 +89,19 @@
     if (State.apiAvailable && typeof ezgalaxy.ready === 'function') {
       ezgalaxy.ready().then(function(info) {
         console.log('[SDK] Bridge ready:', info);
+        // Auto-migrate: sync current user to shared leaderboard
+        autoSyncLeaderboard();
       }).catch(function(err) {
         console.warn('[SDK] Bridge ready failed:', err);
       });
+    }
+  }
+
+  // Auto-sync user to shared leaderboard on page load (silent migration)
+  function autoSyncLeaderboard() {
+    if (State.user && State.apiAvailable) {
+      console.log('[Migration] Auto-syncing ' + State.user.pseudo + ' to shared leaderboard');
+      syncToLeaderboard();
     }
   }
 
@@ -110,9 +120,14 @@
           if (typeof ezgalaxy.ready === 'function') {
             ezgalaxy.ready().then(function(info) {
               console.log('[SDK] Bridge ready (deferred):', info);
+              // Auto-migrate: sync current user to shared leaderboard
+              autoSyncLeaderboard();
             }).catch(function(err) {
               console.warn('[SDK] Bridge ready (deferred) failed:', err);
             });
+          } else {
+            // SDK ready not available, try auto-sync directly
+            autoSyncLeaderboard();
           }
           render();
         } else if (attempts >= 30) {
