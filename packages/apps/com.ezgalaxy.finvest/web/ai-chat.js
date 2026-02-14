@@ -167,7 +167,20 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Erreur API Gemini (${res.status})`);
+      const msg = err.error?.message || '';
+      // Detect referer/origin restriction from Google API key settings
+      if (res.status === 403 && (msg.includes('referer') || msg.includes('Referer') || msg.includes('blocked'))) {
+        throw new Error(
+          'Clé API bloquée par Google (restriction de référent HTTP).\n' +
+          'L\'app s\'exécute dans un iframe sandboxé, ce qui envoie un référent « null ».\n\n' +
+          '🔧 Pour corriger :\n' +
+          '1. Allez sur https://aistudio.google.com/apikey\n' +
+          '2. Cliquez sur votre clé API\n' +
+          '3. Dans « Restrictions d\'application », choisissez « Aucune » (ou ajoutez votre domaine EZGalaxy)\n' +
+          '4. Sauvegardez et réessayez.'
+        );
+      }
+      throw new Error(msg || `Erreur API Gemini (${res.status})`);
     }
 
     const data = await res.json();
@@ -245,6 +258,37 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
 
     panelEl = el('div', { className: 'ai-panel', id: 'ai-panel' });
 
+    // ── Resize handle (left edge) ────────────────────────────────
+    const resizeHandle = el('div', { className: 'ai-panel__resize-handle' });
+    panelEl.appendChild(resizeHandle);
+
+    let isResizing = false;
+    resizeHandle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isResizing = true;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      panelEl.style.transition = 'none';
+      const main = document.getElementById('main-content');
+      if (main) main.style.transition = 'none';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const newWidth = Math.max(320, Math.min(window.innerWidth * 0.8, window.innerWidth - e.clientX));
+      panelEl.style.width = newWidth + 'px';
+      const main = document.getElementById('main-content');
+      if (main && panelEl.classList.contains('ai-panel--open')) main.style.marginRight = newWidth + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!isResizing) return;
+      isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      panelEl.style.transition = '';
+      const main = document.getElementById('main-content');
+      if (main) main.style.transition = '';
+    });
+
     // ── Header (clean, minimal) ─────────────────────────────────
     const header = el('div', { className: 'ai-panel__header' });
     const titleWrap = el('div', { className: 'ai-panel__title' });
@@ -255,7 +299,16 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
     // Clear history
     headerActions.appendChild(el('button', {
       className: 'ai-panel__btn', title: 'Effacer l\'historique', textContent: '🗑️',
-      onClick: () => { if (confirm('Effacer tout l\'historique ?')) { chatHistory = []; saveHistory(); renderMessages(); } }
+      onClick: () => {
+        // confirm() is blocked in sandboxed iframes — use custom modal
+        if (typeof UI !== 'undefined' && UI.modal) {
+          const confirmBtn = UI.el('button', { className: 'btn btn--danger btn--sm', textContent: 'Effacer', onClick: () => { chatHistory = []; saveHistory(); renderMessages(); updateContextBar(); closeModal(); UI.toast('Historique effacé', 'success'); } });
+          const cancelBtn = UI.el('button', { className: 'btn btn--ghost btn--sm', textContent: 'Annuler', onClick: () => closeModal() });
+          const { close: closeModal } = UI.modal({ title: 'Effacer l\'historique ?', body: UI.el('p', { textContent: 'Tout l\'historique de conversation avec l\'IA sera supprimé. Cette action est irréversible.', style: { color: '#94a3b8', margin: '0' } }), actions: [cancelBtn, confirmBtn] });
+        } else {
+          chatHistory = []; saveHistory(); renderMessages(); updateContextBar();
+        }
+      }
     }));
     // Close
     headerActions.appendChild(el('button', {
@@ -520,9 +573,17 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
     panelOpen = forceOpen !== undefined ? forceOpen : !panelOpen;
     panelEl.classList.toggle('ai-panel--open', panelOpen);
 
-    // Shift main content
+    // Shift main content — use current panel width (may have been resized)
     const main = document.getElementById('main-content');
-    if (main) main.classList.toggle('main--ai-panel-open', panelOpen);
+    if (main) {
+      if (panelOpen) {
+        const w = panelEl.getBoundingClientRect().width || 420;
+        main.style.marginRight = w + 'px';
+      } else {
+        main.style.marginRight = '';
+        main.classList.remove('main--ai-panel-open');
+      }
+    }
 
     if (panelOpen) {
       loadHistory().then(() => {
