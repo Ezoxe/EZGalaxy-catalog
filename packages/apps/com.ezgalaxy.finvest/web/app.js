@@ -21,9 +21,9 @@
     { key: 'scorecard',         label: 'Scorecard',          icon: 'award' },
 
     { type: 'divider', label: '� Marchés & Investissements' },
-    { key: 'bourse',            label: 'Bourse en direct',   icon: 'trending-up', badge: 'NEW' },
-    { key: 'portefeuille',      label: 'Mon portefeuille',   icon: 'briefcase', badge: 'NEW' },
-    { key: 'immobilier',        label: 'Simulateur immo',    icon: 'home', badge: 'NEW' },
+    { key: 'bourse',            label: 'Bourse en direct',   icon: 'trending-up', badge: 'LIVE', badgeType: 'live' },
+    { key: 'portefeuille',      label: 'Mon portefeuille',   icon: 'briefcase' },
+    { key: 'immobilier',        label: 'Simulateur immo',    icon: 'home' },
 
     { type: 'divider', label: '�🔧 Outils d\'analyse' },
     { key: 'projections',       label: 'Projections',        icon: 'trending-up' },
@@ -34,7 +34,7 @@
     { key: 'credit',            label: 'Simulateur crédit',  icon: 'home' },
     { key: 'dividendes',        label: 'Dividendes',         icon: 'dollar-sign' },
     { key: 'interets',          label: 'Intérêts composés',  icon: 'percent' },
-    { key: 'whatif',             label: 'What-If',            icon: 'zap' },
+    { key: 'whatif',             label: 'What-If',            icon: 'zap', badge: 'SIM', badgeType: 'sim' },
     { key: 'comparateur',       label: 'Comparateur',        icon: 'bar-chart-2' },
     { key: 'stresstest',        label: 'Stress Test',        icon: 'alert' },
     { key: 'esg',               label: 'Score ESG',          icon: 'globe' },
@@ -50,11 +50,11 @@
 
     { type: 'divider', label: '📚 Ressources' },
     { key: 'advice',            label: 'Conseils',           icon: 'star' },
-    { key: 'copilot',           label: 'Copilot IA',         icon: 'sparkles' },
-    { key: 'ai',                label: 'Prompts IA',         icon: 'sparkles' },
+    { key: 'copilot',           label: 'Copilot IA',         icon: 'sparkles', badge: 'IA', badgeType: 'ai' },
+    { key: 'ai',                label: 'Prompts IA',         icon: 'sparkles', badge: 'IA', badgeType: 'ai' },
     { key: 'cours',             label: 'Mini-cours',         icon: 'book' },
     { key: 'glossaire',         label: 'Glossaire',          icon: 'book' },
-    { key: 'news',              label: 'Actualités',         icon: 'newspaper' },
+    { key: 'news',              label: 'Actualités',         icon: 'newspaper', badge: 'LIVE', badgeType: 'live' },
 
     { type: 'divider', label: '📋 Suivi' },
     { key: 'budget',            label: 'Budget mensuel',     icon: 'wallet' },
@@ -66,7 +66,7 @@
     { type: 'divider', label: '⚙️ Système' },
     { key: 'account',            label: 'Mon compte',        icon: 'user' },
     { key: 'permissions',       label: 'Mes autorisations', icon: 'lock' },
-    { key: 'admin',             label: 'Administration',    icon: 'shield', adminOnly: true },
+    { key: 'admin',             label: 'Administration',    icon: 'shield', adminOnly: true, badge: 'ADM', badgeType: 'admin' },
     { key: 'themes',            label: 'Thèmes',            icon: 'palette' },
     { key: 'settings',          label: 'Paramètres',        icon: 'settings' }
   ];
@@ -109,7 +109,7 @@
       }, [
         UI.icon(item.icon, 18),
         UI.el('span', { className: 'nav-link__label', textContent: item.label }),
-        ...(item.badge ? [UI.el('span', { className: 'nav-badge nav-badge--new', textContent: item.badge })] : [])
+        ...(item.badge ? [UI.el('span', { className: `nav-badge nav-badge--${item.badgeType || 'new'}`, textContent: item.badge })] : [])
       ]);
       nav.appendChild(link);
     }

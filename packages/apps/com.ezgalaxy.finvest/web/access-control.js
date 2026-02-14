@@ -108,11 +108,13 @@
   /* ─────────── Permission checks ──────────────────────────────── */
   function canUseAI() {
     if (!isAuthenticated()) return false;
+    if (isAdmin()) return true;
     return currentPerms.aiAccess === true;
   }
 
   function canUseFullAPI() {
     if (!isAuthenticated()) return false;
+    if (isAdmin()) return true;
     return currentPerms.apiAccess === true;
   }
 
@@ -567,14 +569,14 @@
       content.appendChild(el('div', { className: 'form-group' }, [apiCheck]));
       content.appendChild(el('div', { className: 'form-group' }, [aiCheck]));
 
-      modal({
+      const { close: closeModal } = modal({
         title: '➕ Ajouter un utilisateur',
-        content,
+        body: content,
         actions: [
-          {
-            label: 'Ajouter',
-            cls: 'btn--primary',
-            onClick: async (close) => {
+          el('button', {
+            className: 'btn btn--primary',
+            textContent: 'Ajouter',
+            onClick: async () => {
               const email = emailInput.value.trim();
               if (!email || !email.includes('@')) {
                 toast('Veuillez saisir un email valide', 'error');
@@ -584,11 +586,15 @@
               const aiAccess = document.getElementById('admin-add-ai').checked;
               await adminSetPermissions(email, { apiAccess, aiAccess });
               toast(`Utilisateur ${email} ajouté avec succès`, 'success');
-              close();
+              closeModal();
               loadAndRender();
             }
-          },
-          { label: 'Annuler', cls: 'btn--ghost' }
+          }),
+          el('button', {
+            className: 'btn btn--ghost',
+            textContent: 'Annuler',
+            onClick: () => closeModal()
+          })
         ]
       });
     }

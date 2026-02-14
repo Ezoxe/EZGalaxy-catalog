@@ -355,7 +355,11 @@
     for (const item of items) {
       const btn = el('button', {
         className: `tab ${item.key === active ? 'tab--active' : ''}`,
-        onClick: () => onChange(item.key)
+        onClick: () => {
+          bar.querySelectorAll('.tab').forEach(t => t.classList.remove('tab--active'));
+          btn.classList.add('tab--active');
+          onChange(item.key);
+        }
       }, [item.icon ? icon(item.icon, 16) : null, el('span', { textContent: item.label })].filter(Boolean));
       bar.appendChild(btn);
     }

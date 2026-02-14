@@ -15,7 +15,7 @@
   const fp = v => (v || 0).toFixed(1) + '%';
 
   /* =============================================================
-     BOURSE — Live Market Dashboard
+     BOURSE — Live Market Dashboard (Enhanced)
      ============================================================= */
   function bourse(container) {
     container.innerHTML = '';
@@ -30,24 +30,21 @@
       ])
     ]));
 
-    // Quota pool indicator
-    const quotaBar = el('div', { className: 'quota-bar ez-fade-in', id: 'quota-bar' });
-    wrap.appendChild(quotaBar);
-
     // Ticker tape
     wrap.appendChild(tickerTape());
 
-    // Last update
-    const updateBar = el('div', { className: 'market-update-bar' });
+    // Last update bar
+    const updateBar = el('div', { className: 'market-update-bar ez-fade-in' });
     updateBar.innerHTML = `<span class="market-pulse"></span> <span id="data-source-badge"></span> Données mises à jour : ${new Date().toLocaleTimeString('fr-FR')} <button class="btn btn--ghost btn--sm" id="market-refresh">↻ Rafraîchir</button>`;
     wrap.appendChild(updateBar);
 
     // Tabs
     let activeTab = 'indices';
     const tabBar = tabs([
-      { key: 'indices', label: 'Indices', icon: 'activity' },
+      { key: 'indices', label: 'Indices mondiaux', icon: 'activity' },
       { key: 'actions', label: 'Actions & ETF', icon: 'trending-up' },
-      { key: 'detail', label: 'Détail', icon: 'bar-chart-2' }
+      { key: 'detail', label: 'Analyse détaillée', icon: 'bar-chart-2' },
+      { key: 'conseils', label: 'Conseils IA', icon: 'sparkles' }
     ], activeTab, key => {
       activeTab = key;
       renderContent();
@@ -59,6 +56,7 @@
     container.appendChild(wrap);
 
     let selectedSymbol = 'CAC40';
+    let stockFilter = { sector: 'all', sort: 'name', dir: 'asc', search: '' };
 
     function renderContent() {
       contentArea.innerHTML = '';
@@ -67,17 +65,33 @@
       if (activeTab === 'indices') renderIndices();
       else if (activeTab === 'actions') renderStocks();
       else if (activeTab === 'detail') renderDetail();
+      else if (activeTab === 'conseils') renderConseils();
     }
 
+    /* ── Indices ─────────────────────────────────────────────── */
     function renderIndices() {
       const indices = FinMarket.getAllIndices();
-      const grid = el('div', { className: 'market-grid' });
 
+      // Market summary top bar
+      const upCount = indices.filter(i => i.changePct >= 0).length;
+      const downCount = indices.length - upCount;
+      const avgVol = (indices.reduce((s, i) => s + Math.abs(i.changePct), 0) / indices.length).toFixed(2);
+      const summaryBar = el('div', { className: 'market-sentiment ez-fade-in' });
+      summaryBar.innerHTML = `
+        <div class="market-sentiment__item market-sentiment__item--up"><span class="market-sentiment__dot market-sentiment__dot--up"></span> ${upCount} en hausse</div>
+        <div class="market-sentiment__item market-sentiment__item--down"><span class="market-sentiment__dot market-sentiment__dot--down"></span> ${downCount} en baisse</div>
+        <div class="market-sentiment__item"><span>📊</span> Volatilité moy. : ${avgVol}%</div>
+        <div class="market-sentiment__item"><span>🕐</span> ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+      `;
+      contentArea.appendChild(summaryBar);
+
+      // Index cards grid
+      const grid = el('div', { className: 'market-grid' });
       for (const idx of indices) {
         const isUp = idx.changePct >= 0;
         const card = el('div', {
-          className: 'market-card ez-fade-in',
-          onClick: () => { selectedSymbol = idx.symbol; activeTab = 'detail'; renderContent(); }
+          className: `market-card market-card--${isUp ? 'up' : 'down'} ez-fade-in`,
+          onClick: () => { selectedSymbol = idx.symbol; activeTab = 'detail'; tabBar.querySelectorAll('.tab').forEach(t => t.classList.remove('tab--active')); tabBar.querySelectorAll('.tab')[2].classList.add('tab--active'); renderContent(); }
         });
         card.innerHTML = `
           <div class="market-card__header">
@@ -91,42 +105,80 @@
           </div>
           <div class="market-card__sparkline"></div>
         `;
-        // Add sparkline
         const sparkContainer = card.querySelector('.market-card__sparkline');
         sparkContainer.appendChild(sparkline(idx.sparkline, 100, 30));
         grid.appendChild(card);
       }
       contentArea.appendChild(grid);
-
-      // World map summary
-      const summary = el('div', { className: 'market-summary ez-fade-in' });
-      const upCount = indices.filter(i => i.changePct >= 0).length;
-      const downCount = indices.length - upCount;
-      summary.innerHTML = `
-        <div class="market-summary__stat"><span class="market-up">▲ ${upCount}</span> indices en hausse</div>
-        <div class="market-summary__stat"><span class="market-down">▼ ${downCount}</span> indices en baisse</div>
-        <div class="market-summary__stat">Volatilité moyenne : ${fp(indices.reduce((s, i) => s + Math.abs(i.changePct), 0) / indices.length)}</div>
-      `;
-      contentArea.appendChild(summary);
     }
 
+    /* ── Actions & ETF ───────────────────────────────────────── */
     function renderStocks() {
       const stocks = FinMarket.getAllStocks();
 
+      // Filter bar
+      const filterBar = el('div', { className: 'market-filter-bar ez-fade-in' });
+
       // Search
-      const searchWrap = el('div', { className: 'market-search' });
-      const searchInput = el('input', { type: 'text', className: 'input', placeholder: '🔍 Rechercher une action, un ETF, un ticker...' });
-      searchWrap.appendChild(searchInput);
-      contentArea.appendChild(searchWrap);
+      const searchInput = el('input', { type: 'text', className: 'input market-search-input', placeholder: '🔍 Rechercher (ticker, nom, secteur...)' });
+      filterBar.appendChild(searchInput);
+
+      // Sector filter
+      const sectors = [...new Set(stocks.map(s => s.sector))].sort();
+      const sectorSelect = el('select', { className: 'input market-filter-select' });
+      sectorSelect.innerHTML = '<option value="all">Tous les secteurs</option>' + sectors.map(s => `<option value="${s}">${s}</option>`).join('');
+      filterBar.appendChild(sectorSelect);
+
+      // Sort
+      const sortSelect = el('select', { className: 'input market-filter-select' });
+      sortSelect.innerHTML = `
+        <option value="name">Tri : Nom</option>
+        <option value="changePct-desc">Tri : Meilleure perf</option>
+        <option value="changePct-asc">Tri : Pire perf</option>
+        <option value="price-desc">Tri : Prix ↓</option>
+        <option value="dividend-desc">Tri : Dividende ↓</option>
+      `;
+      filterBar.appendChild(sortSelect);
+
+      contentArea.appendChild(filterBar);
+
+      // Results count
+      const countEl = el('div', { className: 'market-result-count text-muted', id: 'stock-count' });
+      contentArea.appendChild(countEl);
 
       const tableWrap = el('div', { id: 'stock-table-wrap' });
       contentArea.appendChild(tableWrap);
 
-      function renderTable(filter) {
+      function applyFilters() {
+        const search = searchInput.value.toLowerCase().trim();
+        const sector = sectorSelect.value;
+        const sortVal = sortSelect.value;
+
+        let filtered = stocks;
+        if (search) filtered = filtered.filter(s =>
+          s.name.toLowerCase().includes(search) ||
+          s.symbol.toLowerCase().includes(search) ||
+          s.sector.toLowerCase().includes(search)
+        );
+        if (sector !== 'all') filtered = filtered.filter(s => s.sector === sector);
+
+        // Sort
+        if (sortVal === 'changePct-desc') filtered = [...filtered].sort((a, b) => b.changePct - a.changePct);
+        else if (sortVal === 'changePct-asc') filtered = [...filtered].sort((a, b) => a.changePct - b.changePct);
+        else if (sortVal === 'price-desc') filtered = [...filtered].sort((a, b) => b.price - a.price);
+        else if (sortVal === 'dividend-desc') filtered = [...filtered].sort((a, b) => (b.dividend || 0) - (a.dividend || 0));
+        else filtered = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+        renderTable(filtered);
+        countEl.textContent = `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} sur ${stocks.length} actifs`;
+      }
+
+      function renderTable(filtered) {
         tableWrap.innerHTML = '';
-        const filtered = filter
-          ? stocks.filter(s => s.name.toLowerCase().includes(filter) || s.symbol.toLowerCase().includes(filter) || s.sector.toLowerCase().includes(filter))
-          : stocks;
+        if (filtered.length === 0) {
+          tableWrap.innerHTML = '<div class="empty-state"><p>Aucun résultat pour ces filtres.</p></div>';
+          return;
+        }
 
         const table = el('table', { className: 'data-table market-table' });
         table.innerHTML = `
@@ -139,19 +191,18 @@
           const isUp = s.changePct >= 0;
           const tr = el('tr', {
             className: 'market-table__row',
-            onClick: () => { selectedSymbol = s.symbol; activeTab = 'detail'; renderContent(); }
+            onClick: () => { selectedSymbol = s.symbol; activeTab = 'detail'; tabBar.querySelectorAll('.tab').forEach(t => t.classList.remove('tab--active')); tabBar.querySelectorAll('.tab')[2].classList.add('tab--active'); renderContent(); }
           });
           tr.innerHTML = `
             <td>${s.country}</td>
-            <td><strong>${s.symbol}</strong> ${s.live ? '<span class=\"source-dot source-dot--live\" title=\"Live\"></span>' : ''}</td>
+            <td><strong>${s.symbol}</strong> ${s.live ? '<span class="source-dot source-dot--live" title="Live"></span>' : ''}</td>
             <td>${s.name}</td>
-            <td><span class="badge">${s.sector}</span></td>
+            <td><span class="badge badge--sector">${s.sector}</span></td>
             <td class="text-right">${s.price.toLocaleString('fr-FR')}</td>
-            <td class="text-right ${isUp ? 'market-up' : 'market-down'}">${isUp ? '+' : ''}${s.changePct}%</td>
+            <td class="text-right"><span class="${isUp ? 'market-up' : 'market-down'}">${isUp ? '+' : ''}${s.changePct}%</span></td>
             <td class="text-right">${s.dividend > 0 ? s.dividend + '%' : '—'}</td>
             <td></td>
           `;
-          // Add sparkline to last cell
           const lastCell = tr.lastElementChild;
           lastCell.appendChild(sparkline(s.sparkline, 60, 20));
           tbody.appendChild(tr);
@@ -160,14 +211,22 @@
         tableWrap.appendChild(el('div', { className: 'table-wrap' }, [table]));
       }
 
-      searchInput.addEventListener('input', () => renderTable(searchInput.value.toLowerCase().trim()));
-      renderTable('');
+      searchInput.addEventListener('input', applyFilters);
+      sectorSelect.addEventListener('change', applyFilters);
+      sortSelect.addEventListener('change', applyFilters);
+      applyFilters();
     }
 
+    /* ── Détail ──────────────────────────────────────────────── */
     function renderDetail() {
       const asset = FinMarket.getAssetBySymbol(selectedSymbol);
       if (!asset) {
-        contentArea.innerHTML = '<div class="empty-state">Sélectionnez un actif dans les onglets Indices ou Actions.</div>';
+        contentArea.innerHTML = `
+          <div class="empty-state ez-fade-in">
+            <div style="font-size:48px;margin-bottom:12px">📊</div>
+            <h3>Sélectionnez un actif</h3>
+            <p>Cliquez sur un indice ou une action dans les onglets précédents pour voir l'analyse détaillée.</p>
+          </div>`;
         return;
       }
 
@@ -179,7 +238,7 @@
         <div class="asset-detail__title">
           <span class="asset-detail__flag">${asset.country}</span>
           <h2>${asset.name} <small>(${asset.symbol})</small></h2>
-          <span class="badge">${asset.sector}</span>
+          <span class="badge badge--sector">${asset.sector}</span>
           ${asset.live ? '<span class="source-badge source-badge--live">● LIVE</span>' : '<span class="source-badge source-badge--sim">○ SIMULÉ</span>'}
         </div>
         <div class="asset-detail__price">
@@ -208,7 +267,6 @@
 
       const assetDef = FinMarket.getAssetDef(selectedSymbol);
 
-      // Render chart helper (used for both simulated and real data)
       function buildCandleChart(histData) {
         const dates = histData.map(d => d.date);
         const candlestickData = histData.map(d => [d.open || d.close, d.close, d.low || d.close, d.high || d.close]);
@@ -263,12 +321,10 @@
         });
       }
 
-      // First render with simulated data
       if (assetDef) {
         buildCandleChart(FinMarket.generateHistoricalData(assetDef, 90));
       }
 
-      // Then try real historical data
       if (window.FinAPI) {
         FinMarket.loadRealHistorical(selectedSymbol, 90).then(result => {
           if (result && result.data && result.data.length > 5) {
@@ -280,14 +336,143 @@
 
       // Quick actions
       const actions = el('div', { className: 'asset-detail__actions ez-fade-in' });
-      actions.innerHTML = `
-        <button class="btn btn--primary btn--sm" onclick="window.navigateTo('portefeuille')">➕ Ajouter au portefeuille</button>
-        <button class="btn btn--outline btn--sm" onclick="window.navigateTo('projections')">📊 Simuler un investissement</button>
-      `;
+      const addPortBtn = el('button', { className: 'btn btn--primary btn--sm', onClick: () => navigateTo('portefeuille') }, [icon('plus', 14), el('span', { textContent: ' Ajouter au portefeuille' })]);
+      const simBtn = el('button', { className: 'btn btn--outline btn--sm', onClick: () => navigateTo('projections') }, [icon('trending-up', 14), el('span', { textContent: ' Simuler un investissement' })]);
+      const aiBtn = el('button', { className: 'btn btn--ai btn--sm', onClick: () => {
+        if (typeof FinAI !== 'undefined') {
+          FinAI.togglePanel(true);
+          setTimeout(() => { const inp = document.getElementById('ai-input'); if (inp) { inp.value = `Analyse l'actif ${asset.name} (${asset.symbol}) : cours ${asset.price}, variation ${asset.changePct}%, dividende ${asset.dividend}%. Que penses-tu de cet investissement ?`; } }, 400);
+        }
+      } }, [el('span', { textContent: '✨ Demander à l\'IA' })]);
+      actions.appendChild(addPortBtn);
+      actions.appendChild(simBtn);
+      actions.appendChild(aiBtn);
       contentArea.appendChild(actions);
     }
 
-    // Refresh button
+    /* ── Conseils IA automatiques ─────────────────────────────── */
+    function renderConseils() {
+      const indices = FinMarket.getAllIndices();
+      const stocks = FinMarket.getAllStocks();
+
+      // Auto-generated advice based on market data
+      const adviceItems = [];
+
+      // Trend advice
+      const upIndices = indices.filter(i => i.changePct >= 1);
+      const downIndices = indices.filter(i => i.changePct <= -1);
+      if (upIndices.length > 0) {
+        adviceItems.push({
+          type: 'bullish',
+          icon: '📈',
+          title: 'Tendance haussière détectée',
+          text: `${upIndices.map(i => i.name).join(', ')} ${upIndices.length > 1 ? 'affichent' : 'affiche'} une hausse significative (${upIndices.map(i => '+' + i.changePct + '%').join(', ')}). Le marché montre des signaux positifs.`
+        });
+      }
+      if (downIndices.length > 0) {
+        adviceItems.push({
+          type: 'bearish',
+          icon: '📉',
+          title: 'Baisse notable sur certains marchés',
+          text: `${downIndices.map(i => i.name).join(', ')} ${downIndices.length > 1 ? 'reculent' : 'recule'} (${downIndices.map(i => i.changePct + '%').join(', ')}). Prudence recommandée, surveillez les niveaux de support.`
+        });
+      }
+
+      // Dividend opportunities
+      const topDividend = stocks.filter(s => s.dividend >= 3).sort((a, b) => b.dividend - a.dividend).slice(0, 5);
+      if (topDividend.length > 0) {
+        adviceItems.push({
+          type: 'info',
+          icon: '💰',
+          title: 'Opportunités dividendes',
+          text: `Actions à fort rendement : ${topDividend.map(s => `${s.symbol} (${s.dividend}%)`).join(', ')}. Intéressant pour une stratégie de revenus passifs.`
+        });
+      }
+
+      // Top performers
+      const topPerf = [...stocks].sort((a, b) => b.changePct - a.changePct).slice(0, 3);
+      if (topPerf.length > 0 && topPerf[0].changePct > 0) {
+        adviceItems.push({
+          type: 'bullish',
+          icon: '🏆',
+          title: 'Meilleures performances du jour',
+          text: topPerf.map(s => `${s.name} (${s.symbol}) : +${s.changePct}%`).join(' · ')
+        });
+      }
+
+      // Worst performers
+      const worstPerf = [...stocks].sort((a, b) => a.changePct - b.changePct).slice(0, 3);
+      if (worstPerf.length > 0 && worstPerf[0].changePct < 0) {
+        adviceItems.push({
+          type: 'bearish',
+          icon: '⚠️',
+          title: 'À surveiller — fortes baisses',
+          text: worstPerf.map(s => `${s.name} (${s.symbol}) : ${s.changePct}%`).join(' · ') + '. Opportunité d\'achat si les fondamentaux restent solides.'
+        });
+      }
+
+      // Volatility alert
+      const highVol = stocks.filter(s => Math.abs(s.changePct) >= 3);
+      if (highVol.length > 0) {
+        adviceItems.push({
+          type: 'warning',
+          icon: '🌊',
+          title: 'Forte volatilité',
+          text: `${highVol.length} actif${highVol.length > 1 ? 's' : ''} affiche${highVol.length > 1 ? 'nt' : ''} une variation > 3%. Journée agitée, adaptez votre stratégie de stop-loss.`
+        });
+      }
+
+      // General advice
+      const globalSentiment = indices.reduce((s, i) => s + i.changePct, 0) / indices.length;
+      adviceItems.push({
+        type: globalSentiment >= 0 ? 'bullish' : 'bearish',
+        icon: globalSentiment >= 0 ? '🟢' : '🔴',
+        title: 'Sentiment global du marché',
+        text: `Le marché est globalement ${globalSentiment >= 0 ? 'positif' : 'négatif'} avec une variation moyenne de ${globalSentiment >= 0 ? '+' : ''}${globalSentiment.toFixed(2)}% sur les indices. ${globalSentiment >= 0 ? 'Environnement favorable pour les positions longues.' : 'Prudence — privilégiez les valeurs défensives et les liquidités.'}`
+      });
+
+      // Render
+      const header = el('div', { className: 'market-advice-header ez-fade-in' });
+      header.innerHTML = `
+        <div class="market-advice-header__icon">✨</div>
+        <div>
+          <h3>Conseils automatiques</h3>
+          <p class="text-muted">Analyse générée à partir des données de marché actuelles — Mise à jour : ${new Date().toLocaleTimeString('fr-FR')}</p>
+        </div>
+      `;
+      contentArea.appendChild(header);
+
+      const aiAskBtn = el('button', {
+        className: 'btn btn--ai btn--sm', style: { marginBottom: '16px' },
+        onClick: () => {
+          if (typeof FinAI !== 'undefined') {
+            FinAI.togglePanel(true);
+            setTimeout(() => {
+              const inp = document.getElementById('ai-input');
+              if (inp) inp.value = 'Fais-moi une analyse complète du marché actuel avec des recommandations d\'investissement personnalisées.';
+            }, 400);
+          }
+        }
+      }, [el('span', { textContent: '✨ Analyse approfondie par l\'IA' })]);
+      contentArea.appendChild(aiAskBtn);
+
+      for (const advice of adviceItems) {
+        const card = el('div', { className: `market-advice-card market-advice-card--${advice.type} ez-fade-in` });
+        card.innerHTML = `
+          <span class="market-advice-card__icon">${advice.icon}</span>
+          <div class="market-advice-card__body">
+            <strong>${advice.title}</strong>
+            <p>${advice.text}</p>
+          </div>
+        `;
+        contentArea.appendChild(card);
+      }
+
+      // Disclaimer
+      contentArea.appendChild(el('p', { className: 'text-muted', style: { fontSize: '11px', marginTop: '20px', textAlign: 'center' }, textContent: '⚠️ Ces conseils sont générés automatiquement et ne constituent pas des recommandations d\'investissement. Consultez un professionnel.' }));
+    }
+
+    // Refresh
     renderContent();
     const refreshBtn = document.getElementById('market-refresh');
     if (refreshBtn) {
@@ -296,9 +481,6 @@
         toast('Données rafraîchies', 'success');
       });
     }
-
-    // Render quota panel
-    renderQuotaPanel();
 
     // ── Async: load real data via FinAPI ───────────────────────
     loadRealAndRerender();

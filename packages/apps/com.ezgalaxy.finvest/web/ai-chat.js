@@ -11,7 +11,7 @@
 
   /* ─────────── Config ────────────────────────────────────────── */
   let GEMINI_KEY = null; // Loaded from KeyVault at runtime
-  const GEMINI_MODEL = 'gemini-2.0-flash';
+  const GEMINI_MODEL = 'gemini-2.5-flash';
   let GEMINI_URL = null;
 
   function loadGeminiKey() {
@@ -244,66 +244,59 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
 
     panelEl = el('div', { className: 'ai-panel', id: 'ai-panel' });
 
-    // Header
+    // ── Header (clean, minimal) ─────────────────────────────────
     const header = el('div', { className: 'ai-panel__header' });
-    header.innerHTML = `
-      <div class="ai-panel__title">
-        <span class="ai-panel__logo">✨</span>
-        <span>FinVest AI</span>
-        <span class="ai-panel__model">${GEMINI_MODEL}</span>
-      </div>
-    `;
+    const titleWrap = el('div', { className: 'ai-panel__title' });
+    titleWrap.innerHTML = `<span class="ai-panel__logo">✨</span><span>FinVest AI</span><span class="ai-panel__model">${GEMINI_MODEL}</span>`;
+    header.appendChild(titleWrap);
+
     const headerActions = el('div', { className: 'ai-panel__header-actions' });
-
-    // Context selector
-    const ctxSelect = el('select', {
-      className: 'ai-panel__ctx-select',
-      onChange: (e) => { contextMode = e.target.value; }
-    });
-    ctxSelect.innerHTML = `
-      <option value="auto">🔄 Auto</option>
-      <option value="page">📄 Page actuelle</option>
-      <option value="market">📈 Marchés</option>
-      <option value="portfolio">💼 Portefeuille</option>
-      <option value="none">❌ Sans contexte</option>
-    `;
-    headerActions.appendChild(ctxSelect);
-
     // Clear history
-    const clearBtn = el('button', {
-      className: 'ai-panel__btn',
-      title: 'Effacer l\'historique',
-      innerHTML: '🗑️',
-      onClick: () => {
-        if (confirm('Effacer tout l\'historique de conversation ?')) {
-          chatHistory = [];
-          saveHistory();
-          renderMessages();
-        }
-      }
-    });
-    headerActions.appendChild(clearBtn);
-
-    // Close button
-    const closeBtn = el('button', {
-      className: 'ai-panel__btn ai-panel__close',
-      innerHTML: '✕',
+    headerActions.appendChild(el('button', {
+      className: 'ai-panel__btn', title: 'Effacer l\'historique', textContent: '🗑️',
+      onClick: () => { if (confirm('Effacer tout l\'historique ?')) { chatHistory = []; saveHistory(); renderMessages(); } }
+    }));
+    // Close
+    headerActions.appendChild(el('button', {
+      className: 'ai-panel__btn ai-panel__close', textContent: '✕',
       onClick: () => togglePanel(false)
-    });
-    headerActions.appendChild(closeBtn);
+    }));
     header.appendChild(headerActions);
     panelEl.appendChild(header);
 
-    // Page context indicator
-    const ctxBar = el('div', { className: 'ai-panel__ctx-bar', id: 'ai-ctx-bar' });
-    panelEl.appendChild(ctxBar);
-
-    // Messages area
+    // ── Messages area ───────────────────────────────────────────
     const messagesArea = el('div', { className: 'ai-panel__messages', id: 'ai-messages' });
     panelEl.appendChild(messagesArea);
 
-    // Input area
+    // ── Input area (bottom) ─────────────────────────────────────
     const inputArea = el('div', { className: 'ai-panel__input-area' });
+
+    // Context pill row (above textarea)
+    const ctxRow = el('div', { className: 'ai-ctx-pills', id: 'ai-ctx-pills' });
+    const ctxOptions = [
+      { key: 'auto', label: '🔄 Auto', title: 'Contexte automatique' },
+      { key: 'page', label: '📄 Page', title: 'Page actuelle' },
+      { key: 'market', label: '📈 Marchés', title: 'Données de marché' },
+      { key: 'portfolio', label: '💼 Portfolio', title: 'Portefeuille' },
+      { key: 'none', label: '💬 Libre', title: 'Sans contexte' }
+    ];
+    for (const opt of ctxOptions) {
+      const pill = el('button', {
+        className: `ai-ctx-pill ${opt.key === contextMode ? 'ai-ctx-pill--active' : ''}`,
+        textContent: opt.label,
+        title: opt.title,
+        onClick: () => {
+          contextMode = opt.key;
+          ctxRow.querySelectorAll('.ai-ctx-pill').forEach(p => p.classList.remove('ai-ctx-pill--active'));
+          pill.classList.add('ai-ctx-pill--active');
+        }
+      });
+      ctxRow.appendChild(pill);
+    }
+    inputArea.appendChild(ctxRow);
+
+    // Text input row
+    const inputRow = el('div', { className: 'ai-input-row' });
     const textarea = el('textarea', {
       className: 'ai-panel__textarea',
       id: 'ai-input',
@@ -316,24 +309,27 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
         }
       },
       onInput: (e) => {
-        // Auto-resize
-        e.target.style.height = 'auto';
-        e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+        // Auto-resize: reset then grow, cap at 50% of panel height
+        const ta = e.target;
+        ta.style.height = 'auto';
+        const maxH = Math.min(ta.scrollHeight, Math.floor(window.innerHeight * 0.35));
+        ta.style.height = maxH + 'px';
       }
     });
     const sendBtn = el('button', {
       className: 'ai-panel__send',
       id: 'ai-send-btn',
       innerHTML: '➤',
-      title: 'Envoyer',
+      title: 'Envoyer (Entrée)',
       onClick: handleSend
     });
-    inputArea.appendChild(textarea);
-    inputArea.appendChild(sendBtn);
+    inputRow.appendChild(textarea);
+    inputRow.appendChild(sendBtn);
+    inputArea.appendChild(inputRow);
     panelEl.appendChild(inputArea);
 
-    // Quick actions
-    const quickActions = el('div', { className: 'ai-panel__quick' });
+    // ── Quick actions (only shown when empty) ───────────────────
+    const quickActions = el('div', { className: 'ai-panel__quick', id: 'ai-quick-actions' });
     const quickPrompts = [
       { label: '📊 Analyser mon patrimoine', prompt: 'Peux-tu analyser mon patrimoine actuel et me donner des recommandations ?' },
       { label: '📈 Bilan marchés', prompt: 'Fais-moi un bilan rapide des marchés aujourd\'hui et des tendances intéressantes.' },
@@ -341,16 +337,10 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
       { label: '🏠 Stratégie immo', prompt: 'Est-ce le bon moment pour investir dans l\'immobilier ? Quels sont les indicateurs à surveiller ?' }
     ];
     for (const q of quickPrompts) {
-      const btn = el('button', {
-        className: 'ai-panel__quick-btn',
-        textContent: q.label,
-        onClick: () => {
-          const input = document.getElementById('ai-input');
-          if (input) input.value = q.prompt;
-          handleSend();
-        }
-      });
-      quickActions.appendChild(btn);
+      quickActions.appendChild(el('button', {
+        className: 'ai-panel__quick-btn', textContent: q.label,
+        onClick: () => { const input = document.getElementById('ai-input'); if (input) input.value = q.prompt; handleSend(); }
+      }));
     }
     panelEl.appendChild(quickActions);
 
@@ -412,19 +402,10 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
 
   /* ─────────── Update context bar ─────────────────────────────── */
   function updateContextBar() {
-    const bar = document.getElementById('ai-ctx-bar');
-    if (!bar) return;
-    const currentView = Store?.getState?.()?.currentView || 'overview';
-    const mode = contextMode;
-
-    let text = '';
-    if (mode === 'auto') text = `🔄 Contexte automatique — Page : ${specifiedPage || currentView}`;
-    else if (mode === 'page') text = `📄 Page : ${specifiedPage || currentView}`;
-    else if (mode === 'market') text = '📈 Contexte : Données de marché';
-    else if (mode === 'portfolio') text = '💼 Contexte : Portefeuille';
-    else text = '❌ Sans contexte';
-
-    bar.innerHTML = `<span class="ai-ctx-text">${text}</span>`;
+    // Context is now handled by pills in the input area — no separate bar needed
+    // Show/hide quick actions based on chat history
+    const quickEl = document.getElementById('ai-quick-actions');
+    if (quickEl) quickEl.style.display = chatHistory.length === 0 ? '' : 'none';
   }
 
   /* ─────────── Handle send ─────────────────────────────────── */
