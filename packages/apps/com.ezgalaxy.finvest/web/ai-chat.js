@@ -18,8 +18,7 @@
     if (typeof AccessControl !== 'undefined') {
       GEMINI_KEY = AccessControl.getKey('gemini');
       if (GEMINI_KEY) {
-        // URL without key param — key sent via header to avoid referer-null block in sandboxed iframes
-        GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+        GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       }
     }
   }
@@ -161,10 +160,8 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
 
     const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_KEY
-      },
+      headers: { 'Content-Type': 'application/json' },
+      referrerPolicy: 'no-referrer',
       body: JSON.stringify(body)
     });
 

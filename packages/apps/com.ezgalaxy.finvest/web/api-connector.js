@@ -314,7 +314,7 @@
       if (typeof AccessControl !== 'undefined' && !AccessControl.canUseFullAPI()) {
         AccessControl.trackRestrictedCall();
       }
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000), referrerPolicy: 'no-referrer' });
       if (!res.ok) {
         console.warn(`[FinAPI] ${api} HTTP ${res.status} for ${cacheKey}`);
         return cacheLSGet(cacheKey);
