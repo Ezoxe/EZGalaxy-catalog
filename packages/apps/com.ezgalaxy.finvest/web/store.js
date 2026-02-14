@@ -558,6 +558,24 @@
   }
 
   /* ---------- Init -------------------------------------------- */
+  let _autoSaveTimer = null;
+  const AUTO_SAVE_DELAY = 5000; // 5 seconds debounce
+
+  function _scheduleAutoSave() {
+    // Only auto-save if authenticated and ezgalaxy.storage is available
+    if (!state.auth || !state.auth.user || typeof ezgalaxy === 'undefined' || !ezgalaxy.storage) return;
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(async () => {
+      _autoSaveTimer = null;
+      try {
+        await cloudSave();
+        console.log('[Store] Auto-save completed');
+      } catch (e) {
+        console.warn('[Store] Auto-save failed:', e.message);
+      }
+    }, AUTO_SAVE_DELAY);
+  }
+
   function init() {
     loadLocal();
     // Log authorization
@@ -567,6 +585,20 @@
         console.log('[FinVest] Authorization loaded:', auth.capabilities.map(c => `${c.name}:${c.enabled}`).join(', '));
       })
       .catch(() => console.warn('[FinVest] Could not load authorization file'));
+
+    // ── Auto-save: subscribe to all state changes ───────────
+    subscribe(() => _scheduleAutoSave());
+
+    // ── Auto-load from cloud on first connect ────────────────
+    if (state.auth && state.auth.user && typeof ezgalaxy !== 'undefined' && ezgalaxy.storage) {
+      cloudLoad()
+        .then(loaded => {
+          if (loaded) console.log('[Store] Cloud data loaded on init');
+          setState({ cloudStatus: 'connected' });
+        })
+        .catch(() => setState({ cloudStatus: 'error' }));
+    }
+
     return state;
   }
 

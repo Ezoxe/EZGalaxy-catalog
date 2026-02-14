@@ -598,7 +598,7 @@
      MY PERMISSIONS VIEW — Shows current user's access status
      ================================================================= */
   function renderMyPermissions(container) {
-    const { el, icon, statCard } = window.UI;
+    const { el, icon, statCard, toast } = window.UI;
     container.innerHTML = '';
     const wrap = el('div', { className: 'view-content' });
 
@@ -612,6 +612,12 @@
 
     const user = getCurrentUser();
     const auth = isAuthenticated();
+    const admin = auth && isAdmin();
+
+    // Use effective perms — admin always has full access regardless of currentPerms timing
+    const effectivePerms = admin
+      ? { apiAccess: true, aiAccess: true, apiLimit: Infinity, isAdmin: true }
+      : { ...currentPerms };
 
     // Auth status card
     const authCard = el('div', { className: 'perm-status-card ez-fade-in' });
@@ -626,15 +632,14 @@
         </div>
       `;
     } else {
-      const admin = isAdmin();
       authCard.innerHTML = `
-        <div class="perm-status perm-status--${admin ? 'admin' : (currentPerms.apiAccess ? 'authorized' : 'restricted')}">
-          <span class="perm-status__icon">${admin ? '👑' : (currentPerms.apiAccess ? '✅' : '⚠️')}</span>
+        <div class="perm-status perm-status--${admin ? 'admin' : (effectivePerms.apiAccess ? 'authorized' : 'restricted')}">
+          <span class="perm-status__icon">${admin ? '👑' : (effectivePerms.apiAccess ? '✅' : '⚠️')}</span>
           <div>
-            <h3>${admin ? 'Administrateur' : (currentPerms.apiAccess ? 'Accès autorisé' : 'Accès restreint')}</h3>
+            <h3>${admin ? 'Administrateur' : (effectivePerms.apiAccess ? 'Accès autorisé' : 'Accès restreint')}</h3>
             <p>${admin
               ? 'Vous avez un accès complet à toutes les fonctionnalités, API et IA.'
-              : (currentPerms.apiAccess
+              : (effectivePerms.apiAccess
                 ? 'Votre compte a été autorisé par l\'administrateur. Accès complet aux API.'
                 : 'Votre accès est limité. Contactez l\'administrateur pour obtenir un accès étendu.')
             }</p>
@@ -649,26 +654,63 @@
     const grid = el('div', { className: 'stats-grid stats-grid--3 ez-fade-in' });
     grid.appendChild(statCard({
       title: 'Accès API',
-      value: currentPerms.apiAccess ? '✓ Complet' : '✗ Limité',
+      value: effectivePerms.apiAccess ? '✓ Complet' : '✗ Limité',
       iconName: 'activity',
-      color: currentPerms.apiAccess ? 'var(--ez-success)' : 'var(--ez-danger)'
+      color: effectivePerms.apiAccess ? 'var(--ez-success)' : 'var(--ez-danger)'
     }));
     grid.appendChild(statCard({
       title: 'Accès IA',
-      value: currentPerms.aiAccess ? '✓ Activé' : '✗ Désactivé',
+      value: effectivePerms.aiAccess ? '✓ Activé' : '✗ Désactivé',
       iconName: 'sparkles',
-      color: currentPerms.aiAccess ? '#8b5cf6' : 'var(--ez-danger)'
+      color: effectivePerms.aiAccess ? '#8b5cf6' : 'var(--ez-danger)'
     }));
     grid.appendChild(statCard({
       title: 'Limite API',
-      value: currentPerms.apiAccess ? 'Illimité' : `${currentPerms.apiLimit || 1}/min`,
+      value: effectivePerms.apiAccess ? 'Illimité' : `${effectivePerms.apiLimit || 1}/min`,
       iconName: 'clock',
-      color: currentPerms.apiAccess ? 'var(--ez-success)' : '#f59e0b'
+      color: effectivePerms.apiAccess ? 'var(--ez-success)' : '#f59e0b'
     }));
     wrap.appendChild(grid);
 
+    // ── Admin quick-actions ──────────────────────────────────
+    if (admin) {
+      const adminSection = el('div', { className: 'perm-admin-actions ez-fade-in' });
+      adminSection.innerHTML = `<h4 class="perm-admin-actions__title">🛠️ Outils d'administration</h4>`;
+      const actGrid = el('div', { className: 'perm-admin-grid' });
+
+      // Key Vault shortcut
+      const vaultCard = el('div', { className: 'perm-admin-card', onClick: () => navigateTo('admin') });
+      vaultCard.innerHTML = `
+        <span class="perm-admin-card__icon">🔑</span>
+        <div><strong>Coffre-fort API</strong><p class="text-muted">Configurer les clés API (Finnhub, Alpha Vantage, Gemini...)</p></div>
+        <span class="perm-admin-card__status">${hasKeys() ? '<span class="perm-badge perm-badge--on">Configuré</span>' : '<span class="perm-badge perm-badge--off">Non configuré</span>'}</span>
+      `;
+      actGrid.appendChild(vaultCard);
+
+      // User management shortcut
+      const usersCard = el('div', { className: 'perm-admin-card', onClick: () => navigateTo('admin') });
+      usersCard.innerHTML = `
+        <span class="perm-admin-card__icon">👥</span>
+        <div><strong>Gestion des comptes</strong><p class="text-muted">Gérer les autorisations API et IA des utilisateurs</p></div>
+        <span class="perm-admin-card__arrow">→</span>
+      `;
+      actGrid.appendChild(usersCard);
+
+      // Account / My profile
+      const profileCard = el('div', { className: 'perm-admin-card', onClick: () => navigateTo('account') });
+      profileCard.innerHTML = `
+        <span class="perm-admin-card__icon">👤</span>
+        <div><strong>Mon compte</strong><p class="text-muted">Voir les détails de votre compte et la synchronisation</p></div>
+        <span class="perm-admin-card__arrow">→</span>
+      `;
+      actGrid.appendChild(profileCard);
+
+      adminSection.appendChild(actGrid);
+      wrap.appendChild(adminSection);
+    }
+
     // Restricted usage info
-    if (!currentPerms.apiAccess) {
+    if (!effectivePerms.apiAccess) {
       const rs = getRestrictedStatus();
       const infoBox = el('div', { className: 'perm-info-box ez-fade-in' });
       infoBox.innerHTML = `
@@ -683,6 +725,22 @@
       wrap.appendChild(infoBox);
     }
 
+    // ── Cloud sync status ────────────────────────────────────
+    if (auth) {
+      const syncSection = el('div', { className: 'perm-info-box ez-fade-in' });
+      const s = Store.getState();
+      const cloudOk = s.cloudStatus === 'connected';
+      syncSection.innerHTML = `
+        <h4>☁️ Synchronisation des données</h4>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <span class="cloud-badge ${cloudOk ? 'cloud-status--connected' : 'cloud-status--disconnected'}">${cloudOk ? '☁️ Connecté' : '⚠️ Hors-ligne'}</span>
+          <span class="text-muted">Vos données sont ${cloudOk ? 'automatiquement synchronisées' : 'sauvegardées localement'}</span>
+        </div>
+        ${cloudOk ? '<p class="text-muted" style="margin-top:8px;font-size:11px">💡 Les données sont sauvegardées automatiquement à chaque modification.</p>' : ''}
+      `;
+      wrap.appendChild(syncSection);
+    }
+
     container.appendChild(wrap);
   }
 
@@ -691,6 +749,229 @@
     await loadPermissions();
     await loadKeys();
     console.log('[AccessControl] Loaded — admin:', isAdmin(), '| API:', currentPerms.apiAccess, '| AI:', currentPerms.aiAccess, '| Keys:', hasKeys());
+  }
+
+  /* =================================================================
+     ACCOUNT VIEW — User account info, sync status, data management
+     ================================================================= */
+  function renderAccountPanel(container) {
+    const { el, icon, statCard, toast, modal } = window.UI;
+    container.innerHTML = '';
+    const wrap = el('div', { className: 'view-content' });
+
+    // Header
+    wrap.appendChild(el('div', { className: 'page-header ez-fade-in' }, [
+      icon('user', 28),
+      el('div', {}, [
+        el('h2', { textContent: 'Mon compte' }),
+        el('p', { className: 'text-muted', textContent: 'Informations du compte, synchronisation et gestion des données' })
+      ])
+    ]));
+
+    const user = getCurrentUser();
+    const auth = isAuthenticated();
+    const s = Store.getState();
+
+    if (!auth) {
+      wrap.appendChild(el('div', { className: 'empty-state ez-fade-in' }, [
+        el('div', { className: 'empty-icon', textContent: '🔒' }),
+        el('h3', { textContent: 'Connexion requise' }),
+        el('p', { textContent: 'Connectez-vous pour accéder aux détails de votre compte.' })
+      ]));
+      container.appendChild(wrap);
+      return;
+    }
+
+    // ── User info card ─────────────────────────────────────────
+    const admin = isAdmin();
+    const userCard = el('div', { className: 'account-card ez-fade-in' });
+    const initials = (user.email || '?').charAt(0).toUpperCase();
+    userCard.innerHTML = `
+      <div class="account-card__header">
+        <div class="account-card__avatar">${admin ? '👑' : initials}</div>
+        <div class="account-card__info">
+          <h3>${user.displayName || user.name || user.email}</h3>
+          <p class="text-muted">${user.email}</p>
+          <div class="account-card__badges">
+            ${admin ? '<span class="badge badge--admin">Administrateur</span>' : ''}
+            <span class="badge badge--role">${currentPerms.apiAccess || admin ? '✓ API complète' : 'API limitée'}</span>
+            <span class="badge badge--role">${currentPerms.aiAccess || admin ? '✓ IA activée' : 'IA désactivée'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+    wrap.appendChild(userCard);
+
+    // ── Stats grid ────────────────────────────────────────────
+    const grid = el('div', { className: 'stats-grid stats-grid--4 ez-fade-in' });
+    grid.appendChild(statCard({
+      title: 'XP accumulés',
+      value: (s.xp || 0).toLocaleString('fr-FR'),
+      iconName: 'star',
+      color: '#f59e0b'
+    }));
+    grid.appendChild(statCard({
+      title: 'Transactions',
+      value: (s.transactions || []).length,
+      iconName: 'list',
+      color: 'var(--ez-primary)'
+    }));
+    grid.appendChild(statCard({
+      title: 'Positions',
+      value: (s.positions || []).length,
+      iconName: 'briefcase',
+      color: 'var(--ez-success)'
+    }));
+    grid.appendChild(statCard({
+      title: 'Journal',
+      value: (s.journalEntries || []).length,
+      iconName: 'edit',
+      color: '#8b5cf6'
+    }));
+    wrap.appendChild(grid);
+
+    // ── Cloud sync section ─────────────────────────────────────
+    const syncCard = el('div', { className: 'account-section ez-fade-in' });
+    const cloudOk = s.cloudStatus === 'connected';
+    syncCard.innerHTML = `
+      <div class="account-section__header">
+        <h3>☁️ Synchronisation cloud</h3>
+        <span class="cloud-badge ${cloudOk ? 'cloud-status--connected' : 'cloud-status--disconnected'}">${cloudOk ? '☁️ Connecté' : '⚠️ Hors-ligne'}</span>
+      </div>
+      <p class="text-muted">Vos données sont automatiquement sauvegardées dans le cloud EZGalaxy à chaque modification lorsque vous êtes connecté.</p>
+    `;
+    const syncActions = el('div', { className: 'account-section__actions' });
+    const forceSaveBtn = el('button', {
+      className: 'btn btn--primary btn--sm',
+      onClick: async () => {
+        try {
+          forceSaveBtn.textContent = '⏳ Synchronisation...';
+          forceSaveBtn.disabled = true;
+          await Store.cloudSave();
+          toast('☁️ Données synchronisées avec succès !', 'success');
+          forceSaveBtn.textContent = '✓ Synchronisé !';
+          setTimeout(() => { forceSaveBtn.textContent = '🔄 Synchroniser maintenant'; forceSaveBtn.disabled = false; }, 2000);
+        } catch (e) {
+          toast('Erreur de synchronisation : ' + e.message, 'error');
+          forceSaveBtn.textContent = '🔄 Synchroniser maintenant';
+          forceSaveBtn.disabled = false;
+        }
+      }
+    }, [icon('refresh', 14), el('span', { textContent: ' Synchroniser maintenant' })]);
+    syncActions.appendChild(forceSaveBtn);
+
+    const loadCloudBtn = el('button', {
+      className: 'btn btn--ghost btn--sm',
+      onClick: async () => {
+        if (!confirm('Charger les données depuis le cloud ? Cela remplacera les données locales.')) return;
+        try {
+          const loaded = await Store.cloudLoad();
+          if (loaded) {
+            toast('☁️ Données chargées depuis le cloud !', 'success');
+            renderApp();
+          } else {
+            toast('Aucune donnée trouvée dans le cloud', 'info');
+          }
+        } catch (e) {
+          toast('Erreur : ' + e.message, 'error');
+        }
+      }
+    }, [icon('download', 14), el('span', { textContent: ' Charger depuis le cloud' })]);
+    syncActions.appendChild(loadCloudBtn);
+    syncCard.appendChild(syncActions);
+    wrap.appendChild(syncCard);
+
+    // ── Data management ────────────────────────────────────────
+    const dataCard = el('div', { className: 'account-section ez-fade-in' });
+    dataCard.innerHTML = `
+      <div class="account-section__header">
+        <h3>📦 Gestion des données</h3>
+      </div>
+      <p class="text-muted">Exportez ou importez vos données financières pour une sauvegarde locale.</p>
+    `;
+    const dataActions = el('div', { className: 'account-section__actions' });
+
+    const exportBtn = el('button', {
+      className: 'btn btn--ghost btn--sm',
+      onClick: () => { Store.exportJSON(); toast('📦 Export généré', 'info'); }
+    }, [icon('download', 14), el('span', { textContent: ' Exporter (JSON)' })]);
+    dataActions.appendChild(exportBtn);
+
+    const importLabel = el('label', { className: 'btn btn--ghost btn--sm', style: { cursor: 'pointer' } });
+    importLabel.appendChild(icon('upload', 14));
+    importLabel.appendChild(el('span', { textContent: ' Importer' }));
+    const importInput = el('input', {
+      type: 'file',
+      accept: '.json',
+      style: { display: 'none' },
+      onChange: async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          await Store.importJSON(file);
+          toast('📦 Données importées avec succès !', 'success');
+          renderApp();
+        } catch (e) {
+          toast('Erreur d\'import : ' + e.message, 'error');
+        }
+      }
+    });
+    importLabel.appendChild(importInput);
+    dataActions.appendChild(importLabel);
+
+    const resetBtn = el('button', {
+      className: 'btn btn--danger-ghost btn--sm',
+      onClick: () => {
+        modal({
+          title: '⚠️ Réinitialiser les données',
+          content: el('div', {}, [
+            el('p', { textContent: 'Cette action supprimera toutes vos données locales (profil, transactions, portefeuille, journal...). Cette action est irréversible.' }),
+            el('p', { className: 'text-muted', textContent: 'Les données dans le cloud ne seront pas affectées.' })
+          ]),
+          actions: [
+            {
+              label: '🗑️ Réinitialiser',
+              cls: 'btn--danger',
+              onClick: (close) => {
+                Store.resetProfile();
+                toast('Données réinitialisées', 'warning');
+                close();
+                navigateTo('welcome');
+              }
+            },
+            { label: 'Annuler', cls: 'btn--ghost' }
+          ]
+        });
+      }
+    }, [icon('trash', 14), el('span', { textContent: ' Réinitialiser' })]);
+    dataActions.appendChild(resetBtn);
+    dataCard.appendChild(dataActions);
+    wrap.appendChild(dataCard);
+
+    // ── Session info ───────────────────────────────────────────
+    const sessionCard = el('div', { className: 'account-section ez-fade-in' });
+    sessionCard.innerHTML = `
+      <div class="account-section__header">
+        <h3>🔐 Session</h3>
+      </div>
+    `;
+    const sessionInfo = el('div', { className: 'account-session-info' });
+    const infoItems = [
+      { label: 'Email', value: user.email },
+      { label: 'Rôle', value: admin ? 'Administrateur' : 'Utilisateur' },
+      { label: 'Accès API', value: (currentPerms.apiAccess || admin) ? 'Complet' : 'Limité' },
+      { label: 'Accès IA', value: (currentPerms.aiAccess || admin) ? 'Activé' : 'Désactivé' },
+      { label: 'Statut cloud', value: cloudOk ? 'Connecté' : 'Hors-ligne' }
+    ];
+    for (const item of infoItems) {
+      const row = el('div', { className: 'account-session-row' });
+      row.innerHTML = `<span class="account-session-label">${item.label}</span><span class="account-session-value">${item.value}</span>`;
+      sessionInfo.appendChild(row);
+    }
+    sessionCard.appendChild(sessionInfo);
+    wrap.appendChild(sessionCard);
+
+    container.appendChild(wrap);
   }
 
   /* ─────────── PUBLIC API ─────────────────────────────────────── */
@@ -713,6 +994,7 @@
     // Views
     renderAdminPanel,
     renderMyPermissions,
+    renderAccountPanel,
     // Key Vault
     loadKeys,
     saveKeys,

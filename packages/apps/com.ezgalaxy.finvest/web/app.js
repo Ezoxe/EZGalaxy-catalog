@@ -64,6 +64,7 @@
     { key: 'partage',           label: 'Partager',           icon: 'share' },
 
     { type: 'divider', label: '⚙️ Système' },
+    { key: 'account',            label: 'Mon compte',        icon: 'user' },
     { key: 'permissions',       label: 'Mes autorisations', icon: 'lock' },
     { key: 'admin',             label: 'Administration',    icon: 'shield', adminOnly: true },
     { key: 'themes',            label: 'Thèmes',            icon: 'palette' },
@@ -184,6 +185,8 @@
         AccessControl.renderAdminPanel(main);
       } else if (view === 'permissions' && typeof AccessControl !== 'undefined') {
         AccessControl.renderMyPermissions(main);
+      } else if (view === 'account' && typeof AccessControl !== 'undefined') {
+        AccessControl.renderAccountPanel(main);
       } else {
         const viewFn = Views[view];
         if (viewFn) {
