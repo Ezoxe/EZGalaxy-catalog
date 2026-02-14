@@ -18,7 +18,8 @@
     if (typeof AccessControl !== 'undefined') {
       GEMINI_KEY = AccessControl.getKey('gemini');
       if (GEMINI_KEY) {
-        GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+        // URL without key param — key sent via header to avoid referer-null block in sandboxed iframes
+        GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
       }
     }
   }
@@ -160,7 +161,10 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
 
     const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': GEMINI_KEY
+      },
       body: JSON.stringify(body)
     });
 
@@ -309,11 +313,14 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
         }
       },
       onInput: (e) => {
-        // Auto-resize: reset then grow, cap at 50% of panel height
+        // Auto-resize: grow with content, cap at 35% viewport
         const ta = e.target;
         ta.style.height = 'auto';
-        const maxH = Math.min(ta.scrollHeight, Math.floor(window.innerHeight * 0.35));
-        ta.style.height = maxH + 'px';
+        const maxH = Math.floor(window.innerHeight * 0.35);
+        const newH = Math.min(ta.scrollHeight, maxH);
+        ta.style.height = newH + 'px';
+        // Show top fade mask when content overflows and is scrolled
+        ta.classList.toggle('ai-textarea--overflow', ta.scrollHeight > maxH);
       }
     });
     const sendBtn = el('button', {

@@ -3081,8 +3081,16 @@ body:has(.ai-panel--open) .ai-toggle-btn { opacity: 0; pointer-events: none; }
   outline: none;
   font-family: inherit;
   max-height: 35vh;
+  overflow-y: auto;
   line-height: 1.5;
   transition: border-color 0.2s, box-shadow 0.2s;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139,92,246,0.3) transparent;
+}
+/* Fade mask when textarea content overflows */
+.ai-textarea--overflow {
+  mask-image: linear-gradient(to bottom, transparent 0%, black 18px, black 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18px, black 100%);
 }
 .ai-panel__textarea:focus {
   border-color: rgba(139,92,246,0.4);
