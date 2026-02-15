@@ -119,40 +119,37 @@
         el('button', { className: 'btn', onClick: () => m.close() }, ['Annuler']),
         (() => {
           loginBtn = el('button', { className: 'btn btn--primary', onClick: async () => {
-            // Disable button and show loading
             loginBtn.disabled = true;
             loginBtn.textContent = 'Connexion...';
             try {
+              // 1. Login
               await Store.login(emailVal, passVal);
-              toast('Connecté avec succès', 'success');
+              console.log('[FinVest] Login OK');
 
-              // Show loading state while fetching data
-              loginBtn.textContent = 'Chargement des données...';
-
+              // 2. Try loading cloud data
+              loginBtn.textContent = 'Chargement...';
               let loaded = false;
               try {
                 loaded = await Store.cloudLoad();
               } catch (err) {
                 console.warn('[FinVest] Cloud load after login failed:', err);
-                toast('Impossible de charger les données cloud : ' + err.message, 'error');
               }
 
-              // Close modal AFTER all async work is done
-              m.close();
+              // 3. Force-remove modal from DOM immediately (no animation delay)
+              //    This prevents the overlay from blocking the screen on mobile
+              m.overlay.remove();
 
-              if (loaded) {
-                const st = Store.getState();
-                console.log('[FinVest] Cloud load result — step:', st.step, 'analysis:', !!st.analysis);
-                if (st.analysis) {
-                  toast('Données chargées depuis le cloud', 'success');
-                  // Directly force state + navigation (no renderApp intermediary)
-                  Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
-                  // Use setTimeout to ensure DOM updates from modal close are processed
-                  setTimeout(() => window.navigateTo(st.currentView || 'overview'), 50);
-                  return;
-                }
+              // 4. Navigate based on loaded data
+              const st = Store.getState();
+              console.log('[FinVest] Post-login state — loaded:', loaded, 'step:', st.step, 'analysis:', !!st.analysis);
+              if (st.analysis) {
+                toast('Données chargées depuis le cloud', 'success');
+                Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
+              } else {
+                toast('Connecté avec succès', 'success');
               }
-              // Fallback: re-render welcome (now showing connected status)
+
+              // 5. Single re-render (reads step from state → navigates accordingly)
               window.renderApp();
             } catch (e) {
               loginBtn.disabled = false;
@@ -1328,8 +1325,16 @@
           el('button', { className: 'btn', onClick: async () => {
             try {
               const ok = await Store.cloudLoad();
-              toast(ok ? 'Données chargées' : 'Aucune sauvegarde trouvée — sauvegardez d\'abord vos données.', ok ? 'success' : 'info');
-              if (ok) window.renderApp();
+              if (ok) {
+                toast('Données chargées', 'success');
+                const st = Store.getState();
+                if (st.analysis) {
+                  Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
+                }
+                window.renderApp();
+              } else {
+                toast('Aucune sauvegarde trouvée — sauvegardez d\'abord vos données.', 'info');
+              }
             } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
           } }, [icon('download', 16), 'Charger']),
           el('button', { className: 'btn btn--ghost', onClick: () => { Store.logout(); toast('Déconnecté', 'info'); window.renderApp(); } }, [icon('logout', 16), 'Déconnexion'])

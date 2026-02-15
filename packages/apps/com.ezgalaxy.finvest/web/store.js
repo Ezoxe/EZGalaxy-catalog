@@ -278,20 +278,29 @@
   /* ---------- Cloud — EZGalaxy SDK Storage ---------------------- */
 
   async function login(email, password) {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Identifiants invalides');
+    // Block auto-save during login+cloudLoad sequence to prevent overwriting cloud data
+    _isCloudOp = true;
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Identifiants invalides');
+      }
+      const data = await res.json();
+      const auth = { token: data.token, user: data.user };
+      safeLS.setItem(LS_AUTH, JSON.stringify(auth));
+      setState({ auth, cloudStatus: 'connected' });
+      return data.user;
+    } finally {
+      // Note: _isCloudOp stays true if cloudLoad follows immediately after login
+      // The caller (showLoginModal) will call cloudLoad which also sets _isCloudOp = true
+      // If no cloudLoad follows, we reset it here
+      _isCloudOp = false;
     }
-    const data = await res.json();
-    const auth = { token: data.token, user: data.user };
-    safeLS.setItem(LS_AUTH, JSON.stringify(auth));
-    setState({ auth, cloudStatus: 'connected' });
-    return data.user;
   }
 
   function logout() {
