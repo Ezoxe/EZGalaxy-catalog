@@ -593,7 +593,11 @@
     if (state.auth && state.auth.user && typeof ezgalaxy !== 'undefined' && ezgalaxy.storage) {
       cloudLoad()
         .then(loaded => {
-          if (loaded) console.log('[Store] Cloud data loaded on init');
+          if (loaded) {
+            console.log('[Store] Cloud data loaded on init');
+            // Re-render the app to reflect loaded data (e.g., switch from welcome → dashboard)
+            if (typeof window.renderApp === 'function') window.renderApp();
+          }
           setState({ cloudStatus: 'connected' });
         })
         .catch(() => setState({ cloudStatus: 'error' }));

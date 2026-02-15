@@ -299,6 +299,18 @@
     // Subscribe to store changes for cloud indicator
     Store.subscribe(() => updateCloudIndicator());
 
+    // Re-render when step changes (handles async cloud load, import, etc.)
+    let _lastStep = Store.getState().step;
+    let _stepRenderTimer = null;
+    Store.subscribe((s) => {
+      if (s.step !== _lastStep) {
+        _lastStep = s.step;
+        // Debounce to avoid double render when setState + navigateTo are called together
+        if (_stepRenderTimer) clearTimeout(_stepRenderTimer);
+        _stepRenderTimer = setTimeout(() => { _stepRenderTimer = null; renderApp(); }, 50);
+      }
+    });
+
     // ── Keyboard shortcuts ──────────────────────────────────────
     document.addEventListener('keydown', e => {
       // Ctrl+K → Search
