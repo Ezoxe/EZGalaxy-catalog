@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.chroma",
+  "title": "ChromaLab",
+  "function": "Générateur de palettes de couleurs harmoniques avec vérification de contraste WCAG, export CSS/JSON et sauvegarde cloud.",
+  "version": "1.0.0",
+  "createdAt": "2026-02-15",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}

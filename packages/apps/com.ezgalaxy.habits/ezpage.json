@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.habits",
+  "title": "Habit Forge",
+  "function": "Suivi d'habitudes quotidiennes avec streaks, heatmap calendrier, statistiques de progression et rappels visuels.",
+  "version": "1.0.0",
+  "createdAt": "2026-02-15",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}

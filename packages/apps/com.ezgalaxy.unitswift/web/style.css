@@ -1,0 +1,59 @@
+/* UnitSwift – style.css */
+
+.app-header{text-align:center;padding:1.2rem 0 .5rem}
+.app-header h1{font-size:1.8rem;margin:0;color:var(--ez-primary)}
+.app-subtitle{color:var(--ez-text-dim,#8a94a6);font-size:.85rem;margin:.1rem 0 .6rem}
+
+/* ── Category bar ── */
+.cat-bar{display:flex;gap:.35rem;overflow-x:auto;padding-bottom:.6rem;margin-bottom:.8rem;scrollbar-width:thin}
+.cat-pill{padding:.45rem .8rem;border-radius:20px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#bbb;font-size:.78rem;white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0}
+.cat-pill:hover{border-color:var(--ez-primary);color:#eee}
+.cat-pill.active{background:var(--ez-primary);color:#fff;border-color:var(--ez-primary);font-weight:600}
+
+/* ── Converter card ── */
+.converter{padding:1.2rem;border-radius:14px}
+.conv-row{display:flex;align-items:center;gap:.6rem}
+.conv-field{flex:1;display:flex;flex-direction:column;gap:.4rem}
+.conv-input{width:100%;padding:.65rem .8rem;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.06);color:#eee;font-size:1.3rem;font-weight:600;text-align:center;box-sizing:border-box;transition:border-color .2s}
+.conv-input:focus{outline:none;border-color:var(--ez-primary);box-shadow:0 0 0 3px rgba(14,165,164,.18)}
+.conv-result{color:var(--ez-primary);background:rgba(14,165,164,.06)}
+.conv-select{width:100%;padding:.45rem .5rem;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(255,255,255,.06);color:#ccc;font-size:.82rem;appearance:none;cursor:pointer;text-align:center;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%238a94a6'%3E%3Cpath d='M1 3l4 5 4-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:22px}
+
+/* ── Swap button ── */
+.swap-btn{width:44px;height:44px;border-radius:50%;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .3s;flex-shrink:0}
+.swap-btn:hover{border-color:var(--ez-primary);background:rgba(14,165,164,.12)}
+.swap-btn:active .swap-icon{transform:rotate(180deg)}
+.swap-icon{font-size:1.2rem;color:var(--ez-primary);display:inline-block;transition:transform .4s ease}
+
+/* ── Formula ── */
+.formula-line{text-align:center;font-size:.78rem;color:var(--ez-text-dim,#8a94a6);margin-top:.7rem;min-height:1.2em;font-family:'Courier New',monospace}
+
+/* ── Actions ── */
+.conv-actions{display:flex;gap:.4rem;justify-content:center;margin-top:.7rem}
+.btn-sm{font-size:.75rem;padding:.3rem .65rem}
+
+/* ── Section ── */
+.section{margin-top:1rem}
+.section-title{color:var(--ez-primary);font-size:.9rem;margin:0 0 .5rem;display:flex;align-items:center;gap:.3rem}
+
+/* ── Favorites ── */
+.fav-list{display:flex;gap:.35rem;flex-wrap:wrap}
+.fav-chip{padding:.4rem .7rem;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:.75rem;color:#ccc;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:.3rem}
+.fav-chip:hover{border-color:var(--ez-primary);color:#fff}
+.fav-chip .del-fav{color:#f87171;font-size:.65rem;cursor:pointer}
+
+/* ── History ── */
+.history-list{display:flex;flex-direction:column;gap:.3rem;padding-bottom:2rem}
+.hist-row{display:flex;justify-content:space-between;align-items:center;padding:.5rem .8rem;background:rgba(255,255,255,.05);border-radius:8px;font-size:.8rem;color:#bbb;animation:ezFadeIn .3s ease both;cursor:pointer;transition:background .2s}
+.hist-row:hover{background:rgba(255,255,255,.08)}
+.hist-row .h-from{color:#eee;font-weight:500}
+.hist-row .h-arrow{color:var(--ez-primary);margin:0 .4rem}
+.hist-row .h-to{color:var(--ez-primary);font-weight:600}
+.hist-row .h-time{color:var(--ez-text-dim,#8a94a6);font-size:.7rem}
+.empty-state{text-align:center;color:var(--ez-text-dim,#8a94a6);padding:1.5rem;font-size:.82rem}
+
+/* ── Notification ── */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ez-primary);color:#fff;padding:.5rem 1rem;border-radius:8px;font-size:.82rem;z-index:200;animation:ezFadeIn .3s ease,fadeOut .3s ease 1.5s forwards}
+@keyframes fadeOut{to{opacity:0;transform:translateX(-50%) translateY(10px)}}
+
+@media(max-width:420px){.conv-row{flex-direction:column}.swap-btn{align-self:center}}

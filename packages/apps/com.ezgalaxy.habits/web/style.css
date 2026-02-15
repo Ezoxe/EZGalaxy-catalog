@@ -1,0 +1,55 @@
+/* ===== Habit Forge — Styles ===== */
+*,*::before,*::after{box-sizing:border-box}
+#app{max-width:600px;margin:0 auto;padding:20px 16px;min-height:100vh}
+.hf-header{text-align:center;margin-bottom:16px}
+.hf-header h1{font-size:1.5rem;margin:0;display:flex;align-items:center;justify-content:center;gap:8px}
+/* Tabs */
+.hf-tabs{display:flex;gap:4px;border-bottom:1px solid var(--ez-border);margin-bottom:16px}
+.hf-tab{padding:8px 14px;cursor:pointer;font-size:.85rem;color:var(--ez-muted);border:none;background:none;border-bottom:2px solid transparent;transition:all .2s}
+.hf-tab:hover{color:var(--ez-text)}
+.hf-tab.active{color:var(--ez-primary);border-bottom-color:var(--ez-primary)}
+.hf-panel{display:none}.hf-panel.active{display:block}
+/* Habit list */
+.hf-habits{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.hf-habit-card{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--ez-surface);border:1px solid var(--ez-border);border-radius:12px;transition:all .2s}
+.hf-habit-card:hover{border-color:rgba(14,165,164,.3)}
+.hf-habit-emoji{font-size:1.6rem;flex-shrink:0;width:36px;text-align:center}
+.hf-habit-info{flex:1;min-width:0}
+.hf-habit-name{font-weight:600;font-size:.95rem}
+.hf-habit-streak{font-size:.75rem;color:var(--ez-muted);margin-top:2px}
+.hf-habit-streak .fire{color:#f59e0b}
+.hf-check-btn{width:38px;height:38px;border-radius:50%;border:2px solid var(--ez-border);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:all .25s;color:var(--ez-muted);flex-shrink:0}
+.hf-check-btn.done{background:var(--ez-primary);border-color:var(--ez-primary);color:#fff}
+.hf-check-btn:hover{border-color:var(--ez-primary)}
+.hf-delete-btn{width:30px;height:30px;border-radius:8px;border:none;background:rgba(239,68,68,.15);color:var(--ez-danger);cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+.hf-delete-btn:hover{background:rgba(239,68,68,.3)}
+/* Add form */
+.hf-add-form{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.hf-add-form input,.hf-add-form select{background:rgba(0,0,0,.3);border:1px solid var(--ez-border);border-radius:8px;padding:8px 10px;color:var(--ez-text);font-size:.9rem;flex:1;min-width:120px}
+.hf-add-form input:focus,.hf-add-form select:focus{outline:none;border-color:var(--ez-primary)}
+.hf-add-form button{white-space:nowrap}
+/* Heatmap */
+.hf-heatmap{overflow-x:auto;padding-bottom:8px}
+.hf-heatmap-grid{display:grid;grid-template-columns:repeat(53, 14px);gap:2px}
+.hf-hm-cell{width:14px;height:14px;border-radius:3px;background:rgba(255,255,255,.04);transition:background .2s}
+.hf-hm-cell.l1{background:rgba(14,165,164,.2)}
+.hf-hm-cell.l2{background:rgba(14,165,164,.4)}
+.hf-hm-cell.l3{background:rgba(14,165,164,.65)}
+.hf-hm-cell.l4{background:rgba(14,165,164,.9)}
+.hf-hm-months{display:grid;grid-template-columns:repeat(53, 14px);gap:2px;margin-bottom:4px}
+.hf-hm-months span{font-size:8px;color:var(--ez-muted);text-align:center}
+.hf-hm-legend{display:flex;gap:4px;align-items:center;margin-top:6px;font-size:.7rem;color:var(--ez-muted)}
+.hf-hm-legend .hf-hm-cell{cursor:default}
+/* Stats */
+.hf-stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:16px}
+.hf-stat-card{text-align:center;padding:14px 8px;background:var(--ez-surface);border:1px solid var(--ez-border);border-radius:12px}
+.hf-stat-card .val{font-size:1.5rem;font-weight:700;color:var(--ez-primary)}
+.hf-stat-card .lbl{font-size:.72rem;color:var(--ez-muted);margin-top:4px}
+/* Today progress bar */
+.hf-today-bar{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin-bottom:16px}
+.hf-today-bar .fill{height:100%;background:linear-gradient(90deg,var(--ez-primary),#22c55e);border-radius:4px;transition:width .4s ease}
+.hf-today-label{font-size:.78rem;color:var(--ez-muted);margin-bottom:4px;display:flex;justify-content:space-between}
+/* Empty */
+.hf-empty{text-align:center;color:var(--ez-muted);padding:40px 0;font-size:.9rem}
+.hf-empty .big{font-size:2.5rem;margin-bottom:8px}
+@media(max-width:400px){.hf-add-form{flex-direction:column}.hf-add-form input,.hf-add-form select{min-width:100%}}

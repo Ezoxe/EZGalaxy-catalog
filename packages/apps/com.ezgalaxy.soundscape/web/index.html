@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundScape</title>
+    <link rel="stylesheet" href="ezgalaxy-base.css">
+    <link rel="stylesheet" href="ezgalaxy-animations.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ez-wrap" id="app">
+        <header class="app-header ez-fade-in">
+            <h1>🎵 SoundScape</h1>
+            <p class="app-subtitle">Sons ambiants pour la concentration</p>
+        </header>
+
+        <!-- Visualizer -->
+        <canvas id="visualizer" class="visualizer ez-fade-in" width="600" height="120"></canvas>
+
+        <!-- Master controls -->
+        <div class="master-bar ez-fade-in">
+            <button class="ez-btn ez-btn--primary btn-circle" id="btn-play" title="Lecture">▶</button>
+            <div class="master-vol">
+                <span class="vol-icon">🔊</span>
+                <input type="range" id="master-volume" min="0" max="100" value="70" class="slider">
+                <span class="vol-val" id="master-val">70%</span>
+            </div>
+            <div class="timer-section">
+                <span class="timer-icon">⏱️</span>
+                <select id="sleep-timer" class="field-select">
+                    <option value="0">Pas de minuteur</option>
+                    <option value="5">5 min</option>
+                    <option value="15">15 min</option>
+                    <option value="30">30 min</option>
+                    <option value="60">1 heure</option>
+                    <option value="120">2 heures</option>
+                </select>
+                <span class="timer-countdown" id="timer-display"></span>
+            </div>
+        </div>
+
+        <!-- Sound channels -->
+        <div class="channels-grid ez-fade-in" id="channels"></div>
+
+        <!-- Presets -->
+        <div class="presets-section ez-fade-in">
+            <div class="presets-header">
+                <h3>🎛️ Presets</h3>
+                <button class="ez-btn btn-sm" id="btn-save-preset">💾 Sauvegarder</button>
+            </div>
+            <div class="presets-list" id="presets-list"></div>
+        </div>
+
+        <!-- Save preset modal -->
+        <div class="modal-overlay" id="modal-preset" style="display:none">
+            <div class="modal ez-card">
+                <div class="modal-header">
+                    <h2>Sauvegarder le preset</h2>
+                    <button class="close-btn" id="btn-close-modal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <label class="field-label">Nom du preset</label>
+                    <input type="text" class="field-input" id="preset-name" placeholder="Mon ambiance…" maxlength="40">
+                </div>
+                <div class="modal-footer">
+                    <button class="ez-btn" id="btn-cancel-preset">Annuler</button>
+                    <button class="ez-btn ez-btn--primary" id="btn-confirm-preset">Sauvegarder</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/api/ezgalaxy-sdk.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.neurocards",
+  "updatedAt": "2026-02-15",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": { "allowedOrigins": [] },
+      "justification": "Same-origin EZGalaxy SDK calls for Community Data API storage."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": ["decks", "reviews"],
+        "dataTypes": ["flashcard-decks", "review-stats"]
+      },
+      "justification": "Sauvegarde des decks de flashcards et de l'historique de révision."
+    }
+  ]
+}

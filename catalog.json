@@ -118,6 +118,90 @@
       "function": "Découvre l'informatique de manière ludique et interactive — modules, quiz, badges et gamification pour les 14 ans et +",
       "path": "packages/apps/com.ezgalaxy.it-discovery",
       "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.pomodoro",
+      "title": "Pomodoro Pro",
+      "function": "Minuteur Pomodoro avec statistiques de sessions, graphiques et personnalisation complète",
+      "path": "packages/apps/com.ezgalaxy.pomodoro",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.habits",
+      "title": "Habit Forge",
+      "function": "Suivi d'habitudes quotidiennes avec heatmap, séries et statistiques de progression",
+      "path": "packages/apps/com.ezgalaxy.habits",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.markdown",
+      "title": "MarkDown Studio",
+      "function": "Éditeur Markdown split-view avec aperçu temps réel, barre d'outils et gestion multi-documents",
+      "path": "packages/apps/com.ezgalaxy.markdown",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.chroma",
+      "title": "ChromaLab",
+      "function": "Générateur de palettes de couleurs avec harmonies, contraste WCAG et export multi-formats",
+      "path": "packages/apps/com.ezgalaxy.chroma",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.kanflow",
+      "title": "KanFlow",
+      "function": "Tableau Kanban avec drag & drop, multi-tableaux, tags colorés et dates d'échéance",
+      "path": "packages/apps/com.ezgalaxy.kanflow",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.neurocards",
+      "title": "NeuroCards",
+      "function": "Flashcards avec répétition espacée SM-2, import JSON et suivi de progression",
+      "path": "packages/apps/com.ezgalaxy.neurocards",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.vaultgen",
+      "title": "VaultGen",
+      "function": "Générateur de mots de passe sécurisés avec Web Crypto API, passphrases et évaluation de force",
+      "path": "packages/apps/com.ezgalaxy.vaultgen",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.pollmaker",
+      "title": "PollMaker",
+      "function": "Créez et partagez des sondages interactifs avec résultats en temps réel",
+      "path": "packages/apps/com.ezgalaxy.pollmaker",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.typeracer",
+      "title": "TypeRacer",
+      "function": "Testez et améliorez votre vitesse de frappe avec des textes en français",
+      "path": "packages/apps/com.ezgalaxy.typeracer",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.soundscape",
+      "title": "SoundScape",
+      "function": "Mixeur de sons ambiants pour la concentration, la relaxation et le sommeil",
+      "path": "packages/apps/com.ezgalaxy.soundscape",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.unitswift",
+      "title": "UnitSwift",
+      "function": "Convertisseur d'unités multi-catégories rapide et intuitif",
+      "path": "packages/apps/com.ezgalaxy.unitswift",
+      "version": "1.0.0"
+    },
+    {
+      "id": "com.ezgalaxy.moodtracker",
+      "title": "MoodTracker",
+      "function": "Suivez votre humeur quotidienne avec calendrier, tendances et insights",
+      "path": "packages/apps/com.ezgalaxy.moodtracker",
+      "version": "1.0.0"
     }
   ]
 }

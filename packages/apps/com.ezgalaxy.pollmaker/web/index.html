@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PollMaker</title>
+    <link rel="stylesheet" href="ezgalaxy-base.css">
+    <link rel="stylesheet" href="ezgalaxy-animations.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ez-wrap" id="app">
+        <header class="app-header ez-fade-in">
+            <h1>📊 PollMaker</h1>
+            <p class="app-subtitle">Sondages interactifs</p>
+            <div class="header-actions">
+                <button class="ez-btn ez-btn--primary" id="btn-create">＋ Créer</button>
+                <button class="ez-btn" id="btn-refresh" title="Rafraîchir">🔄</button>
+            </div>
+        </header>
+
+        <nav class="tab-bar ez-fade-in">
+            <button class="tab active" data-tab="community">🌐 Communauté</button>
+            <button class="tab" data-tab="mine">📋 Mes sondages</button>
+        </nav>
+
+        <main id="view-community" class="poll-list"></main>
+        <main id="view-mine" class="poll-list" style="display:none"></main>
+
+        <!-- Create / Edit Modal -->
+        <div class="modal-overlay" id="modal-create" style="display:none">
+            <div class="modal ez-card">
+                <div class="modal-header">
+                    <h2 id="modal-title">Nouveau sondage</h2>
+                    <button class="close-btn" id="btn-close-modal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <label class="field-label">Question</label>
+                    <input type="text" class="field-input" id="poll-question" placeholder="Posez votre question…" maxlength="200">
+
+                    <label class="field-label">Options</label>
+                    <div id="options-container"></div>
+                    <button class="ez-btn btn-sm" id="btn-add-option">＋ Ajouter une option</button>
+
+                    <label class="field-label">Catégorie</label>
+                    <select class="field-input" id="poll-category">
+                        <option value="general">💬 Général</option>
+                        <option value="tech">💻 Technologie</option>
+                        <option value="culture">🎭 Culture</option>
+                        <option value="gaming">🎮 Gaming</option>
+                        <option value="food">🍕 Cuisine</option>
+                        <option value="sport">⚽ Sport</option>
+                    </select>
+
+                    <div class="toggle-row">
+                        <span>Vote multiple autorisé</span>
+                        <label class="toggle"><input type="checkbox" id="poll-multi"><span class="toggle-slider"></span></label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="ez-btn" id="btn-cancel">Annuler</button>
+                    <button class="ez-btn ez-btn--primary" id="btn-save">Publier</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vote / Results Modal -->
+        <div class="modal-overlay" id="modal-vote" style="display:none">
+            <div class="modal ez-card modal-lg">
+                <div class="modal-header">
+                    <h2 id="vote-question"></h2>
+                    <button class="close-btn" id="btn-close-vote">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="poll-meta" id="vote-meta"></div>
+                    <div id="vote-options"></div>
+                    <canvas id="results-chart" width="500" height="220" style="display:none"></canvas>
+                </div>
+                <div class="modal-footer">
+                    <button class="ez-btn" id="btn-back-vote">Retour</button>
+                    <button class="ez-btn ez-btn--primary" id="btn-submit-vote" style="display:none">Voter</button>
+                    <button class="ez-btn" id="btn-delete-poll" style="display:none">🗑️ Supprimer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/api/ezgalaxy-sdk.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

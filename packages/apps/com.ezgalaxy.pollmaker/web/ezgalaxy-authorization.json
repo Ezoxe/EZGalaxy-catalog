@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.pollmaker",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": { "allowedOrigins": [] },
+      "justification": "Same-origin EZGalaxy SDK calls for Community Data API storage."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": [
+          { "name": "polls", "scope": "app", "description": "Sondages partagés" },
+          { "name": "my-polls", "scope": "private", "description": "IDs des sondages créés" },
+          { "name": "my-votes", "scope": "private", "description": "Votes de l'utilisateur" }
+        ]
+      },
+      "justification": "Sauvegarder et partager les sondages."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.kanflow",
+  "updatedAt": "2026-02-15",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": { "allowedOrigins": [] },
+      "justification": "Same-origin EZGalaxy SDK calls for Community Data API storage."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": ["boards"],
+        "dataTypes": ["kanban-boards"]
+      },
+      "justification": "Sauvegarde des tableaux Kanban et tâches de l'utilisateur."
+    }
+  ]
+}

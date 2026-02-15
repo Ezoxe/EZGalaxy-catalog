@@ -1,0 +1,59 @@
+/* ===== Pomodoro Pro — Custom Styles ===== */
+*,*::before,*::after{box-sizing:border-box}
+#app{max-width:560px;margin:0 auto;padding:20px 16px;min-height:100vh;display:flex;flex-direction:column;gap:16px}
+/* Header */
+.pm-header{text-align:center;padding:8px 0}
+.pm-header h1{font-size:1.5rem;margin:0;display:flex;align-items:center;justify-content:center;gap:8px}
+.pm-header h1 span{font-size:1.8rem}
+/* Timer Circle */
+.pm-timer-wrap{display:flex;flex-direction:column;align-items:center;gap:16px}
+.pm-circle-container{position:relative;width:240px;height:240px}
+.pm-circle-svg{width:100%;height:100%;transform:rotate(-90deg)}
+.pm-circle-bg{fill:none;stroke:var(--ez-border);stroke-width:8}
+.pm-circle-progress{fill:none;stroke:var(--ez-primary);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 0.5s ease}
+.pm-time-display{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.pm-time-display .time{font-size:3rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:2px}
+.pm-time-display .label{font-size:.85rem;color:var(--ez-muted);margin-top:4px}
+/* Controls */
+.pm-controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.pm-controls button{padding:10px 20px;border-radius:10px;border:1px solid var(--ez-border);background:var(--ez-surface);color:var(--ez-text);cursor:pointer;font-size:.9rem;transition:all .2s}
+.pm-controls button:hover{background:var(--ez-primary-soft);border-color:rgba(14,165,164,.35)}
+.pm-controls button.active{background:var(--ez-primary-soft);border-color:var(--ez-primary)}
+.pm-btn-start{background:var(--ez-primary-soft)!important;border-color:rgba(14,165,164,.35)!important;font-weight:600;min-width:110px}
+.pm-btn-start:hover{background:rgba(14,165,164,.35)!important}
+/* Session dots */
+.pm-sessions{display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap}
+.pm-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--ez-border);transition:all .3s}
+.pm-dot.done{background:var(--ez-primary);border-color:var(--ez-primary)}
+.pm-dot.current{border-color:var(--ez-primary);box-shadow:0 0 8px rgba(14,165,164,.5)}
+/* Settings */
+.pm-settings{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pm-setting{display:flex;flex-direction:column;gap:4px}
+.pm-setting label{font-size:.78rem;color:var(--ez-muted)}
+.pm-setting input{background:rgba(0,0,0,.3);border:1px solid var(--ez-border);border-radius:8px;padding:8px 10px;color:var(--ez-text);font-size:.9rem;width:100%}
+.pm-setting input:focus{outline:none;border-color:var(--ez-primary)}
+/* Stats */
+.pm-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pm-stat{text-align:center;padding:12px 8px}
+.pm-stat .value{font-size:1.6rem;font-weight:700;color:var(--ez-primary)}
+.pm-stat .label{font-size:.72rem;color:var(--ez-muted);margin-top:4px}
+/* Chart */
+.pm-chart-wrap{position:relative;width:100%;height:200px}
+.pm-chart-wrap canvas{width:100%!important;height:100%!important}
+/* Tabs */
+.pm-tabs{display:flex;gap:4px;border-bottom:1px solid var(--ez-border);padding-bottom:0}
+.pm-tab{padding:8px 14px;cursor:pointer;font-size:.85rem;color:var(--ez-muted);border:none;background:none;border-bottom:2px solid transparent;transition:all .2s}
+.pm-tab:hover{color:var(--ez-text)}
+.pm-tab.active{color:var(--ez-primary);border-bottom-color:var(--ez-primary)}
+.pm-panel{display:none}
+.pm-panel.active{display:block}
+/* Sound toggle */
+.pm-sound-toggle{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--ez-muted);cursor:pointer}
+.pm-sound-toggle input{accent-color:var(--ez-primary)}
+/* Responsive */
+@media(max-width:400px){
+  .pm-circle-container{width:200px;height:200px}
+  .pm-time-display .time{font-size:2.4rem}
+  .pm-stats-grid{grid-template-columns:repeat(2,1fr)}
+  .pm-settings{grid-template-columns:1fr}
+}

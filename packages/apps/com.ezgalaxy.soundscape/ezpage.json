@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.soundscape",
+  "title": "SoundScape",
+  "function": "Mixeur de sons ambiants pour la concentration, la relaxation et le sommeil",
+  "version": "1.0.0",
+  "author": "EZGalaxy",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}

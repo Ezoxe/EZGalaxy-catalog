@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.vaultgen",
+  "title": "VaultGen",
+  "function": "Générateur de mots de passe sécurisé avec évaluation de force, mode passphrase, paramètres avancés et copie rapide.",
+  "version": "1.0.0",
+  "createdAt": "2026-02-15",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}

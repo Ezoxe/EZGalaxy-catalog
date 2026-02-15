@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypeRacer</title>
+    <link rel="stylesheet" href="ezgalaxy-base.css">
+    <link rel="stylesheet" href="ezgalaxy-animations.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ez-wrap" id="app">
+        <header class="app-header ez-fade-in">
+            <h1>⌨️ TypeRacer</h1>
+            <p class="app-subtitle">Testez votre vitesse de frappe</p>
+        </header>
+
+        <!-- Stats bar -->
+        <div class="stats-bar ez-fade-in">
+            <div class="stat-box"><span class="stat-val" id="wpm">0</span><span class="stat-lbl">MPM</span></div>
+            <div class="stat-box"><span class="stat-val" id="accuracy">100</span><span class="stat-lbl">% Précision</span></div>
+            <div class="stat-box"><span class="stat-val" id="timer">0</span><span class="stat-lbl">Secondes</span></div>
+            <div class="stat-box"><span class="stat-val" id="chars-done">0</span><span class="stat-lbl">Caractères</span></div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-track ez-fade-in">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+
+        <!-- Text display -->
+        <div class="text-display ez-card ez-fade-in" id="text-display"></div>
+
+        <!-- Input -->
+        <textarea class="type-input ez-fade-in" id="type-input" placeholder="Commencez à taper ici…" rows="3" disabled></textarea>
+
+        <!-- Controls -->
+        <div class="controls ez-fade-in">
+            <button class="ez-btn ez-btn--primary" id="btn-start">▶ Commencer</button>
+            <button class="ez-btn" id="btn-restart" style="display:none">🔄 Recommencer</button>
+            <select class="diff-select" id="difficulty">
+                <option value="easy">🟢 Facile</option>
+                <option value="medium" selected>🟡 Moyen</option>
+                <option value="hard">🔴 Difficile</option>
+            </select>
+        </div>
+
+        <!-- Tabs: Results / History / Leaderboard -->
+        <div id="result-panel" class="result-panel ez-card" style="display:none">
+            <h3 class="result-title">🏁 Résultats</h3>
+            <div class="result-grid" id="result-grid"></div>
+            <canvas id="history-chart" width="500" height="180"></canvas>
+        </div>
+
+        <nav class="tab-bar ez-fade-in" style="margin-top:1rem">
+            <button class="tab active" data-tab="history">📈 Historique</button>
+            <button class="tab" data-tab="leaderboard">🏆 Classement</button>
+        </nav>
+
+        <div id="view-history" class="list-section"></div>
+        <div id="view-leaderboard" class="list-section" style="display:none"></div>
+    </div>
+
+    <script src="/api/ezgalaxy-sdk.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

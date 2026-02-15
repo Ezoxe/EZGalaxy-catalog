@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodTracker</title>
+    <link rel="stylesheet" href="ezgalaxy-base.css">
+    <link rel="stylesheet" href="ezgalaxy-animations.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ez-wrap" id="app">
+        <header class="app-header ez-fade-in">
+            <h1>😊 MoodTracker</h1>
+            <p class="app-subtitle">Suivez votre humeur au quotidien</p>
+        </header>
+
+        <!-- Today's mood -->
+        <div class="today-card ez-card ez-fade-in">
+            <h3 class="today-title">Comment vous sentez-vous aujourd'hui ?</h3>
+            <div class="mood-selector" id="mood-selector">
+                <button class="mood-btn" data-mood="1" title="Terrible">😢</button>
+                <button class="mood-btn" data-mood="2" title="Pas bien">😕</button>
+                <button class="mood-btn" data-mood="3" title="Neutre">😐</button>
+                <button class="mood-btn" data-mood="4" title="Bien">😊</button>
+                <button class="mood-btn" data-mood="5" title="Super">🤩</button>
+            </div>
+            <div class="mood-label" id="mood-label"></div>
+
+            <!-- Tags -->
+            <div class="tags-section" id="tags-section" style="display:none">
+                <label class="field-label">Tags</label>
+                <div class="tags-bar" id="tags-bar"></div>
+            </div>
+
+            <!-- Note -->
+            <div class="note-section" id="note-section" style="display:none">
+                <label class="field-label">Note (optionnelle)</label>
+                <textarea class="field-textarea" id="mood-note" rows="2" placeholder="Quelques mots sur votre journée…" maxlength="300"></textarea>
+                <button class="ez-btn ez-btn--primary" id="btn-save" style="margin-top:.5rem;width:100%">💾 Enregistrer</button>
+            </div>
+
+            <div class="today-saved" id="today-saved" style="display:none">
+                <span class="saved-icon">✅</span>
+                <span>Humeur enregistrée pour aujourd'hui</span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <nav class="tab-bar ez-fade-in">
+            <button class="tab active" data-tab="calendar">📅 Calendrier</button>
+            <button class="tab" data-tab="trends">📈 Tendances</button>
+            <button class="tab" data-tab="insights">💡 Insights</button>
+        </nav>
+
+        <!-- Calendar view -->
+        <div id="view-calendar" class="view">
+            <div class="cal-nav">
+                <button class="ez-btn btn-sm" id="btn-prev-month">◀</button>
+                <span class="cal-month" id="cal-month"></span>
+                <button class="ez-btn btn-sm" id="btn-next-month">▶</button>
+            </div>
+            <div class="cal-grid" id="cal-grid"></div>
+        </div>
+
+        <!-- Trends view -->
+        <div id="view-trends" class="view" style="display:none">
+            <div class="trend-period">
+                <button class="period-btn active" data-days="7">7j</button>
+                <button class="period-btn" data-days="30">30j</button>
+                <button class="period-btn" data-days="90">90j</button>
+            </div>
+            <canvas id="trend-chart" width="560" height="200"></canvas>
+            <div class="trend-stats" id="trend-stats"></div>
+        </div>
+
+        <!-- Insights view -->
+        <div id="view-insights" class="view" style="display:none">
+            <div class="insights-grid" id="insights-grid"></div>
+        </div>
+
+        <!-- Entry detail modal -->
+        <div class="modal-overlay" id="modal-detail" style="display:none">
+            <div class="modal ez-card">
+                <div class="modal-header">
+                    <h2 id="detail-date"></h2>
+                    <button class="close-btn" id="btn-close-detail">✕</button>
+                </div>
+                <div class="modal-body" id="detail-body"></div>
+                <div class="modal-footer">
+                    <button class="ez-btn" id="btn-delete-entry">🗑️ Supprimer</button>
+                    <button class="ez-btn" id="btn-close-detail2">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/api/ezgalaxy-sdk.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

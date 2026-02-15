@@ -1,0 +1,62 @@
+/* ===== KanFlow — Styles ===== */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+/* Header */
+.kf-header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--ez-border);flex-shrink:0;flex-wrap:wrap}
+.kf-header h1{font-size:1.2rem;margin:0;display:flex;align-items:center;gap:6px}
+.kf-header select{background:rgba(0,0,0,.3);border:1px solid var(--ez-border);border-radius:8px;padding:6px 10px;color:var(--ez-text);font-size:.82rem}
+.kf-header select:focus{outline:none;border-color:var(--ez-primary)}
+.kf-header-actions{display:flex;gap:6px;margin-left:auto}
+.kf-header-actions button{padding:6px 10px;border-radius:8px;border:1px solid var(--ez-border);background:var(--ez-surface);color:var(--ez-text);cursor:pointer;font-size:.78rem;transition:all .2s}
+.kf-header-actions button:hover{background:var(--ez-primary-soft);border-color:rgba(14,165,164,.35)}
+/* Board */
+.kf-board{display:flex;gap:12px;flex:1;overflow-x:auto;padding:12px 16px;align-items:flex-start}
+/* Column */
+.kf-column{min-width:260px;max-width:300px;background:rgba(0,0,0,.2);border:1px solid var(--ez-border);border-radius:12px;display:flex;flex-direction:column;max-height:100%;flex-shrink:0}
+.kf-col-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--ez-border)}
+.kf-col-header h3{margin:0;font-size:.88rem;display:flex;align-items:center;gap:6px}
+.kf-col-header .count{font-size:.7rem;background:var(--ez-surface);padding:2px 6px;border-radius:10px;color:var(--ez-muted)}
+.kf-col-header button{width:26px;height:26px;border-radius:6px;border:none;background:var(--ez-surface);color:var(--ez-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.8rem;transition:all .2s}
+.kf-col-header button:hover{background:var(--ez-primary-soft);color:var(--ez-text)}
+.kf-col-body{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;min-height:60px}
+.kf-col-body.drag-over{background:rgba(14,165,164,.06)}
+/* Card */
+.kf-card{background:var(--ez-surface);border:1px solid var(--ez-border);border-radius:10px;padding:10px 12px;cursor:grab;transition:all .2s;position:relative}
+.kf-card:hover{border-color:rgba(14,165,164,.3);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.kf-card.dragging{opacity:.4}
+.kf-card-title{font-size:.85rem;font-weight:500;margin-bottom:6px;word-break:break-word}
+.kf-card-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.kf-tag{font-size:.62rem;padding:2px 6px;border-radius:4px;font-weight:600;color:#fff}
+.kf-tag-red{background:rgba(239,68,68,.7)}
+.kf-tag-blue{background:rgba(59,130,246,.7)}
+.kf-tag-green{background:rgba(34,197,94,.7)}
+.kf-tag-yellow{background:rgba(245,158,11,.7)}
+.kf-tag-purple{background:rgba(168,85,247,.7)}
+.kf-card-date{font-size:.68rem;color:var(--ez-muted)}
+.kf-card-date.overdue{color:var(--ez-danger)}
+.kf-card-actions{position:absolute;top:6px;right:6px;display:flex;gap:2px;opacity:0;transition:opacity .2s}
+.kf-card:hover .kf-card-actions{opacity:1}
+.kf-card-actions button{width:22px;height:22px;border:none;border-radius:4px;background:rgba(0,0,0,.3);color:var(--ez-muted);cursor:pointer;font-size:.65rem;display:flex;align-items:center;justify-content:center}
+.kf-card-actions button:hover{color:var(--ez-text);background:rgba(0,0,0,.5)}
+/* Add column */
+.kf-add-col{min-width:260px;padding:12px;border:2px dashed var(--ez-border);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ez-muted);font-size:.85rem;transition:all .2s;flex-shrink:0;height:fit-content}
+.kf-add-col:hover{border-color:var(--ez-primary);color:var(--ez-text);background:rgba(14,165,164,.05)}
+/* Modal */
+.kf-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;animation:ezFadeIn 200ms ease}
+.kf-modal{background:#0f1525;border:1px solid var(--ez-border);border-radius:14px;padding:20px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto}
+.kf-modal h2{font-size:1rem;margin:0 0 14px}
+.kf-modal-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.kf-modal-field label{font-size:.78rem;color:var(--ez-muted)}
+.kf-modal-field input,.kf-modal-field textarea,.kf-modal-field select{background:rgba(0,0,0,.3);border:1px solid var(--ez-border);border-radius:8px;padding:8px 10px;color:var(--ez-text);font-size:.85rem;width:100%;font-family:inherit}
+.kf-modal-field input:focus,.kf-modal-field textarea:focus,.kf-modal-field select:focus{outline:none;border-color:var(--ez-primary)}
+.kf-modal-field textarea{resize:vertical;min-height:60px}
+.kf-modal-actions{display:flex;gap:8px;justify-content:flex-end}
+.kf-modal-actions button{padding:8px 16px;border-radius:8px;border:1px solid var(--ez-border);background:var(--ez-surface);color:var(--ez-text);cursor:pointer;font-size:.82rem;transition:all .2s}
+.kf-modal-actions button:hover{background:var(--ez-primary-soft)}
+.kf-modal-actions .primary{background:var(--ez-primary-soft);border-color:rgba(14,165,164,.35)}
+/* Tags selector */
+.kf-tags-selector{display:flex;gap:4px;flex-wrap:wrap}
+.kf-tags-selector button{padding:4px 8px;border-radius:4px;font-size:.7rem;border:1px solid transparent;cursor:pointer;color:#fff;opacity:.5;transition:all .2s}
+.kf-tags-selector button.selected{opacity:1;border-color:#fff}
+@media(max-width:600px){.kf-column{min-width:85vw}.kf-add-col{min-width:85vw}}

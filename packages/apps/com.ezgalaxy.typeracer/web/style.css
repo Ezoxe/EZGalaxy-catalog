@@ -1,0 +1,59 @@
+/* TypeRacer – style.css */
+
+.app-header{text-align:center;padding:1.2rem 0 .5rem}
+.app-header h1{font-size:1.8rem;margin:0;color:var(--ez-primary)}
+.app-subtitle{color:var(--ez-text-dim,#8a94a6);font-size:.85rem;margin:.1rem 0 .6rem}
+
+/* ── Stats ── */
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.7rem}
+.stat-box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.6rem .4rem;text-align:center}
+.stat-val{display:block;font-size:1.4rem;font-weight:700;color:var(--ez-primary)}
+.stat-lbl{font-size:.68rem;color:var(--ez-text-dim,#8a94a6);text-transform:uppercase;letter-spacing:.3px}
+
+/* ── Progress ── */
+.progress-track{height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-bottom:.8rem}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--ez-primary),#6366f1);border-radius:3px;transition:width .15s ease}
+
+/* ── Text display ── */
+.text-display{font-family:'Courier New',Courier,monospace;font-size:1.05rem;line-height:1.7;padding:1rem 1.1rem;min-height:100px;user-select:none;border-radius:12px;white-space:pre-wrap;word-break:break-word}
+.char{transition:color .1s}
+.char.correct{color:#10b981}
+.char.wrong{color:#ef4444;text-decoration:underline;text-decoration-color:#ef4444}
+.char.current{background:rgba(14,165,164,.35);border-radius:2px;padding:0 1px}
+.char.pending{color:rgba(255,255,255,.35)}
+
+/* ── Input ── */
+.type-input{width:100%;margin-top:.6rem;padding:.65rem .8rem;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.06);color:#eee;font-family:'Courier New',Courier,monospace;font-size:1rem;resize:none;box-sizing:border-box;transition:border-color .2s}
+.type-input:focus{outline:none;border-color:var(--ez-primary);box-shadow:0 0 0 3px rgba(14,165,164,.18)}
+.type-input:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Controls ── */
+.controls{display:flex;gap:.5rem;justify-content:center;align-items:center;margin-top:.6rem}
+.diff-select{padding:.45rem .7rem;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.06);color:#eee;font-size:.85rem;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238a94a6'%3E%3Cpath d='M2 4l4 5 4-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:24px}
+
+/* ── Result panel ── */
+.result-panel{margin-top:1rem;padding:1rem 1.2rem}
+.result-title{color:var(--ez-primary);margin:0 0 .8rem;font-size:1.1rem}
+.result-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem .8rem;margin-bottom:.8rem}
+.result-grid .r-item{display:flex;justify-content:space-between;background:rgba(255,255,255,.04);padding:.45rem .7rem;border-radius:8px;font-size:.85rem;color:#ccc}
+.result-grid .r-val{font-weight:600;color:var(--ez-primary)}
+#history-chart{width:100%;border-radius:8px}
+
+/* ── Tabs ── */
+.tab-bar{display:flex;gap:.25rem;background:rgba(255,255,255,.04);border-radius:10px;padding:4px}
+.tab{flex:1;padding:.5rem;border:none;background:none;color:var(--ez-text-dim,#8a94a6);border-radius:8px;cursor:pointer;font-size:.82rem;transition:all .25s}
+.tab.active{background:var(--ez-primary);color:#fff;font-weight:600}
+
+/* ── List sections ── */
+.list-section{margin-top:.5rem;padding-bottom:2rem}
+.list-row{display:flex;justify-content:space-between;align-items:center;padding:.55rem .8rem;background:rgba(255,255,255,.05);border-radius:8px;margin-bottom:.35rem;font-size:.82rem;color:#ccc;animation:ezFadeIn .3s ease both}
+.list-row .lr-rank{font-weight:700;color:var(--ez-primary);min-width:28px}
+.list-row .lr-wpm{font-weight:600;color:#10b981}
+.list-row .lr-acc{color:#f59e0b}
+.empty-state{text-align:center;color:var(--ez-text-dim,#8a94a6);padding:2rem 1rem;font-size:.88rem}
+
+/* ── Animations ── */
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+@keyframes pop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
+
+@media(max-width:420px){.stats-bar{grid-template-columns:repeat(2,1fr)}}

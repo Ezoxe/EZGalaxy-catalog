@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.pomodoro",
+  "updatedAt": "2026-02-15",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": { "allowedOrigins": [] },
+      "justification": "Same-origin EZGalaxy SDK calls for Community Data API storage."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": ["sessions", "settings"],
+        "dataTypes": ["pomodoro-sessions", "user-preferences"]
+      },
+      "justification": "Sauvegarde de l'historique des sessions Pomodoro et des préférences utilisateur."
+    }
+  ]
+}

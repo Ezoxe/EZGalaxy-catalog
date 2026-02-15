@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "packageId": "com.ezgalaxy.typeracer",
+  "capabilities": [
+    {
+      "name": "network.outgoing",
+      "enabled": true,
+      "details": { "allowedOrigins": [] },
+      "justification": "Same-origin EZGalaxy SDK calls for Community Data API storage."
+    },
+    {
+      "name": "communityDataApi",
+      "enabled": true,
+      "details": {
+        "collections": [
+          { "name": "history", "scope": "private", "description": "Historique des courses" },
+          { "name": "leaderboard", "scope": "app", "description": "Classement partagé" }
+        ]
+      },
+      "justification": "Sauvegarder l'historique et le classement."
+    }
+  ]
+}

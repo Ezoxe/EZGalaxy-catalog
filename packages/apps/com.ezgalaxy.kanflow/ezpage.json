@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "com.ezgalaxy.kanflow",
+  "title": "KanFlow",
+  "function": "Tableau Kanban avec drag & drop, étiquettes, dates d'échéance, filtres et sauvegarde cloud pour la gestion de tâches.",
+  "version": "1.0.0",
+  "createdAt": "2026-02-15",
+  "author": "EZGalaxy Community",
+  "entry": "web/index.html",
+  "screenshots": [],
+  "network": {
+    "allowOutgoing": true
+  }
+}

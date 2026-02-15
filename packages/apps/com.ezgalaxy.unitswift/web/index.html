@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnitSwift</title>
+    <link rel="stylesheet" href="ezgalaxy-base.css">
+    <link rel="stylesheet" href="ezgalaxy-animations.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ez-wrap" id="app">
+        <header class="app-header ez-fade-in">
+            <h1>🔄 UnitSwift</h1>
+            <p class="app-subtitle">Convertisseur d'unités universel</p>
+        </header>
+
+        <!-- Category pills -->
+        <div class="cat-bar ez-fade-in" id="cat-bar"></div>
+
+        <!-- Converter card -->
+        <div class="converter ez-card ez-fade-in">
+            <div class="conv-row">
+                <div class="conv-field">
+                    <input type="number" class="conv-input" id="input-value" placeholder="0" step="any">
+                    <select class="conv-select" id="input-unit"></select>
+                </div>
+
+                <button class="swap-btn" id="btn-swap" title="Inverser">
+                    <span class="swap-icon">⇅</span>
+                </button>
+
+                <div class="conv-field">
+                    <input type="text" class="conv-input conv-result" id="output-value" readonly placeholder="—">
+                    <select class="conv-select" id="output-unit"></select>
+                </div>
+            </div>
+
+            <div class="formula-line" id="formula"></div>
+
+            <div class="conv-actions">
+                <button class="ez-btn btn-sm" id="btn-copy" title="Copier le résultat">📋 Copier</button>
+                <button class="ez-btn btn-sm" id="btn-fav" title="Ajouter aux favoris">⭐ Favori</button>
+            </div>
+        </div>
+
+        <!-- Quick conversions from favorites -->
+        <div class="section ez-fade-in" id="fav-section" style="display:none">
+            <h3 class="section-title">⭐ Favoris</h3>
+            <div class="fav-list" id="fav-list"></div>
+        </div>
+
+        <!-- History -->
+        <div class="section ez-fade-in">
+            <h3 class="section-title">📜 Historique</h3>
+            <div class="history-list" id="history-list"></div>
+        </div>
+    </div>
+
+    <script src="/api/ezgalaxy-sdk.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

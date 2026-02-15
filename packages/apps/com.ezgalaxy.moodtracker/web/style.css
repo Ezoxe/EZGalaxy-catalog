@@ -1,0 +1,91 @@
+/* MoodTracker – style.css */
+
+.app-header{text-align:center;padding:1.2rem 0 .5rem}
+.app-header h1{font-size:1.8rem;margin:0;color:var(--ez-primary)}
+.app-subtitle{color:var(--ez-text-dim,#8a94a6);font-size:.85rem;margin:.1rem 0 .6rem}
+
+/* ── Today card ── */
+.today-card{padding:1.2rem;text-align:center;border-radius:14px;margin-bottom:1rem}
+.today-title{color:#eee;font-size:1rem;margin:0 0 .8rem}
+.mood-selector{display:flex;justify-content:center;gap:.6rem;margin-bottom:.5rem}
+.mood-btn{width:52px;height:52px;border-radius:50%;border:2px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);font-size:1.6rem;cursor:pointer;transition:all .25s;display:flex;align-items:center;justify-content:center}
+.mood-btn:hover{transform:scale(1.15);border-color:var(--ez-primary)}
+.mood-btn.selected{border-color:var(--ez-primary);background:rgba(14,165,164,.15);transform:scale(1.2);box-shadow:0 0 20px rgba(14,165,164,.25)}
+.mood-label{font-size:.82rem;color:var(--ez-text-dim,#8a94a6);min-height:1.2em;margin-bottom:.4rem}
+
+/* ── Tags ── */
+.tags-section{margin-top:.6rem}
+.field-label{display:block;font-size:.72rem;color:var(--ez-text-dim,#8a94a6);margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.4px;text-align:left}
+.tags-bar{display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center}
+.tag-chip{padding:.3rem .6rem;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);font-size:.75rem;color:#bbb;cursor:pointer;transition:all .2s}
+.tag-chip:hover{border-color:var(--ez-primary)}
+.tag-chip.selected{background:rgba(14,165,164,.15);border-color:var(--ez-primary);color:var(--ez-primary)}
+
+/* ── Note ── */
+.note-section{margin-top:.6rem;text-align:left}
+.field-textarea{width:100%;padding:.55rem .7rem;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.06);color:#eee;font-size:.85rem;resize:none;box-sizing:border-box}
+.field-textarea:focus{outline:none;border-color:var(--ez-primary);box-shadow:0 0 0 3px rgba(14,165,164,.18)}
+
+.today-saved{display:flex;align-items:center;gap:.4rem;justify-content:center;color:#10b981;font-size:.85rem;margin-top:.6rem}
+.saved-icon{font-size:1.1rem}
+
+/* ── Tabs ── */
+.tab-bar{display:flex;gap:.25rem;background:rgba(255,255,255,.04);border-radius:10px;padding:4px;margin-bottom:.8rem}
+.tab{flex:1;padding:.5rem;border:none;background:none;color:var(--ez-text-dim,#8a94a6);border-radius:8px;cursor:pointer;font-size:.8rem;transition:all .25s}
+.tab.active{background:var(--ez-primary);color:#fff;font-weight:600}
+
+/* ── Views ── */
+.view{padding-bottom:2rem}
+
+/* ── Calendar ── */
+.cal-nav{display:flex;align-items:center;justify-content:center;gap:.8rem;margin-bottom:.6rem}
+.cal-month{font-size:.95rem;font-weight:600;color:#eee;min-width:140px;text-align:center}
+.btn-sm{font-size:.75rem;padding:.3rem .6rem}
+
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-header{font-size:.68rem;color:var(--ez-text-dim,#8a94a6);text-align:center;padding:.3rem 0;text-transform:uppercase}
+.cal-day{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#777;cursor:default;position:relative;transition:all .2s}
+.cal-day.has-entry{cursor:pointer}
+.cal-day.has-entry:hover{transform:scale(1.1)}
+.cal-day.today{border:1px solid var(--ez-primary)}
+.cal-day .day-mood{font-size:1.1rem}
+.cal-day .day-num{position:absolute;bottom:2px;right:4px;font-size:.55rem;color:rgba(255,255,255,.4)}
+
+/* mood colors */
+.cal-day.mood-1{background:rgba(239,68,68,.15)}
+.cal-day.mood-2{background:rgba(249,115,22,.15)}
+.cal-day.mood-3{background:rgba(234,179,8,.12)}
+.cal-day.mood-4{background:rgba(34,197,94,.12)}
+.cal-day.mood-5{background:rgba(14,165,164,.15)}
+
+/* ── Trends ── */
+.trend-period{display:flex;gap:.3rem;justify-content:center;margin-bottom:.6rem}
+.period-btn{padding:.35rem .7rem;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:none;color:#aaa;font-size:.75rem;cursor:pointer;transition:all .2s}
+.period-btn.active{background:var(--ez-primary);color:#fff;border-color:var(--ez-primary)}
+#trend-chart{width:100%;border-radius:8px;margin-bottom:.8rem}
+
+.trend-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.trend-stat{background:rgba(255,255,255,.05);border-radius:10px;padding:.7rem .5rem;text-align:center}
+.trend-stat .ts-val{display:block;font-size:1.3rem;font-weight:700;color:var(--ez-primary)}
+.trend-stat .ts-lbl{font-size:.7rem;color:var(--ez-text-dim,#8a94a6);text-transform:uppercase}
+
+/* ── Insights ── */
+.insights-grid{display:flex;flex-direction:column;gap:.6rem}
+.insight-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:.9rem 1rem;animation:ezFadeIn .4s ease both}
+.insight-card .ic-title{font-size:.85rem;font-weight:600;color:var(--ez-primary);margin-bottom:.3rem;display:flex;align-items:center;gap:.3rem}
+.insight-card .ic-body{font-size:.82rem;color:#bbb;line-height:1.5}
+.insight-card .ic-tags{display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.4rem}
+.insight-tag{padding:2px 8px;border-radius:10px;font-size:.68rem;background:rgba(14,165,164,.12);color:var(--ez-primary)}
+
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:100;animation:ezFadeIn .2s ease}
+.modal{width:92%;max-width:400px;padding:0;border-radius:14px}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.2rem;border-bottom:1px solid rgba(255,255,255,.08)}
+.modal-header h2{margin:0;font-size:1rem;color:var(--ez-primary)}
+.close-btn{background:none;border:none;color:#aaa;font-size:1.3rem;cursor:pointer}
+.modal-body{padding:1rem 1.2rem;font-size:.88rem;color:#ccc;line-height:1.6}
+.modal-footer{display:flex;gap:.5rem;justify-content:flex-end;padding:.8rem 1.2rem;border-top:1px solid rgba(255,255,255,.08)}
+
+.empty-state{text-align:center;color:var(--ez-text-dim,#8a94a6);padding:2rem 1rem;font-size:.85rem}
+
+@media(max-width:420px){.mood-btn{width:44px;height:44px;font-size:1.3rem}.trend-stats{grid-template-columns:1fr 1fr}}
