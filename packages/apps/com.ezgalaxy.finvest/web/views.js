@@ -74,7 +74,17 @@
       cloudSection.appendChild(el('button', { className: 'btn btn--sm', onClick: async () => {
         try {
           const loaded = await Store.cloudLoad();
-          if (loaded) { toast('Données chargées depuis le cloud', 'success'); window.renderApp(); }
+          if (loaded) {
+            toast('Données chargées depuis le cloud', 'success');
+            // Force navigation: if we have analysis data, go to dashboard
+            const st = Store.getState();
+            if (st.analysis) {
+              Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
+              window.navigateTo(st.currentView || 'overview');
+            } else {
+              window.renderApp();
+            }
+          }
           else toast('Aucune sauvegarde cloud trouvée. Utilisez d\'abord « Sauvegarder » dans les Paramètres.', 'info');
         } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
       } }, [icon('download', 14), 'Charger depuis le cloud']));
@@ -1295,7 +1305,19 @@
             try { await Store.cloudSave(); toast('Données sauvegardées sur le cloud', 'success'); } catch (e) { toast(e.message, 'error'); }
           } }, [icon('upload', 16), 'Sauvegarder']),
           el('button', { className: 'btn', onClick: async () => {
-            try { const ok = await Store.cloudLoad(); toast(ok ? 'Données chargées' : 'Aucune sauvegarde trouvée — sauvegardez d\'abord vos données.', ok ? 'success' : 'info'); if (ok) window.renderApp(); } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
+            try {
+              const ok = await Store.cloudLoad();
+              toast(ok ? 'Données chargées' : 'Aucune sauvegarde trouvée — sauvegardez d\'abord vos données.', ok ? 'success' : 'info');
+              if (ok) {
+                const st = Store.getState();
+                if (st.analysis) {
+                  Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
+                  window.navigateTo(st.currentView || 'overview');
+                } else {
+                  window.renderApp();
+                }
+              }
+            } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
           } }, [icon('download', 16), 'Charger']),
           el('button', { className: 'btn btn--ghost', onClick: () => { Store.logout(); toast('Déconnecté', 'info'); window.renderApp(); } }, [icon('logout', 16), 'Déconnexion'])
         ])

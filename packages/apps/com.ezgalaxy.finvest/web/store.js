@@ -351,14 +351,16 @@
         payload = d;
       }
       if (payload && payload.profile) {
-        state = {
-          ...state,
+        // If we have analysis data, always go to dashboard (never stay on welcome)
+        const resolvedStep = payload.analysis ? 'dashboard' : (payload.step || 'welcome');
+        const resolvedView = resolvedStep === 'dashboard' ? (payload.currentView || 'overview') : 'overview';
+        setState({
           profile: { ...defaultProfile, ...payload.profile },
           analysis: payload.analysis || null,
           settings: { ...defaultSettings, ...(payload.settings || {}) },
-          step: payload.step || (payload.analysis ? 'dashboard' : 'welcome'),
+          step: resolvedStep,
           questionnaireStep: payload.questionnaireStep || 0,
-          currentView: payload.currentView || 'overview',
+          currentView: resolvedView,
           xp: payload.xp || state.xp || 0,
           transactions: payload.transactions || state.transactions || [],
           snapshots: payload.snapshots || state.snapshots || [],
@@ -367,11 +369,9 @@
           completedChallenges: payload.completedChallenges || state.completedChallenges || [],
           journalEntries: payload.journalEntries || state.journalEntries || [],
           notifications: payload.notifications || state.notifications || [],
-          onboardingDone: payload.onboardingDone || state.onboardingDone || false
-        };
-        saveLocal();
-        setState({ cloudStatus: 'connected' });
-        notify();
+          onboardingDone: payload.onboardingDone || state.onboardingDone || false,
+          cloudStatus: 'connected'
+        });
         return true;
       }
       setState({ cloudStatus: 'connected' });

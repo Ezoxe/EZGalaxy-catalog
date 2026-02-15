@@ -3701,11 +3701,29 @@ body:has(.ai-panel--open) .ai-toggle-btn { opacity: 0; pointer-events: none; }
   }
 
   /* ---- Modal ---- */
-  .modal-overlay { padding: 10px; align-items: flex-end; }
+  .modal-overlay {
+    padding: 16px;
+    align-items: center;
+    justify-content: center;
+  }
   .modal-content {
     max-width: 100%;
     max-height: 85vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--radius);
+    margin: auto;
+  }
+  .modal-header { padding: 14px 16px; }
+  .modal-header h3 { font-size: 15px; }
+  .modal-body { padding: 16px; }
+  .modal-body .input--full { width: 100%; }
+  .modal-actions {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+  .modal-actions .btn {
+    flex: 1;
+    min-width: 100px;
+    justify-content: center;
   }
 
   /* ---- Settings ---- */
@@ -3820,7 +3838,7 @@ body:has(.ai-panel--open) .ai-toggle-btn { opacity: 0; pointer-events: none; }
 
   .toast { font-size: 12px; padding: 10px 14px; }
 
-  .modal-content { border-radius: 14px 14px 0 0; }
+  .modal-content { border-radius: var(--radius); }
 
   .ai-prompt-text { font-size: 11px; }
 
