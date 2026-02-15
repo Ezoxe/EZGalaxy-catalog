@@ -131,7 +131,11 @@
     // Mobile hamburger
     const hamburger = UI.el('button', { className: 'hamburger', id: 'hamburger', onClick: toggleSidebar }, [UI.icon('menu', 22)]);
 
+    // Mobile sidebar backdrop
+    const backdrop = UI.el('div', { className: 'sidebar-backdrop', id: 'sidebar-backdrop', onClick: closeSidebar });
+
     root.appendChild(hamburger);
+    root.appendChild(backdrop);
     root.appendChild(sidebar);
     root.appendChild(main);
   }
@@ -140,7 +144,19 @@
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
     const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
     if (sidebar) sidebar.classList.toggle('sidebar--open', sidebarCollapsed);
+    if (backdrop) backdrop.classList.toggle('sidebar-backdrop--visible', sidebarCollapsed);
+    document.body.classList.toggle('sidebar-open', sidebarCollapsed);
+  }
+
+  function closeSidebar() {
+    sidebarCollapsed = false;
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (sidebar) sidebar.classList.remove('sidebar--open');
+    if (backdrop) backdrop.classList.remove('sidebar-backdrop--visible');
+    document.body.classList.remove('sidebar-open');
   }
 
   /* ---------- Update active nav ------------------------------ */
@@ -201,9 +217,7 @@
       currentView = view;
 
       // Close mobile sidebar after navigation
-      const sidebar = document.getElementById('sidebar');
-      if (sidebar) sidebar.classList.remove('sidebar--open');
-      sidebarCollapsed = false;
+      closeSidebar();
     }, 150);
   }
 
@@ -296,8 +310,7 @@
       if (e.key === 'Escape') {
         const sb = document.getElementById('sidebar');
         if (sb && sb.classList.contains('sidebar--open')) {
-          sb.classList.remove('sidebar--open');
-          sidebarCollapsed = false;
+          closeSidebar();
         }
       }
     });
