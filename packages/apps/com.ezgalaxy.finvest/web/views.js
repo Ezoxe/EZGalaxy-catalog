@@ -71,6 +71,26 @@
       cloudSection.appendChild(el('div', { className: 'cloud-status cloud-status--connected' }, [
         icon('cloud', 16), ` Connecté : ${s.auth.user?.name || s.auth.user?.email || 'Utilisateur'}`
       ]));
+      // Always show the cloud load button when logged in (fallback if auto-load failed)
+      cloudSection.appendChild(el('button', { className: 'btn btn--sm', onClick: async () => {
+        try {
+          toast('Chargement des données...', 'info');
+          const ok = await Store.cloudLoad();
+          if (ok) {
+            const st = Store.getState();
+            if (st.analysis) {
+              toast('Données chargées !', 'success');
+              Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
+            }
+            window.renderApp();
+          } else {
+            toast('Aucune sauvegarde cloud trouvée.', 'info');
+          }
+        } catch (e) {
+          console.error('[FinVest] Cloud load error:', e);
+          toast('Erreur : ' + e.message, 'error');
+        }
+      } }, [icon('download', 14), 'Charger mes données']));
     } else {
       const loginBtn = el('button', { className: 'btn btn--sm btn--ghost', onClick: () => showLoginModal() }, [
         icon('login', 16), 'Se connecter (sauvegarde cloud)'
@@ -125,31 +145,28 @@
               // 1. Login
               await Store.login(emailVal, passVal);
               console.log('[FinVest] Login OK');
+              toast('Connecté avec succès', 'success');
 
-              // 2. Try loading cloud data
-              loginBtn.textContent = 'Chargement...';
+              // 2. Force-remove modal overlay immediately (prevents blocking screen on mobile)
+              if (m.overlay && m.overlay.parentNode) m.overlay.remove();
+
+              // 3. Try cloud load
               let loaded = false;
               try {
                 loaded = await Store.cloudLoad();
               } catch (err) {
-                console.warn('[FinVest] Cloud load after login failed:', err);
+                console.error('[FinVest] Cloud load failed:', err);
+                toast('Erreur chargement cloud : ' + err.message, 'error');
               }
 
-              // 3. Force-remove modal from DOM immediately (no animation delay)
-              //    This prevents the overlay from blocking the screen on mobile
-              m.overlay.remove();
-
-              // 4. Navigate based on loaded data
+              // 4. Navigate based on result
               const st = Store.getState();
-              console.log('[FinVest] Post-login state — loaded:', loaded, 'step:', st.step, 'analysis:', !!st.analysis);
-              if (st.analysis) {
+              console.log('[FinVest] Post-login — loaded:', loaded, 'step:', st.step, 'analysis:', !!st.analysis);
+              if (loaded && st.analysis) {
                 toast('Données chargées depuis le cloud', 'success');
                 Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
-              } else {
-                toast('Connecté avec succès', 'success');
               }
-
-              // 5. Single re-render (reads step from state → navigates accordingly)
+              // 5. Re-render (welcome with load button, or dashboard if data loaded)
               window.renderApp();
             } catch (e) {
               loginBtn.disabled = false;
