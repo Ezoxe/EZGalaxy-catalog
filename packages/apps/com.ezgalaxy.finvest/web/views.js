@@ -103,6 +103,7 @@
   /* ----- login modal helper ---------------------------------- */
   function showLoginModal() {
     let emailVal = '', passVal = '';
+    let loginBtn;
     const m = modal({
       title: 'Connexion — EZGalaxy Cloud',
       body: [
@@ -116,27 +117,51 @@
       ],
       actions: [
         el('button', { className: 'btn', onClick: () => m.close() }, ['Annuler']),
-        el('button', { className: 'btn btn--primary', onClick: async () => {
-          try {
-            await Store.login(emailVal, passVal);
-            toast('Connecté avec succès', 'success');
-            m.close();
-            // Auto-load cloud data after login
+        (() => {
+          loginBtn = el('button', { className: 'btn btn--primary', onClick: async () => {
+            // Disable button and show loading
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Connexion...';
             try {
-              const loaded = await Store.cloudLoad();
+              await Store.login(emailVal, passVal);
+              toast('Connecté avec succès', 'success');
+
+              // Show loading state while fetching data
+              loginBtn.textContent = 'Chargement des données...';
+
+              let loaded = false;
+              try {
+                loaded = await Store.cloudLoad();
+              } catch (err) {
+                console.warn('[FinVest] Cloud load after login failed:', err);
+                toast('Impossible de charger les données cloud : ' + err.message, 'error');
+              }
+
+              // Close modal AFTER all async work is done
+              m.close();
+
               if (loaded) {
-                toast('Données chargées depuis le cloud', 'success');
                 const st = Store.getState();
+                console.log('[FinVest] Cloud load result — step:', st.step, 'analysis:', !!st.analysis);
                 if (st.analysis) {
+                  toast('Données chargées depuis le cloud', 'success');
+                  // Directly force state + navigation (no renderApp intermediary)
                   Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
-                  window.navigateTo(st.currentView || 'overview');
+                  // Use setTimeout to ensure DOM updates from modal close are processed
+                  setTimeout(() => window.navigateTo(st.currentView || 'overview'), 50);
                   return;
                 }
               }
-            } catch (_) { /* no cloud data yet, that's fine */ }
-            window.renderApp();
-          } catch (e) { toast(e.message, 'error'); }
-        } }, ['Se connecter'])
+              // Fallback: re-render welcome (now showing connected status)
+              window.renderApp();
+            } catch (e) {
+              loginBtn.disabled = false;
+              loginBtn.textContent = 'Se connecter';
+              toast(e.message, 'error');
+            }
+          } }, ['Se connecter']);
+          return loginBtn;
+        })()
       ]
     });
   }

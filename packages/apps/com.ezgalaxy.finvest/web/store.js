@@ -337,6 +337,8 @@
   }
 
   async function cloudLoad() {
+    // Cancel any pending auto-save to prevent race conditions
+    if (_autoSaveTimer) { clearTimeout(_autoSaveTimer); _autoSaveTimer = null; }
     _isCloudOp = true;
     setState({ cloudStatus: 'syncing' });
     try {
@@ -573,9 +575,13 @@
     if (_isCloudOp) return;
     // Only auto-save if authenticated and ezgalaxy.storage is available
     if (!state.auth || !state.auth.user || typeof ezgalaxy === 'undefined' || !ezgalaxy.storage) return;
+    // NEVER auto-save empty welcome state — it would overwrite real cloud data
+    if (!state.analysis && state.step === 'welcome') return;
     if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
     _autoSaveTimer = setTimeout(async () => {
       _autoSaveTimer = null;
+      // Re-check guard (state may have changed during the delay)
+      if (_isCloudOp || (!state.analysis && state.step === 'welcome')) return;
       _isCloudOp = true;
       try {
         await cloudSave();
