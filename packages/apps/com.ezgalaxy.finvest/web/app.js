@@ -8,6 +8,7 @@
 
   let currentView = null;
   let sidebarCollapsed = false;
+  let _isMobile = false;
   const root = document.getElementById('app');
 
   /* ---------- Navigation map --------------------------------- */
@@ -283,6 +284,25 @@
   function init() {
     // Initialize store (loads from localStorage)
     Store.init();
+
+    // ── Device detection (EZGalaxy SDK) ──────────────────────────
+    if (typeof ezgalaxy !== 'undefined' && ezgalaxy.device) {
+      ezgalaxy.device.info().then(info => {
+        _isMobile = info.isMobile;
+        window._isMobile = _isMobile;
+        document.body.classList.add(info.platform); // 'mobile', 'tablet', 'desktop'
+        console.log('[FinVest] Device:', info.platform, 'isMobile:', info.isMobile);
+      }).catch(e => console.warn('[FinVest] Device detection failed:', e));
+
+      ezgalaxy.device.onChange(function(info) {
+        _isMobile = info.isMobile;
+        window._isMobile = _isMobile;
+        document.body.className = document.body.className
+          .replace(/\b(mobile|tablet|desktop)\b/g, '').trim();
+        document.body.classList.add(info.platform);
+        console.log('[FinVest] Device changed:', info.platform);
+      });
+    }
 
     // Load authorization file
     fetch('./ezgalaxy-authorization.json')

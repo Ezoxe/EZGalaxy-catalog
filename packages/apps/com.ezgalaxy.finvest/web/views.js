@@ -124,6 +124,7 @@
   function showLoginModal() {
     let emailVal = '', passVal = '';
     let loginBtn;
+    const isMobile = window._isMobile || false;
     const m = modal({
       title: 'Connexion — EZGalaxy Cloud',
       body: [
@@ -144,29 +145,29 @@
             try {
               // 1. Login
               await Store.login(emailVal, passVal);
-              console.log('[FinVest] Login OK');
+              console.log('[FinVest] Login OK — isMobile:', isMobile);
               toast('Connecté avec succès', 'success');
 
-              // 2. Force-remove modal overlay immediately (prevents blocking screen on mobile)
+              // 2. Force-remove modal overlay immediately
               if (m.overlay && m.overlay.parentNode) m.overlay.remove();
 
-              // 3. Try cloud load
+              // 3. Cloud load
               let loaded = false;
               try {
                 loaded = await Store.cloudLoad();
+                console.log('[FinVest] Cloud load result:', loaded);
               } catch (err) {
                 console.error('[FinVest] Cloud load failed:', err);
                 toast('Erreur chargement cloud : ' + err.message, 'error');
               }
 
-              // 4. Navigate based on result
+              // 4. Navigate
               const st = Store.getState();
-              console.log('[FinVest] Post-login — loaded:', loaded, 'step:', st.step, 'analysis:', !!st.analysis);
+              console.log('[FinVest] Post-login — step:', st.step, 'analysis:', !!st.analysis, 'isMobile:', isMobile);
               if (loaded && st.analysis) {
                 toast('Données chargées depuis le cloud', 'success');
                 Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
               }
-              // 5. Re-render (welcome with load button, or dashboard if data loaded)
               window.renderApp();
             } catch (e) {
               loginBtn.disabled = false;
