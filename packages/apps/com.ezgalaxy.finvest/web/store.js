@@ -300,6 +300,7 @@
   }
 
   async function cloudSave() {
+    _isCloudOp = true;
     setState({ cloudStatus: 'syncing' });
     try {
       const payload = {
@@ -330,10 +331,13 @@
     } catch (e) {
       setState({ cloudStatus: 'error' });
       throw e;
+    } finally {
+      _isCloudOp = false;
     }
   }
 
   async function cloudLoad() {
+    _isCloudOp = true;
     setState({ cloudStatus: 'syncing' });
     try {
       const record = await ezgalaxy.storage.get('profiles', 'main');
@@ -379,6 +383,8 @@
     } catch (e) {
       setState({ cloudStatus: 'error' });
       throw e;
+    } finally {
+      _isCloudOp = false;
     }
   }
 
@@ -559,19 +565,25 @@
 
   /* ---------- Init -------------------------------------------- */
   let _autoSaveTimer = null;
+  let _isCloudOp = false; // guard to prevent auto-save loop during cloud ops
   const AUTO_SAVE_DELAY = 5000; // 5 seconds debounce
 
   function _scheduleAutoSave() {
+    // Don't schedule while a cloud operation is in progress (prevents infinite loop)
+    if (_isCloudOp) return;
     // Only auto-save if authenticated and ezgalaxy.storage is available
     if (!state.auth || !state.auth.user || typeof ezgalaxy === 'undefined' || !ezgalaxy.storage) return;
     if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
     _autoSaveTimer = setTimeout(async () => {
       _autoSaveTimer = null;
+      _isCloudOp = true;
       try {
         await cloudSave();
         console.log('[Store] Auto-save completed');
       } catch (e) {
         console.warn('[Store] Auto-save failed:', e.message);
+      } finally {
+        _isCloudOp = false;
       }
     }, AUTO_SAVE_DELAY);
   }
@@ -595,12 +607,10 @@
         .then(loaded => {
           if (loaded) {
             console.log('[Store] Cloud data loaded on init');
-            // Re-render the app to reflect loaded data (e.g., switch from welcome → dashboard)
             if (typeof window.renderApp === 'function') window.renderApp();
           }
-          setState({ cloudStatus: 'connected' });
         })
-        .catch(() => setState({ cloudStatus: 'error' }));
+        .catch(e => console.warn('[Store] Auto-load failed:', e.message));
     }
 
     return state;

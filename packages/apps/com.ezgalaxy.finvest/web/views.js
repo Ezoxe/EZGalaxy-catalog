@@ -71,23 +71,6 @@
       cloudSection.appendChild(el('div', { className: 'cloud-status cloud-status--connected' }, [
         icon('cloud', 16), ` Connecté : ${s.auth.user?.name || s.auth.user?.email || 'Utilisateur'}`
       ]));
-      cloudSection.appendChild(el('button', { className: 'btn btn--sm', onClick: async () => {
-        try {
-          const loaded = await Store.cloudLoad();
-          if (loaded) {
-            toast('Données chargées depuis le cloud', 'success');
-            // Force navigation: if we have analysis data, go to dashboard
-            const st = Store.getState();
-            if (st.analysis) {
-              Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
-              window.navigateTo(st.currentView || 'overview');
-            } else {
-              window.renderApp();
-            }
-          }
-          else toast('Aucune sauvegarde cloud trouvée. Utilisez d\'abord « Sauvegarder » dans les Paramètres.', 'info');
-        } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
-      } }, [icon('download', 14), 'Charger depuis le cloud']));
     } else {
       const loginBtn = el('button', { className: 'btn btn--sm btn--ghost', onClick: () => showLoginModal() }, [
         icon('login', 16), 'Se connecter (sauvegarde cloud)'
@@ -138,6 +121,19 @@
             await Store.login(emailVal, passVal);
             toast('Connecté avec succès', 'success');
             m.close();
+            // Auto-load cloud data after login
+            try {
+              const loaded = await Store.cloudLoad();
+              if (loaded) {
+                toast('Données chargées depuis le cloud', 'success');
+                const st = Store.getState();
+                if (st.analysis) {
+                  Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
+                  window.navigateTo(st.currentView || 'overview');
+                  return;
+                }
+              }
+            } catch (_) { /* no cloud data yet, that's fine */ }
             window.renderApp();
           } catch (e) { toast(e.message, 'error'); }
         } }, ['Se connecter'])
@@ -1308,15 +1304,7 @@
             try {
               const ok = await Store.cloudLoad();
               toast(ok ? 'Données chargées' : 'Aucune sauvegarde trouvée — sauvegardez d\'abord vos données.', ok ? 'success' : 'info');
-              if (ok) {
-                const st = Store.getState();
-                if (st.analysis) {
-                  Store.setState({ step: 'dashboard', currentView: st.currentView || 'overview' });
-                  window.navigateTo(st.currentView || 'overview');
-                } else {
-                  window.renderApp();
-                }
-              }
+              if (ok) window.renderApp();
             } catch (e) { toast('Erreur cloud : ' + e.message, 'error'); }
           } }, [icon('download', 16), 'Charger']),
           el('button', { className: 'btn btn--ghost', onClick: () => { Store.logout(); toast('Déconnecté', 'info'); window.renderApp(); } }, [icon('logout', 16), 'Déconnexion'])
