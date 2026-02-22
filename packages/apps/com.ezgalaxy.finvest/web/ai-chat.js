@@ -643,7 +643,14 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
   /* ─────────── Init ──────────────────────────────────────────── */
   function init() {
     loadGeminiKey();
-    createToggleButton();
+    const btn = createToggleButton();
+    // Hide AI button on pre-login pages (fixes timing: init runs AFTER navigateTo)
+    if (typeof Store !== 'undefined') {
+      const s = Store.getState();
+      if (s.step === 'welcome' || s.step === 'questionnaire') {
+        btn.style.display = 'none';
+      }
+    }
     console.log('[FinAI] AI chat initialized (Gemini ' + GEMINI_MODEL + ') — key:', GEMINI_KEY ? 'loaded' : 'not configured');
   }
 
