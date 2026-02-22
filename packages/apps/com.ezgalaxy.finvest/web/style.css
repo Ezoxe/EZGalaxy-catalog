@@ -4027,3 +4027,59 @@ body:has(.ai-panel--open) .ai-toggle-btn { opacity: 0; pointer-events: none; }
   .asset-grid { grid-template-columns: 1fr 1fr; }
   .immo-layout { grid-template-columns: 300px 1fr; }
 }
+
+/* ================================================================
+   PWA Mobile — Additional polish
+   (Complements mobile.css for bottom tab bar padding & PWA fixes)
+   ================================================================ */
+@media (max-width: 768px) {
+  /* Bottom padding for tab bar on all main content */
+  body.is-mobile-app .main {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  /* Welcome screen: bottom space for tab bar */
+  body.is-mobile-app .welcome {
+    padding-bottom: 100px !important;
+  }
+  /* AI toggle button: above tab bar */
+  body.is-mobile-app .ai-toggle-btn {
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Toast: above tab bar */
+  body.is-mobile-app .toast-container {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Ticker bar under tab bar z-index */
+  body.is-mobile-app .ticker-bar { z-index: 99; }
+  /* Hide sidebar completely on mobile (replaced by tab bar + drawer) */
+  body.is-mobile-app .sidebar { display: none !important; }
+  /* Touch-friendly buttons */
+  body.is-mobile-app .btn {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  /* Inputs: prevent iOS zoom on focus */
+  body.is-mobile-app .input,
+  body.is-mobile-app .select,
+  body.is-mobile-app textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  /* Cards: subtle tap feedback */
+  body.is-mobile-app .card:active,
+  body.is-mobile-app .market-card:active,
+  body.is-mobile-app .news-card:active,
+  body.is-mobile-app .stat-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s;
+  }
+}
+
+/* ── PWA Standalone — Status bar spacing ──────────────────────── */
+@media (display-mode: standalone) {
+  .main {
+    padding-top: calc(24px + env(safe-area-inset-top, 0px));
+  }
+  .btn-install-pwa,
+  .install-hint { display: none !important; }
+}

@@ -311,8 +311,10 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
       }
     }));
     // Close
+    const isMobile = window.innerWidth <= 768;
     headerActions.appendChild(el('button', {
-      className: 'ai-panel__btn ai-panel__close', textContent: '✕',
+      className: 'ai-panel__btn ai-panel__close', textContent: isMobile ? '←' : '✕',
+      title: isMobile ? 'Retour' : 'Fermer',
       onClick: () => togglePanel(false)
     }));
     header.appendChild(headerActions);
@@ -573,15 +575,27 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
     panelOpen = forceOpen !== undefined ? forceOpen : !panelOpen;
     panelEl.classList.toggle('ai-panel--open', panelOpen);
 
+    const isMobile = window.innerWidth <= 768;
+
     // Shift main content — use current panel width (may have been resized)
     const main = document.getElementById('main-content');
-    if (main) {
+    if (main && !isMobile) {
       if (panelOpen) {
         const w = panelEl.getBoundingClientRect().width || 420;
         main.style.marginRight = w + 'px';
       } else {
         main.style.marginRight = '';
         main.classList.remove('main--ai-panel-open');
+      }
+    }
+
+    // On mobile: lock body scroll when AI panel is open
+    if (isMobile) {
+      document.body.classList.toggle('ai-panel-open', panelOpen);
+      if (panelOpen) {
+        document.body.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = '';
       }
     }
 

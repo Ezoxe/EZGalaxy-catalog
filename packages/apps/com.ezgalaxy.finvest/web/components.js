@@ -109,6 +109,11 @@
   function toast(message, type = 'info', duration = 3500) {
     if (!toastContainer) {
       toastContainer = el('div', { className: 'toast-container' });
+      // On mobile, position at top to avoid bottom tab bar conflict
+      if (window.innerWidth <= 768) {
+        toastContainer.style.top = 'calc(env(safe-area-inset-top, 0px) + 12px)';
+        toastContainer.style.bottom = 'auto';
+      }
       document.body.appendChild(toastContainer);
     }
     const colors = { info: 'var(--ez-primary)', success: 'var(--ez-success)', error: 'var(--ez-danger)', warning: 'var(--ez-warning)' };
@@ -393,18 +398,54 @@
   /* ---------- ECharts helpers --------------------------------- */
   function initChart(container, options) {
     if (!window.echarts) { console.warn('ECharts not loaded'); return null; }
-    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    // Use SVG renderer on mobile for lighter weight
+    const isMobile = window.innerWidth <= 768;
+    const renderer = isMobile ? 'svg' : 'canvas';
+    const chart = echarts.init(container, null, { renderer });
     chart.setOption(options);
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(container);
     container._chart = chart;
     container._ro = ro;
+
+    // Mobile: tap chart to toggle fullscreen
+    if (isMobile) {
+      let _fsTimeout = null;
+      container.addEventListener('dblclick', () => {
+        container.classList.toggle('chart-fullscreen');
+        chart.resize();
+        // Close on tap overlay
+        if (container.classList.contains('chart-fullscreen')) {
+          const closeBtn = document.createElement('button');
+          closeBtn.className = 'chart-fullscreen-close';
+          closeBtn.textContent = '✕ Fermer';
+          closeBtn.style.cssText = 'position:absolute;top:12px;right:12px;z-index:10;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;';
+          closeBtn.onclick = () => {
+            container.classList.remove('chart-fullscreen');
+            closeBtn.remove();
+            chart.resize();
+          };
+          container.style.position = 'relative';
+          container.appendChild(closeBtn);
+        }
+      });
+    }
+
     return chart;
   }
 
   function destroyChart(container) {
     if (container._chart) { container._chart.dispose(); container._chart = null; }
     if (container._ro) { container._ro.disconnect(); container._ro = null; }
+  }
+
+  /* ---------- Skeleton loader (mobile) ----------------------- */
+  function skeleton(type = 'text', count = 3) {
+    const items = [];
+    for (let i = 0; i < count; i++) {
+      items.push(el('div', { className: `mobile-skeleton mobile-skeleton--${type}` }));
+    }
+    return el('div', { className: 'skeleton-wrapper' }, items);
   }
 
   /* ---------- PUBLIC API -------------------------------------- */
@@ -414,6 +455,7 @@
     questionCard, adviceCard, allocationBar,
     dataTable, tabs,
     formatCurrency, formatPercent, formatNumber, formatYears,
-    initChart, destroyChart
+    initChart, destroyChart,
+    skeleton
   };
 })();

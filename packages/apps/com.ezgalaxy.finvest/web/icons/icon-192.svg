@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1c"/>
+      <stop offset="100%" stop-color="#131a2e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5a4"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5a4" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="32" fill="url(#bg)"/>
+  <rect x="4" y="4" width="184" height="184" rx="28" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.3"/>
+  <!-- Chart area glow -->
+  <ellipse cx="96" cy="110" rx="60" ry="30" fill="url(#glow)"/>
+  <!-- Upward trend line -->
+  <polyline points="40,130 65,115 85,120 105,95 125,85 150,55" fill="none" stroke="url(#accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Arrow tip -->
+  <polygon points="150,55 140,60 145,70" fill="#0ea5a4"/>
+  <!-- Dollar sign -->
+  <text x="96" y="155" font-family="Arial,sans-serif" font-size="20" font-weight="bold" fill="#94a3b8" text-anchor="middle" opacity="0.6">FINVEST</text>
+  <!-- Small data points -->
+  <circle cx="40" cy="130" r="4" fill="#0ea5a4"/>
+  <circle cx="65" cy="115" r="4" fill="#0ea5a4"/>
+  <circle cx="85" cy="120" r="4" fill="#22c55e"/>
+  <circle cx="105" cy="95" r="4" fill="#6366f1"/>
+  <circle cx="125" cy="85" r="4" fill="#6366f1"/>
+  <circle cx="150" cy="55" r="5" fill="#0ea5a4" stroke="#fff" stroke-width="2"/>
+</svg>

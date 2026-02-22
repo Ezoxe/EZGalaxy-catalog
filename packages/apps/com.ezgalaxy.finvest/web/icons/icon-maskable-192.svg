@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1c"/>
+      <stop offset="100%" stop-color="#131a2e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5a4"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <!-- Maskable safe zone: circle r=80 centered at 96,96 -->
+  <rect width="192" height="192" fill="url(#bg)"/>
+  <polyline points="48,120 68,108 84,112 100,92 116,84 140,60" fill="none" stroke="url(#accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="140,60 132,65 135,73" fill="#0ea5a4"/>
+  <circle cx="48" cy="120" r="3.5" fill="#0ea5a4"/>
+  <circle cx="68" cy="108" r="3.5" fill="#0ea5a4"/>
+  <circle cx="84" cy="112" r="3.5" fill="#22c55e"/>
+  <circle cx="100" cy="92" r="3.5" fill="#6366f1"/>
+  <circle cx="116" cy="84" r="3.5" fill="#6366f1"/>
+  <circle cx="140" cy="60" r="4.5" fill="#0ea5a4" stroke="#fff" stroke-width="1.5"/>
+  <text x="96" y="148" font-family="Arial,sans-serif" font-size="16" font-weight="bold" fill="#94a3b8" text-anchor="middle" opacity="0.7">FINVEST</text>
+</svg>

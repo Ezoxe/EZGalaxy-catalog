@@ -9,6 +9,34 @@
   const EXTENSION_ID = 'com.ezgalaxy.finvest';
   const LS_KEY = 'finvest_state';
   const LS_AUTH = 'finvest_auth';
+  const LS_DEVICE_UUID = 'finvest_device_uuid';
+
+  /* ---------- PWA / Mobile detection -------------------------- */
+  const _isPWA = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  function _getDeviceUUID() {
+    try {
+      let uuid = localStorage.getItem(LS_DEVICE_UUID);
+      if (!uuid) {
+        uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+        localStorage.setItem(LS_DEVICE_UUID, uuid);
+      }
+      return uuid;
+    } catch (_) {
+      return 'fallback-' + Date.now();
+    }
+  }
+
+  function _detectPlatform() {
+    const ua = navigator.userAgent || '';
+    if (/android/i.test(ua)) return 'android';
+    if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+    return 'web';
+  }
 
   /* ---------- Safe localStorage wrapper (sandbox-proof) ------- */
   const _mem = {};
@@ -630,6 +658,25 @@
 
   function init() {
     loadLocal();
+
+    // ── Configure mobile SDK when running as PWA ─────────────
+    if (_isPWA && typeof ezgalaxy !== 'undefined' && typeof ezgalaxy.configureMobile === 'function') {
+      const platform = _detectPlatform();
+      const deviceUuid = _getDeviceUUID();
+      try {
+        ezgalaxy.configureMobile({
+          serverUrl: window.location.origin,
+          appKey: '', // populated at runtime by admin-issued key stored in ezgalaxy.app
+          deviceUuid,
+          extensionId: EXTENSION_ID,
+          platform
+        });
+        console.log(`[Store] Mobile SDK configured — platform: ${platform}, uuid: ${deviceUuid.slice(0, 8)}…`);
+      } catch (e) {
+        console.warn('[Store] Mobile SDK configuration failed:', e.message);
+      }
+    }
+
     // Log authorization
     fetch('./ezgalaxy-authorization.json')
       .then(r => r.json())
@@ -674,6 +721,10 @@
     addNotification, markNotificationsRead,
     addJournalEntry, removeJournalEntry,
     init,
-    defaultProfile, defaultSettings
+    defaultProfile, defaultSettings,
+    // ── Mobile / PWA ──────────────────────────────────────
+    isPWA: _isPWA,
+    getDeviceUUID: _getDeviceUUID,
+    detectPlatform: _detectPlatform
   };
 })();

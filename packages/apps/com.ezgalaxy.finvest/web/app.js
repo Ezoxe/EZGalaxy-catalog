@@ -219,6 +219,11 @@
 
       // Close mobile sidebar after navigation
       closeSidebar();
+
+      // Sync mobile nav tab bar with current view
+      if (typeof MobileNav !== 'undefined' && MobileNav.isActive()) {
+        MobileNav.syncWithView(view);
+      }
     }, 150);
   }
 
@@ -247,6 +252,14 @@
     showSidebar();
     renderCurrentView(view);
     updateCloudIndicator();
+
+    // Push browser history for mobile back button
+    try {
+      if (window.history && window.history.pushState) {
+        window.history.pushState({ view }, '', '#' + view);
+      }
+    } catch (_) {}
+    Store.setState({ currentView: view });
   }
 
   function hideSidebar() {
@@ -281,9 +294,111 @@
   }
 
   /* ---------- Init -------------------------------------------- */
+  /* ---------- Desktop install popup (web version) ------------- */
+  let _desktopDeferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _desktopDeferredPrompt = e;
+  });
+
+  function _showDesktopInstallPopup() {
+    // Don't show if already dismissed this session
+    try {
+      if (sessionStorage.getItem('finvest_install_dismissed')) return;
+    } catch (_) {}
+
+    // Delay to not interrupt first interaction
+    setTimeout(() => {
+      const popup = document.createElement('div');
+      popup.id = 'desktop-install-popup';
+      popup.style.cssText = `
+        position: fixed; bottom: 24px; right: 24px; z-index: 9000;
+        max-width: 340px; width: calc(100% - 48px);
+        background: rgba(20,27,45,0.95); backdrop-filter: blur(16px);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px; padding: 20px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        transform: translateY(120%); opacity: 0;
+        transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.3s;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      `;
+
+      popup.innerHTML = `
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <div style="font-size:32px;flex-shrink:0">📱</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">
+              FinVest est disponible en application !
+            </div>
+            <div style="font-size:12px;color:#94a3b8;line-height:1.4">
+              Installez FinVest sur votre téléphone ou ordinateur pour un accès rapide.
+            </div>
+          </div>
+          <button id="dip-close" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;padding:0;line-height:1">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button id="dip-install" style="
+            flex:1;padding:10px;border:none;border-radius:10px;
+            background:linear-gradient(135deg,#0ea5a4,#6366f1);
+            color:#fff;font-weight:700;font-size:13px;cursor:pointer;
+            transition:transform 0.15s;
+          ">📥 Installer</button>
+          <a href="install.html" style="
+            flex:1;padding:10px;border:1px solid rgba(255,255,255,0.1);
+            border-radius:10px;background:rgba(255,255,255,0.05);
+            color:#94a3b8;font-weight:600;font-size:13px;cursor:pointer;
+            text-decoration:none;text-align:center;
+            transition:background 0.15s;
+          ">En savoir plus</a>
+        </div>
+      `;
+      document.body.appendChild(popup);
+
+      // Animate in
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          popup.style.transform = 'translateY(0)';
+          popup.style.opacity = '1';
+        });
+      });
+
+      const dismiss = () => {
+        popup.style.transform = 'translateY(120%)';
+        popup.style.opacity = '0';
+        setTimeout(() => popup.remove(), 400);
+        try { sessionStorage.setItem('finvest_install_dismissed', '1'); } catch (_) {}
+      };
+
+      popup.querySelector('#dip-close').addEventListener('click', dismiss);
+
+      popup.querySelector('#dip-install').addEventListener('click', async () => {
+        if (_desktopDeferredPrompt) {
+          _desktopDeferredPrompt.prompt();
+          const { outcome } = await _desktopDeferredPrompt.userChoice;
+          _desktopDeferredPrompt = null;
+          if (outcome === 'accepted') dismiss();
+        } else {
+          // Redirect to install page
+          window.location.href = 'install.html';
+        }
+      });
+
+      // Auto-dismiss after 15s
+      setTimeout(() => { if (document.getElementById('desktop-install-popup')) dismiss(); }, 15000);
+    }, 5000); // 5s delay
+  }
+
   function init() {
     // Initialize store (loads from localStorage)
     Store.init();
+
+    // ── Detect PWA standalone mode ──────────────────────────────
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                  window.navigator.standalone === true;
+    if (isPWA) {
+      document.body.classList.add('is-pwa');
+      console.log('[FinVest] Running as installed PWA');
+    }
 
     // ── Device detection (EZGalaxy SDK) ──────────────────────────
     if (typeof ezgalaxy !== 'undefined' && ezgalaxy.device) {
@@ -382,6 +497,12 @@
       FinAI.init();
     }
 
+    // ── Mobile Navigation init ──────────────────────────────
+    if (typeof MobileNav !== 'undefined') {
+      MobileNav.init();
+      console.log('[FinVest] Mobile navigation initialized');
+    }
+
     // ── Update AI context on navigation ─────────────────────
     Store.subscribe((s) => {
       if (typeof FinAI !== 'undefined' && s.currentView) {
@@ -389,7 +510,22 @@
       }
     });
 
-    console.log('[FinVest] Application initialized — Phase 1+2+3 (Admin + AI) loaded');
+    // ── Desktop PWA install popup ──────────────────────────────
+    // Show a subtle popup on the web version to inform users about
+    // the installable app (desktop + tablet, not mobile — mobile
+    // uses MobileNav's own install banner).
+    if (!isPWA && window.innerWidth > 768) {
+      _showDesktopInstallPopup();
+    }
+
+    console.log('[FinVest] Application initialized — Phase 1+2+3 (Admin + AI + Mobile PWA) loaded');
+
+    // ── Handle browser back button for mobile ───────────────
+    window.addEventListener('popstate', (e) => {
+      if (e.state && e.state.view) {
+        navigateTo(e.state.view);
+      }
+    });
   }
 
   /* ---------- Expose globals --------------------------------- */

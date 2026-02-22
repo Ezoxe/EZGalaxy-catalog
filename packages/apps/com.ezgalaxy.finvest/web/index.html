@@ -2,14 +2,34 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <title>FinVest — Analyse Financière</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0a0f1c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FinVest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.svg">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="FinVest">
+  <meta name="description" content="Analyse financière complète : portefeuille, bourse en direct, projections Monte Carlo, IA Gemini, retraite.">
+
+  <!-- Styles -->
   <link rel="stylesheet" href="./ezgalaxy-base.css">
   <link rel="stylesheet" href="./ezgalaxy-animations.css">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./mobile.css">
+
+  <!-- SDK -->
   <script src="/api/ezgalaxy-sdk.js"></script>
+
+  <!-- Vendor -->
   <script defer src="./vendor/echarts.min.js"></script>
   <script defer src="./vendor/lz-string.min.js"></script>
+
+  <!-- App modules -->
   <script defer src="./engine.js"></script>
   <script defer src="./engine-extra.js"></script>
   <script defer src="./api-connector.js"></script>
@@ -22,6 +42,7 @@
   <script defer src="./views-extra.js"></script>
   <script defer src="./views-new.js"></script>
   <script defer src="./ai-chat.js"></script>
+  <script defer src="./mobile-nav.js"></script>
   <script defer src="./app.js"></script>
 </head>
 <body>
@@ -34,5 +55,15 @@
     </div>
   </div>
   <noscript>Cette application nécessite JavaScript.</noscript>
+  <script>
+    // Register service worker for PWA install
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg => console.log('[SW] Registered:', reg.scope))
+          .catch(err => console.warn('[SW] Registration failed:', err));
+      });
+    }
+  </script>
 </body>
 </html>

@@ -41,6 +41,18 @@
         "formats": ["JSON"]
       },
       "justification": "Export du profil financier et des analyses en fichier JSON local pour sauvegarde hors-ligne."
+    },
+    {
+      "name": "mobile",
+      "enabled": true,
+      "details": {
+        "type": "pwa",
+        "platforms": ["android", "ios"],
+        "installPage": "web/install.html",
+        "requiresApiKey": true,
+        "features": ["offline-shell-cache", "add-to-homescreen", "standalone-display", "mobile-navigation"]
+      },
+      "justification": "Application Progressive Web App installable sur Android et iOS. Cache du shell pour chargement rapide, toutes les données restent en ligne (pas de cache de données). Navigation mobile avec barre d'onglets et tiroir latéral. Page d'installation avec tutoriel intégré."
     }
   ]
 }

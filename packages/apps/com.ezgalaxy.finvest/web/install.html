@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Installer FinVest — Application Mobile</title>
+  <meta name="description" content="Installez FinVest sur votre téléphone Android ou iPhone. Application d'analyse financière gratuite.">
+  <meta name="theme-color" content="#0a0f1c">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0f1c;
+      --surface: #141b2d;
+      --surface2: #1a2236;
+      --border: rgba(255,255,255,0.08);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #0ea5a4;
+      --accent2: #6366f1;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --radius: 16px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    .hero {
+      position: relative;
+      padding: calc(60px + var(--safe-top)) 24px 48px;
+      text-align: center;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(14,165,164,0.12) 0%, transparent 70%);
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-icon {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 48px;
+      box-shadow: 0 8px 32px rgba(14,165,164,0.2);
+    }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #0ea5a4, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    .hero p {
+      color: var(--text-muted);
+      font-size: 16px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    .hero-badges {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ── Container ──────────────────────────────── */
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
+    }
+
+    /* ── Install CTA ───────────────────────────── */
+    .install-cta {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .install-cta .platform-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+    .install-cta h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .install-cta .subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .btn-install {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 320px;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      color: #fff;
+    }
+    .btn-install:active { transform: scale(0.97); }
+    .btn-install--android {
+      background: linear-gradient(135deg, #0ea5a4, #0d9494);
+      box-shadow: 0 4px 16px rgba(14,165,164,0.3);
+    }
+    .btn-install--ios {
+      background: linear-gradient(135deg, #6366f1, #5558e6);
+      box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+    }
+    .btn-install--generic {
+      background: linear-gradient(135deg, #0ea5a4, #6366f1);
+      box-shadow: 0 4px 16px rgba(14,165,164,0.2);
+    }
+    .btn-install:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .install-note {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 12px;
+    }
+
+    .already-installed {
+      display: none;
+      padding: 16px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 12px;
+      color: var(--success);
+      font-weight: 600;
+      text-align: center;
+    }
+
+    /* ── Tutorial section ──────────────────────── */
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tutorial {
+      margin-bottom: 32px;
+    }
+    .tutorial-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .tutorial-tab {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .tutorial-tab.active {
+      background: rgba(14,165,164,0.1);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .tutorial-content { display: none; }
+    .tutorial-content.active { display: block; }
+
+    .step {
+      display: flex;
+      gap: 14px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 10px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .step-body h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .step-body p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .step-body code {
+      background: rgba(14,165,164,0.15);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    /* ── Features ───────────────────────────────── */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    .feature-card {
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      text-align: center;
+    }
+    .feature-card .emoji {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .feature-card h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .feature-card p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── FAQ ────────────────────────────────────── */
+    .faq { margin-bottom: 32px; }
+    .faq-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .faq-q {
+      width: 100%;
+      padding: 14px 16px;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .faq-q::after {
+      content: '▸';
+      transition: transform 0.2s;
+      color: var(--text-muted);
+    }
+    .faq-item.open .faq-q::after { transform: rotate(90deg); }
+    .faq-a {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .faq-item.open .faq-a { max-height: 200px; }
+    .faq-a-inner {
+      padding: 0 16px 14px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Footer ─────────────────────────────────── */
+    .footer {
+      text-align: center;
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      margin-top: 16px;
+    }
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .footer p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* ── Responsive ─────────────────────────────── */
+    @media (max-width: 400px) {
+      .features { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ Hero ═══════════════ -->
+<div class="hero">
+  <div class="hero-icon">📊</div>
+  <h1>FinVest</h1>
+  <p>Votre assistant financier intelligent. Installez l'application sur votre téléphone en un clic.</p>
+  <div class="hero-badges">
+    <span class="hero-badge">✅ Gratuit</span>
+    <span class="hero-badge">🔒 Données privées</span>
+    <span class="hero-badge">📱 Android &amp; iOS</span>
+    <span class="hero-badge">🤖 IA intégrée</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ═══════════════ Already installed ═══════════════ -->
+  <div class="already-installed" id="alreadyInstalled">
+    ✅ FinVest est déjà installé sur votre appareil !
+  </div>
+
+  <!-- ═══════════════ Install CTA ═══════════════ -->
+  <div class="install-cta" id="installCTA">
+    <div class="platform-icon" id="platformIcon">📱</div>
+    <h2 id="ctaTitle">Installer FinVest</h2>
+    <p class="subtitle" id="ctaSubtitle">Détection de votre appareil…</p>
+    <button class="btn-install btn-install--generic" id="btnInstall" disabled>
+      Chargement…
+    </button>
+    <p class="install-note" id="installNote"></p>
+  </div>
+
+  <!-- ═══════════════ Tutorial ═══════════════ -->
+  <div class="tutorial">
+    <div class="section-title">📖 Comment installer ?</div>
+    <div class="tutorial-tabs">
+      <button class="tutorial-tab active" data-tab="android">🤖 Android</button>
+      <button class="tutorial-tab" data-tab="ios">🍎 iPhone / iPad</button>
+      <button class="tutorial-tab" data-tab="desktop">💻 PC</button>
+    </div>
+
+    <!-- Android Steps -->
+    <div class="tutorial-content active" data-content="android">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Ouvrir dans Chrome</h3>
+          <p>Ouvrez cette page dans <strong>Google Chrome</strong> sur votre téléphone Android.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Appuyer sur « Installer »</h3>
+          <p>Cliquez sur le bouton <strong>Installer</strong> ci-dessus, ou appuyez sur le menu <code>⋮</code> puis <strong>« Installer l'application »</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Confirmer l'installation</h3>
+          <p>Une popup apparaît — appuyez sur <strong>« Installer »</strong>. L'icône FinVest s'ajoute à votre écran d'accueil.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Lancer l'application</h3>
+          <p>Ouvrez FinVest depuis votre écran d'accueil. L'app s'ouvre en <strong>plein écran</strong> comme une vraie application !</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- iOS Steps -->
+    <div class="tutorial-content" data-content="ios">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Ouvrir dans Safari</h3>
+          <p>Cette fonctionnalité ne marche qu'avec <strong>Safari</strong> sur iOS. Ouvrez cette page dans Safari.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Appuyer sur Partager</h3>
+          <p>Appuyez sur l'icône <strong>Partager</strong> (le carré avec la flèche vers le haut ↑) en bas de l'écran.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>« Sur l'écran d'accueil »</h3>
+          <p>Faites défiler et appuyez sur <strong>« Sur l'écran d'accueil »</strong> (ou « Add to Home Screen »).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Ajouter</h3>
+          <p>Appuyez sur <strong>« Ajouter »</strong> en haut à droite. L'icône FinVest apparaît sur votre écran d'accueil !</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop Steps -->
+    <div class="tutorial-content" data-content="desktop">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Ouvrir dans Chrome ou Edge</h3>
+          <p>Ouvrez l'application FinVest dans <strong>Google Chrome</strong> ou <strong>Microsoft Edge</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Installer depuis la barre d'adresse</h3>
+          <p>Cliquez sur l'icône <strong>⊕</strong> ou <strong>📥</strong> dans la barre d'adresse, puis <strong>« Installer »</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Utiliser comme application</h3>
+          <p>FinVest s'ouvre dans sa propre fenêtre, sans barre d'adresse. Comme une application de bureau !</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ Features ═══════════════ -->
+  <div class="section-title">🚀 Fonctionnalités</div>
+  <div class="features">
+    <div class="feature-card">
+      <div class="emoji">📊</div>
+      <h3>Analyse complète</h3>
+      <p>Profil investisseur, patrimoine, projections</p>
+    </div>
+    <div class="feature-card">
+      <div class="emoji">📈</div>
+      <h3>Bourse en direct</h3>
+      <p>Actions, crypto, forex en temps réel</p>
+    </div>
+    <div class="feature-card">
+      <div class="emoji">🤖</div>
+      <h3>Assistant IA</h3>
+      <p>Conseils personnalisés par Gemini</p>
+    </div>
+    <div class="feature-card">
+      <div class="emoji">💰</div>
+      <h3>Budget</h3>
+      <p>Suivi revenus, dépenses, objectifs</p>
+    </div>
+    <div class="feature-card">
+      <div class="emoji">🏆</div>
+      <h3>Gamification</h3>
+      <p>XP, défis, progression personnelle</p>
+    </div>
+    <div class="feature-card">
+      <div class="emoji">☁️</div>
+      <h3>Sync Cloud</h3>
+      <p>Données synchronisées entre appareils</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════ FAQ ═══════════════ -->
+  <div class="section-title">❓ Questions fréquentes</div>
+  <div class="faq">
+    <div class="faq-item">
+      <button class="faq-q">Est-ce une vraie application ?</button>
+      <div class="faq-a"><div class="faq-a-inner">Oui ! FinVest est une Progressive Web App (PWA). Elle s'installe sur votre téléphone exactement comme une app du store, avec son icône, son plein écran et ses notifications. La différence : pas besoin de passer par le Play Store ou l'App Store.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">C'est gratuit ?</button>
+      <div class="faq-a"><div class="faq-a-inner">Oui, FinVest est 100% gratuit. Aucun abonnement, aucune publicité.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">Mes données sont-elles en sécurité ?</button>
+      <div class="faq-a"><div class="faq-a-inner">Vos données financières restent sur votre appareil (localStorage). Si vous créez un compte, elles sont synchronisées de façon chiffrée via les serveurs EZGalaxy. Personne d'autre n'y a accès.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">Faut-il une connexion internet ?</button>
+      <div class="faq-a"><div class="faq-a-inner">Oui, une connexion internet est nécessaire pour accéder aux cours de bourse en direct, à l'assistant IA et à la synchronisation cloud. L'interface se charge rapidement grâce au cache.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">Comment désinstaller ?</button>
+      <div class="faq-a"><div class="faq-a-inner">Comme n'importe quelle application : appui long sur l'icône → Désinstaller (Android) ou Supprimer l'app (iOS).</div></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ Footer ═══════════════ -->
+  <div class="footer">
+    <a href="index.html">← Ouvrir FinVest dans le navigateur</a>
+    <p>FinVest v2.0.0 — EZGalaxy Catalog</p>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Platform detection ─────────────────────
+  const ua = navigator.userAgent || '';
+  const isAndroid = /android/i.test(ua);
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isChrome = /Chrome/i.test(ua) && !/Edge|OPR/i.test(ua);
+  const isSafari = /Safari/i.test(ua) && !/Chrome/i.test(ua);
+  const isEdge = /Edg/i.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  const icon = document.getElementById('platformIcon');
+  const title = document.getElementById('ctaTitle');
+  const subtitle = document.getElementById('ctaSubtitle');
+  const btn = document.getElementById('btnInstall');
+  const note = document.getElementById('installNote');
+  const ctaBox = document.getElementById('installCTA');
+  const alreadyBox = document.getElementById('alreadyInstalled');
+
+  // ── Already installed ──────────────────────
+  if (isStandalone) {
+    ctaBox.style.display = 'none';
+    alreadyBox.style.display = 'block';
+    return;
+  }
+
+  // ── Prompt event (Chrome / Edge) ───────────
+  let deferredPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    btn.disabled = false;
+    btn.textContent = '📥 Installer FinVest';
+    btn.className = 'btn-install btn-install--android';
+  });
+
+  btn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        btn.textContent = '✅ Installation en cours…';
+        btn.disabled = true;
+      }
+      deferredPrompt = null;
+    } else if (isIOS) {
+      // Scroll to iOS tutorial
+      document.querySelector('[data-tab="ios"]').click();
+      document.querySelector('.tutorial').scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+
+  // ── Platform-specific UI ───────────────────
+  if (isAndroid) {
+    icon.textContent = '🤖';
+    title.textContent = 'Installer sur Android';
+    subtitle.textContent = isChrome ? 'Installation directe via Chrome' : 'Ouvrez dans Chrome pour installer';
+    btn.className = 'btn-install btn-install--android';
+    if (isChrome) {
+      btn.textContent = '📥 Installer FinVest';
+      // Will be enabled by beforeinstallprompt
+      note.textContent = 'Le bouton s\'active dès que Chrome est prêt…';
+    } else {
+      btn.textContent = 'Ouvrir dans Chrome';
+      btn.disabled = false;
+      btn.addEventListener('click', () => {
+        window.open(window.location.href, '_blank');
+      }, { once: true });
+      note.textContent = 'L\'installation PWA nécessite Google Chrome.';
+    }
+    // Auto-select Android tab
+    document.querySelector('[data-tab="android"]').click();
+
+  } else if (isIOS) {
+    icon.textContent = '🍎';
+    title.textContent = 'Installer sur iPhone';
+    subtitle.textContent = isSafari ? 'Ajoutez à l\'écran d\'accueil via Safari' : 'Ouvrez dans Safari pour installer';
+    btn.className = 'btn-install btn-install--ios';
+    if (isSafari) {
+      btn.textContent = '📖 Voir le tutoriel';
+      btn.disabled = false;
+    } else {
+      btn.textContent = 'Ouvrir dans Safari';
+      btn.disabled = false;
+      note.textContent = 'L\'installation PWA sur iOS nécessite Safari.';
+    }
+    // Auto-select iOS tab
+    document.querySelector('[data-tab="ios"]').click();
+
+  } else {
+    // Desktop
+    icon.textContent = '💻';
+    title.textContent = 'Installer sur PC';
+    subtitle.textContent = (isChrome || isEdge) ? 'Installation disponible' : 'Ouvrez dans Chrome ou Edge';
+    btn.className = 'btn-install btn-install--generic';
+    if (isChrome || isEdge) {
+      btn.textContent = '📥 Installer FinVest';
+      note.textContent = 'Le bouton s\'active dès que le navigateur est prêt…';
+    } else {
+      btn.textContent = '📖 Voir le tutoriel';
+      btn.disabled = false;
+    }
+    document.querySelector('[data-tab="desktop"]').click();
+  }
+
+  // ── Tutorial tabs ──────────────────────────
+  document.querySelectorAll('.tutorial-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tutorial-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tutorial-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelector(`[data-content="${tab.dataset.tab}"]`).classList.add('active');
+    });
+  });
+
+  // ── FAQ accordion ──────────────────────────
+  document.querySelectorAll('.faq-q').forEach(q => {
+    q.addEventListener('click', () => {
+      const item = q.parentElement;
+      const wasOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!wasOpen) item.classList.add('open');
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

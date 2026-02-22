@@ -426,7 +426,16 @@
      9. ONBOARDING TOUR
      ============================================================ */
   function startOnboarding() {
-    const steps = [
+    const isMobile = window.innerWidth <= 768;
+
+    // Different onboarding steps for mobile vs desktop
+    const steps = isMobile ? [
+      { target: '.mobile-tab[data-tab="home"]', text: '💹 Bienvenue sur FinVest ! Voici votre barre de navigation. Commencez par l\'accueil.', position: 'top' },
+      { target: '.mobile-tab[data-tab="markets"]', text: '📈 Marchés : suivez la bourse en direct, gérez votre portefeuille.', position: 'top' },
+      { target: '.mobile-tab[data-tab="tools"]', text: '🔧 Outils : projections, retraite, FIRE, crédit, et bien plus.', position: 'top' },
+      { target: '.mobile-tab[data-tab="progress"]', text: '🏆 Parcours : gagnez des badges et complétez des défis financiers.', position: 'top' },
+      { target: '.mobile-tab[data-tab="more"]', text: '📋 Plus : accédez à tous les outils, paramètres et à l\'IA depuis le menu.', position: 'top' }
+    ] : [
       { target: '.sidebar__header', text: '💹 Bienvenue sur FinVest ! Votre assistant financier personnel.', position: 'right' },
       { target: '.nav-link[data-view="overview"]', text: '📊 Vue d\'ensemble : votre tableau de bord principal avec tous les indicateurs clés.', position: 'right' },
       { target: '.nav-link[data-view="bourse"]', text: '📈 Bourse en direct : suivez les indices et actions en temps réel.', position: 'right' },
@@ -468,9 +477,19 @@
       `;
 
       // Position tooltip
-      const tooltipLeft = step.position === 'right' ? rect.right + 16 : rect.left;
-      const tooltipTop = step.position === 'bottom' ? rect.bottom + 12 : rect.top;
-      tooltip.style.cssText = `top:${tooltipTop}px;left:${Math.min(tooltipLeft, window.innerWidth - 340)}px`;
+      let tooltipLeft, tooltipTop;
+      if (step.position === 'top') {
+        // Mobile: position above the element (for bottom tab bar items)
+        tooltipLeft = Math.max(12, Math.min(rect.left - 60, window.innerWidth - 320));
+        tooltipTop = rect.top - 120;
+      } else if (step.position === 'right') {
+        tooltipLeft = rect.right + 16;
+        tooltipTop = rect.top;
+      } else {
+        tooltipLeft = rect.left;
+        tooltipTop = rect.bottom + 12;
+      }
+      tooltip.style.cssText = `top:${tooltipTop}px;left:${Math.min(tooltipLeft, window.innerWidth - 340)}px;max-width:${Math.min(320, window.innerWidth - 24)}px`;
 
       tooltip.addEventListener('click', e => {
         const action = e.target.dataset.action || e.target.closest('[data-action]')?.dataset.action;

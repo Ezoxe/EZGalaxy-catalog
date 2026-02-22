@@ -1,0 +1,1090 @@
+/* ================================================================
+   FinVest — mobile.css
+   Complete mobile-specific styles: bottom tab bar, drawer,
+   touch targets, PWA install banner, animations, safe areas.
+   Only active at ≤768px or when body.is-mobile-app is set.
+   ================================================================ */
+
+/* ═══════════════════════════════════════════════════════════════
+   1. CSS VARIABLES (Mobile overrides)
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --mobile-tab-height: 60px;
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-left: env(safe-area-inset-left, 0px);
+  --mobile-safe-right: env(safe-area-inset-right, 0px);
+  --mobile-drawer-width: min(85vw, 320px);
+  --mobile-accent: #0ea5a4;
+  --mobile-accent-gradient: linear-gradient(135deg, #0ea5a4, #6366f1);
+  --mobile-bg: #0a0f1c;
+  --mobile-surface: rgba(255, 255, 255, 0.04);
+  --mobile-surface-hover: rgba(255, 255, 255, 0.08);
+  --mobile-border: rgba(255, 255, 255, 0.08);
+  --mobile-text: #e2e8f0;
+  --mobile-text-muted: #94a3b8;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   2. GLOBAL MOBILE ADJUSTMENTS
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  body.is-mobile-app {
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+
+  body.is-mobile-app .main {
+    padding-bottom: calc(var(--mobile-tab-height) + var(--mobile-safe-bottom) + 16px) !important;
+    padding-top: calc(var(--mobile-safe-top) + 12px) !important;
+    padding-left: calc(var(--mobile-safe-left) + 12px) !important;
+    padding-right: calc(var(--mobile-safe-right) + 12px) !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    min-height: 100vh;
+    transition: none;
+  }
+
+  /* Hide desktop sidebar & hamburger when mobile nav active */
+  body.is-mobile-app .sidebar,
+  body.is-mobile-app .hamburger,
+  body.is-mobile-app .sidebar-backdrop {
+    display: none !important;
+  }
+
+  /* Body scroll lock when drawer/sidebar open */
+  body.drawer-open {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   3. BOTTOM TAB BAR
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-tab-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(var(--mobile-tab-height) + var(--mobile-safe-bottom));
+    padding-bottom: var(--mobile-safe-bottom);
+    background: rgba(10, 15, 28, 0.92);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid var(--mobile-border);
+    z-index: 1000;
+    align-items: stretch;
+    justify-content: space-around;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--mobile-text-muted);
+    cursor: pointer;
+    padding: 6px 4px;
+    position: relative;
+    overflow: hidden;
+    transition: color 0.25s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-width: 0;
+    user-select: none;
+  }
+
+  .mobile-tab__icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 28px;
+    border-radius: 14px;
+    transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    position: relative;
+  }
+
+  .mobile-tab__icon-wrap svg {
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .mobile-tab__label {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    transition: all 0.25s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60px;
+  }
+
+  /* Active state */
+  .mobile-tab--active {
+    color: var(--mobile-accent);
+  }
+
+  .mobile-tab--active .mobile-tab__icon-wrap {
+    background: rgba(14, 165, 164, 0.15);
+    transform: scale(1);
+  }
+
+  .mobile-tab--active .mobile-tab__icon-wrap svg {
+    transform: scale(1.1);
+  }
+
+  .mobile-tab--active .mobile-tab__label {
+    font-weight: 700;
+    color: var(--mobile-accent);
+  }
+
+  /* Active indicator dot */
+  .mobile-tab--active::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--mobile-accent);
+    animation: mobileTabDot 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  @keyframes mobileTabDot {
+    from { transform: translateX(-50%) scale(0); opacity: 0; }
+    to { transform: translateX(-50%) scale(1); opacity: 1; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   4. RIPPLE EFFECT
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(14, 165, 164, 0.2);
+  transform: scale(0);
+  animation: mobileRipple 0.6s ease-out forwards;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes mobileRipple {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. DRAWER
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-drawer-backdrop {
+  display: none;
+}
+
+.mobile-drawer {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .mobile-drawer-backdrop--visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--mobile-drawer-width);
+    height: 100%;
+    background: rgba(13, 18, 32, 0.98);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-right: 1px solid var(--mobile-border);
+    z-index: 1200;
+    transform: translateX(-105%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
+    overflow: hidden;
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .mobile-drawer--open {
+    transform: translateX(0);
+  }
+
+  /* Drawer header */
+  .mobile-drawer__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(var(--mobile-safe-top) + 16px) 16px 12px;
+    border-bottom: 1px solid var(--mobile-border);
+  }
+
+  .mobile-drawer__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobile-drawer__logo {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .mobile-drawer__titles {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .mobile-drawer__title {
+    font-size: 18px;
+    font-weight: 800;
+    background: var(--mobile-accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .mobile-drawer__subtitle {
+    font-size: 11px;
+    color: var(--mobile-text-muted);
+  }
+
+  .mobile-drawer__close {
+    background: none;
+    border: none;
+    color: var(--mobile-text-muted);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-drawer__close:active {
+    background: var(--mobile-surface-hover);
+  }
+
+  /* Cloud status */
+  .mobile-drawer__cloud {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--mobile-border);
+  }
+
+  .mobile-drawer__cloud-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: var(--mobile-surface);
+  }
+
+  .cloud--connected { color: #22c55e; }
+  .cloud--syncing { color: #f59e0b; }
+  .cloud--error { color: #ef4444; }
+  .cloud--disconnected { color: var(--mobile-text-muted); }
+
+  /* Search */
+  .mobile-drawer__search {
+    margin: 10px 16px;
+    padding: 10px 14px;
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    color: var(--mobile-text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-drawer__search:active {
+    background: var(--mobile-surface-hover);
+  }
+
+  /* Scroll area */
+  .mobile-drawer__scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding: 4px 0 16px;
+  }
+
+  /* Section */
+  .mobile-drawer__section {
+    padding: 4px 0;
+  }
+
+  .mobile-drawer__section-label {
+    padding: 12px 16px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mobile-text-muted);
+    opacity: 0.7;
+  }
+
+  /* Links */
+  .mobile-drawer__link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--mobile-text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 48px;
+  }
+
+  .mobile-drawer__link svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .mobile-drawer__link:active {
+    background: var(--mobile-surface-hover);
+  }
+
+  .mobile-drawer__link--active {
+    background: rgba(14, 165, 164, 0.08);
+    color: var(--mobile-accent);
+    border-right: 3px solid var(--mobile-accent);
+  }
+
+  .mobile-drawer__link--active svg {
+    opacity: 1;
+    color: var(--mobile-accent);
+  }
+
+  /* Badges */
+  .mobile-drawer__badge {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .mobile-drawer__badge--live {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+  }
+
+  .mobile-drawer__badge--ai {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+  }
+
+  .mobile-drawer__badge--default {
+    background: var(--mobile-surface);
+    color: var(--mobile-text-muted);
+  }
+
+  /* Footer */
+  .mobile-drawer__footer {
+    padding: 12px 16px calc(var(--mobile-safe-bottom) + 12px);
+    border-top: 1px solid var(--mobile-border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mobile-drawer__home-btn,
+  .mobile-drawer__install-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    color: var(--mobile-text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-drawer__home-btn:active,
+  .mobile-drawer__install-link:active {
+    background: var(--mobile-surface-hover);
+  }
+
+  .mobile-drawer__install-link {
+    background: rgba(14, 165, 164, 0.08);
+    border-color: rgba(14, 165, 164, 0.2);
+    color: var(--mobile-accent);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   6. PWA INSTALL BANNER
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-install-banner {
+  position: fixed;
+  bottom: calc(var(--mobile-tab-height, 0px) + var(--mobile-safe-bottom, 0px) + 12px);
+  left: 12px;
+  right: 12px;
+  background: rgba(13, 18, 32, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--mobile-border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  z-index: 900;
+  transform: translateY(calc(100% + 80px));
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.mobile-install-banner--visible {
+  transform: translateY(0);
+}
+
+.mobile-install-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mobile-install-banner__icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.mobile-install-banner__text strong {
+  display: block;
+  font-size: 15px;
+  color: var(--mobile-text);
+  margin-bottom: 2px;
+}
+
+.mobile-install-banner__text p {
+  font-size: 12px;
+  color: var(--mobile-text-muted);
+  margin: 0;
+}
+
+.mobile-install-banner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mobile-install-banner__btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-install-banner__btn--install {
+  background: var(--mobile-accent-gradient);
+  color: #fff;
+}
+
+.mobile-install-banner__btn--install:active {
+  transform: scale(0.97);
+}
+
+.mobile-install-banner__btn--later {
+  background: var(--mobile-surface);
+  color: var(--mobile-text-muted);
+  border: 1px solid var(--mobile-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7. iOS INSTALL HINT
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-ios-hint {
+  position: fixed;
+  bottom: calc(var(--mobile-tab-height, 0px) + var(--mobile-safe-bottom, 0px) + 12px);
+  left: 12px;
+  right: 12px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 14px;
+  padding: 12px 16px;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transform: translateY(calc(100% + 80px));
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.mobile-ios-hint--visible {
+  transform: translateY(0);
+}
+
+.mobile-ios-hint__content {
+  font-size: 13px;
+  color: var(--mobile-text);
+  line-height: 1.5;
+}
+
+.mobile-ios-hint__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.mobile-ios-hint__close {
+  background: none;
+  border: none;
+  color: var(--mobile-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   8. MOBILE VIEW TRANSITIONS
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .main--transitioning {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  body.is-mobile-app .main {
+    animation: mobileViewIn 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+
+  @keyframes mobileViewIn {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   9. MOBILE TOUCH TARGETS & UI POLISH
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* All interactive elements: 48px min touch target */
+  body.is-mobile-app button,
+  body.is-mobile-app .btn,
+  body.is-mobile-app .nav-link,
+  body.is-mobile-app select,
+  body.is-mobile-app input[type="checkbox"],
+  body.is-mobile-app input[type="radio"] {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Cards: remove excessive padding, add touch feel */
+  body.is-mobile-app .card,
+  body.is-mobile-app .stat-card,
+  body.is-mobile-app .advice-card {
+    border-radius: 14px;
+    transition: transform 0.15s ease;
+  }
+
+  body.is-mobile-app .card:active,
+  body.is-mobile-app .stat-card:active {
+    transform: scale(0.98);
+  }
+
+  /* Toast: reposition above bottom bar */
+  body.is-mobile-app .toast-container,
+  body.is-mobile-app .toast {
+    bottom: auto !important;
+    top: calc(var(--mobile-safe-top) + 12px) !important;
+  }
+
+  /* Modal: bottom sheet on mobile */
+  body.is-mobile-app .modal__content {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0;
+    border-radius: 20px 20px 0 0 !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 85vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: mobileBottomSheet 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+
+  @keyframes mobileBottomSheet {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* Floating summary widget: above tab bar */
+  body.is-mobile-app .floating-summary {
+    bottom: calc(var(--mobile-tab-height) + var(--mobile-safe-bottom) + 12px) !important;
+    right: 12px !important;
+  }
+
+  /* AI toggle button: above tab bar */
+  body.is-mobile-app .ai-toggle-btn {
+    bottom: calc(var(--mobile-tab-height) + var(--mobile-safe-bottom) + 12px) !important;
+    right: 12px !important;
+  }
+
+  /* AI panel: fullscreen on mobile */
+  body.is-mobile-app .ai-panel {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    z-index: 1300 !important;
+    padding-top: var(--mobile-safe-top) !important;
+    padding-bottom: var(--mobile-safe-bottom) !important;
+  }
+
+  body.is-mobile-app .ai-panel .ai-resize-handle {
+    display: none !important;
+  }
+
+  /* Notification panel: fullscreen */
+  body.is-mobile-app .notification-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    z-index: 1300 !important;
+    padding-top: calc(var(--mobile-safe-top) + 8px) !important;
+  }
+
+  /* Global search: fullscreen */
+  body.is-mobile-app .search-overlay .search-dialog {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 100vh !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding-top: calc(var(--mobile-safe-top) + 8px) !important;
+  }
+
+  /* Stats grids: optimize for mobile */
+  body.is-mobile-app .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* Chart containers: full width */
+  body.is-mobile-app .chart-container,
+  body.is-mobile-app .chart-canvas {
+    width: 100% !important;
+    min-height: 260px;
+  }
+
+  /* Tab components: horizontal scroll */
+  body.is-mobile-app .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    padding-bottom: 2px;
+  }
+
+  body.is-mobile-app .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.is-mobile-app .tab-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  /* Questionnaire: better mobile step layout */
+  body.is-mobile-app .questionnaire-step {
+    padding: 16px 8px;
+  }
+
+  body.is-mobile-app .step-indicator {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+    padding-bottom: 4px;
+  }
+
+  body.is-mobile-app .step-indicator::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Welcome page: full mobile layout */
+  body.is-mobile-app .welcome-container {
+    padding: 24px 16px calc(var(--mobile-tab-height) + 32px) !important;
+  }
+
+  /* Input fields: proper mobile sizing */
+  body.is-mobile-app input[type="text"],
+  body.is-mobile-app input[type="number"],
+  body.is-mobile-app input[type="email"],
+  body.is-mobile-app input[type="password"],
+  body.is-mobile-app input[type="search"],
+  body.is-mobile-app textarea,
+  body.is-mobile-app select {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+    padding: 12px 14px;
+    min-height: 48px;
+    border-radius: 10px;
+  }
+
+  /* Slider inputs: bigger touch area */
+  body.is-mobile-app input[type="range"] {
+    height: 32px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  body.is-mobile-app input[type="range"]::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 50%;
+    background: var(--mobile-accent);
+    border: 2px solid #fff;
+    cursor: pointer;
+  }
+
+  /* Score gauge: responsive sizing */
+  body.is-mobile-app .score-gauge svg {
+    max-width: min(200px, 60vw);
+    height: auto;
+  }
+
+  /* Data tables: horizontal scroll */
+  body.is-mobile-app .data-table-wrapper,
+  body.is-mobile-app .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  body.is-mobile-app table {
+    min-width: 500px;
+  }
+
+  /* Kanban: horizontal swipe columns */
+  body.is-mobile-app .kanban-board {
+    display: flex !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+  }
+
+  body.is-mobile-app .kanban-board::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.is-mobile-app .kanban-column {
+    min-width: 85vw;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+
+  /* Heatmap: horizontal scroll */
+  body.is-mobile-app .heatmap-grid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Market cards: horizontal scroll for indices */
+  body.is-mobile-app .market-indices-grid {
+    display: flex !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+  }
+
+  body.is-mobile-app .market-indices-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.is-mobile-app .market-indices-grid > * {
+    min-width: 70vw;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+
+  /* Comparison layout: stack */
+  body.is-mobile-app .comparison-row,
+  body.is-mobile-app .immo-comparison {
+    flex-direction: column !important;
+  }
+
+  /* Fullscreen chart on tap (via class toggle) */
+  body.is-mobile-app .chart-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1500 !important;
+    background: var(--mobile-bg) !important;
+    padding: 16px !important;
+    border-radius: 0 !important;
+  }
+
+  body.is-mobile-app .chart-fullscreen .chart-canvas {
+    height: calc(100vh - 80px) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   10. EXTRA-SMALL SCREENS (≤ 400px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 400px) {
+  .mobile-tab__label {
+    font-size: 9px;
+  }
+
+  .mobile-tab__icon-wrap {
+    width: 30px;
+    height: 26px;
+  }
+
+  body.is-mobile-app .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.is-mobile-app .main {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   11. LANDSCAPE MOBILE
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-height: 500px) and (orientation: landscape) {
+  .mobile-tab-bar {
+    height: 48px;
+    padding-bottom: 0;
+    --mobile-tab-height: 48px;
+  }
+
+  .mobile-tab__label {
+    display: none;
+  }
+
+  .mobile-tab__icon-wrap {
+    width: 40px;
+    height: 32px;
+  }
+
+  body.is-mobile-app .main {
+    padding-bottom: 56px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   12. SKELETON LOADING
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-skeleton {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: mobileSkeleton 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes mobileSkeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.mobile-skeleton--text {
+  height: 14px;
+  width: 80%;
+  margin: 8px 0;
+}
+
+.mobile-skeleton--card {
+  height: 100px;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.mobile-skeleton--chart {
+  height: 260px;
+  width: 100%;
+  margin: 12px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   13. PULL TO REFRESH (visual indicator)
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-ptr {
+  position: fixed;
+  top: calc(var(--mobile-safe-top) - 40px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--mobile-surface);
+  border: 1px solid var(--mobile-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 800;
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.mobile-ptr--visible {
+  top: calc(var(--mobile-safe-top) + 10px);
+  opacity: 1;
+}
+
+.mobile-ptr--loading svg {
+  animation: mobilePTRSpin 0.8s linear infinite;
+}
+
+@keyframes mobilePTRSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   14. REDUCED MOTION
+   ═══════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .mobile-drawer {
+    transition: none !important;
+  }
+
+  .mobile-install-banner,
+  .mobile-ios-hint {
+    transition: none !important;
+  }
+
+  .mobile-ripple {
+    animation: none !important;
+  }
+
+  .mobile-tab--active::after {
+    animation: none !important;
+  }
+
+  .mobile-skeleton {
+    animation: none !important;
+  }
+
+  body.is-mobile-app .main {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   15. STANDALONE (PWA INSTALLED) specific
+   ═══════════════════════════════════════════════════════════════ */
+@media (display-mode: standalone) {
+  .mobile-install-banner,
+  .mobile-ios-hint,
+  .mobile-drawer__install-link {
+    display: none !important;
+  }
+
+  body {
+    /* Respect safe areas in standalone mode */
+    padding-top: env(safe-area-inset-top);
+  }
+}
