@@ -1997,9 +1997,11 @@
       }
 
       items.forEach((item, i) => {
-        const card = el('div', {
+        const card = el('a', {
           className: `news-card anim-slide-up stagger-${Math.min(i + 1, 8)}`,
-          onClick: () => openArticle(item.link)
+          href: item.link,
+          target: '_blank',
+          rel: 'noopener noreferrer'
         });
 
         // Thumbnail
@@ -2036,7 +2038,7 @@
         }
 
         // URL display + copy
-        const urlBar = el('div', { className: 'news-card__url-bar', onClick: (e) => { e.stopPropagation(); copyUrl(item.link); } }, [
+        const urlBar = el('div', { className: 'news-card__url-bar', onClick: (e) => { e.preventDefault(); e.stopPropagation(); copyUrl(item.link); } }, [
           icon('external-link', 12),
           el('span', { className: 'news-card__url-text', textContent: item.link.slice(0, 60) + (item.link.length > 60 ? '…' : '') }),
           el('span', { className: 'news-card__url-copy', textContent: 'Copier' })
