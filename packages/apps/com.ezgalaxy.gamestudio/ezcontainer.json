@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.gamestudio",
   "title": "Game Studio — Créateur de Jeux",
-  "function": "Créateur ultra-complet de mini-jeux 2D et 3D avec éditeur visuel, bibliothèque massive d'assets procéduraux, IA, physique, éclairage, scripting visuel et sauvegarde cloud.",
-  "version": "1.0.0",
-  "createdAt": "2026-02-09",
-  "author": "EZGalaxy Community",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Créateur de mini-jeux vidéo ultra complet : éditeur visuel de scènes, moteurs 2D et 3D, physique, IA, éclairage, scripting visuel, 200+ sprites, 40+ modèles 3D, 60+ sons, 40+ tuiles, particules, 6 templates (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner). Sauvegarde via Community Data API.",
+  "containerPort": 8000,
+  "hostPort": 10014,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

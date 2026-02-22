@@ -1,7 +1,12 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-kappy-studio
+    container_name: kappy-studio
     ports:
-      - "10024:80"
+      - "10004:8000"
+    volumes:
+      - app-data:/app/data
     restart: unless-stopped
+
+volumes:
+  app-data:

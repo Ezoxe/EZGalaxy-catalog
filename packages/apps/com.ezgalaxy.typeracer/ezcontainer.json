@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.typeracer",
   "title": "TypeRacer",
-  "function": "Testez et améliorez votre vitesse de frappe avec des textes en français",
-  "version": "1.0.0",
-  "createdAt": "2026-02-22",
-  "author": "EZGalaxy",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Testez et améliorez votre vitesse de frappe avec des textes en français",
+  "containerPort": 8000,
+  "hostPort": 10024,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

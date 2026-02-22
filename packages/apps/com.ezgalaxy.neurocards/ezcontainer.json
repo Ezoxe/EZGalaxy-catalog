@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.neurocards",
   "title": "NeuroCards",
-  "function": "Flashcards à répétition espacée (algorithme SM-2) avec création de decks, sessions de révision et statistiques de progression.",
-  "version": "1.0.0",
-  "createdAt": "2026-02-15",
-  "author": "EZGalaxy Community",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Flashcards avec répétition espacée SM-2, import JSON et suivi de progression",
+  "containerPort": 8000,
+  "hostPort": 10021,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

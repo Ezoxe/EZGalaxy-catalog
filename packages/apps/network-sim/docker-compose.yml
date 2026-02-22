@@ -1,7 +1,12 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-network-sim
+    container_name: network-sim
     ports:
-      - "10025:80"
+      - "10002:8000"
+    volumes:
+      - app-data:/app/data
     restart: unless-stopped
+
+volumes:
+  app-data:

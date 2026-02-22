@@ -1,0 +1,38 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a1a; --surface: #141428; --surface2: #1e1e3a;
+  --border: #2a2a5a; --text: #e0e0ff; --text2: #8888bb;
+  --accent: #6c5ce7; --accent2: #a29bfe; --success: #00d2d3;
+  --warning: #feca57; --danger: #ff6b6b; --info: #54a0ff;
+  --radius: 12px; --shadow: 0 4px 20px rgba(0,0,0,.4);
+}
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+.app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+h1, h2, h3 { color: var(--accent2); }
+button {
+  padding: 8px 16px; border: none; border-radius: var(--radius);
+  background: var(--accent); color: #fff; cursor: pointer;
+  font-size: 14px; transition: all .2s;
+}
+button:hover { background: var(--accent2); transform: translateY(-1px); }
+button:disabled { opacity: .5; cursor: default; transform: none; }
+input, textarea, select {
+  padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 14px; width: 100%;
+}
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+}
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.header h1 { font-size: 24px; }
+.grid { display: grid; gap: 16px; }
+.flex { display: flex; gap: 12px; align-items: center; }
+.badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+.tab { padding: 10px 20px; cursor: pointer; border: none; background: none; color: var(--text2); font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; min-width: 400px; max-width: 90vw; max-height: 90vh; overflow: auto; }
+@media (max-width: 768px) { .app { padding: 12px; } .modal { min-width: auto; width: 95vw; } }

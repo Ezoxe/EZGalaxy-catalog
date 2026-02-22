@@ -1,20 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "code-game",
   "title": "Code Game",
-  "function": "Mini jeu de code (package standard)",
-  "version": "1.0.0",
-  "createdAt": "2025-12-23",
-  "author": "EZGalaxy",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 80,
-    "env": {},
-    "volumes": [],
-    "healthcheck": {
-      "endpoint": "/",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Mini jeu de code (package standard)",
+  "containerPort": 8000,
+  "hostPort": 10003,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

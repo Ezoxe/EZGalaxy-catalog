@@ -1,14 +1,11 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-com.ezgalaxy.chroma
+    container_name: com.ezgalaxy.chroma
     ports:
-      - "10002:3000"
+      - "10019:8000"
     volumes:
       - app-data:/app/data
-    environment:
-      - NODE_ENV=production
-      - DB_PATH=/app/data/database.sqlite
     restart: unless-stopped
 
 volumes:

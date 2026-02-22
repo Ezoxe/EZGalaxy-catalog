@@ -1,7 +1,12 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-world-capitals
+    container_name: world-capitals
     ports:
-      - "10027:80"
+      - "10005:8000"
+    volumes:
+      - app-data:/app/data
     restart: unless-stopped
+
+volumes:
+  app-data:

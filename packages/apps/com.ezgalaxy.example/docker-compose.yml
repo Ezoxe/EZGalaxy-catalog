@@ -1,7 +1,12 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-com.ezgalaxy.example
+    container_name: com.ezgalaxy.example
     ports:
-      - "10003:80"
+      - "10000:8000"
+    volumes:
+      - app-data:/app/data
     restart: unless-stopped
+
+volumes:
+  app-data:

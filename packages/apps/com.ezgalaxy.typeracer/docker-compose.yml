@@ -1,14 +1,11 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-com.ezgalaxy.typeracer
+    container_name: com.ezgalaxy.typeracer
     ports:
-      - "10021:3000"
+      - "10024:8000"
     volumes:
       - app-data:/app/data
-    environment:
-      - NODE_ENV=production
-      - DB_PATH=/app/data/database.sqlite
     restart: unless-stopped
 
 volumes:

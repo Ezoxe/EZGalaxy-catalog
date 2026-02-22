@@ -1,20 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.example",
   "title": "Exemple",
-  "function": "Page de démonstration pour dépôts custom",
-  "version": "1.0.0",
-  "createdAt": "2025-12-22",
-  "author": "EZGalaxy",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 80,
-    "env": {},
-    "volumes": [],
-    "healthcheck": {
-      "endpoint": "/",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Page de démonstration pour dépôts custom",
+  "containerPort": 8000,
+  "hostPort": 10000,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

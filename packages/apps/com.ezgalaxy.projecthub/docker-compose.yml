@@ -1,14 +1,11 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-com.ezgalaxy.projecthub
+    container_name: com.ezgalaxy.projecthub
     ports:
-      - "10017:3000"
+      - "10011:8000"
     volumes:
       - app-data:/app/data
-    environment:
-      - NODE_ENV=production
-      - DB_PATH=/app/data/database.sqlite
     restart: unless-stopped
 
 volumes:

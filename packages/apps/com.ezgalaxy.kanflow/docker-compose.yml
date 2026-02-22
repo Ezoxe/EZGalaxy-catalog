@@ -1,14 +1,11 @@
-﻿services:
+services:
   app:
     build: .
-    container_name: ezgalaxy-com.ezgalaxy.kanflow
+    container_name: com.ezgalaxy.kanflow
     ports:
-      - "10009:3000"
+      - "10020:8000"
     volumes:
       - app-data:/app/data
-    environment:
-      - NODE_ENV=production
-      - DB_PATH=/app/data/database.sqlite
     restart: unless-stopped
 
 volumes:

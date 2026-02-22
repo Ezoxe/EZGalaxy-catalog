@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.it-discovery",
   "title": "IT Discovery",
-  "function": "Decouvre l'informatique de maniere ludique et interactive - modules, quiz, badges et gamification pour les 14 ans et +",
-  "version": "1.4.0",
-  "createdAt": "2026-02-12",
-  "author": "EZGalaxy",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Découvre l'informatique de manière ludique et interactive — modules, quiz, badges et gamification pour les 14 ans et +",
+  "containerPort": 8000,
+  "hostPort": 10015,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

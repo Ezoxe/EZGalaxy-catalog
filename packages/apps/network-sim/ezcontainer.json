@@ -1,20 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "network-sim",
   "title": "Network Sim",
-  "function": "Simulation réseau (package standard)",
-  "version": "1.1.0",
-  "createdAt": "2025-12-23",
-  "author": "EZGalaxy",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 80,
-    "env": {},
-    "volumes": [],
-    "healthcheck": {
-      "endpoint": "/",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Simulation réseau (package standard)",
+  "containerPort": 8000,
+  "hostPort": 10002,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

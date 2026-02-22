@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.kanflow",
   "title": "KanFlow",
-  "function": "Tableau Kanban avec drag & drop, étiquettes, dates d'échéance, filtres et sauvegarde cloud pour la gestion de tâches.",
-  "version": "1.0.0",
-  "createdAt": "2026-02-15",
-  "author": "EZGalaxy Community",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Tableau Kanban avec drag & drop, multi-tableaux, tags colorés et dates d'échéance",
+  "containerPort": 8000,
+  "hostPort": 10020,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

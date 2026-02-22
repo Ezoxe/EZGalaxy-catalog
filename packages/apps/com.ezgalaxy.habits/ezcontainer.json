@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.habits",
   "title": "Habit Forge",
-  "function": "Suivi d'habitudes quotidiennes avec streaks, heatmap calendrier, statistiques de progression et rappels visuels.",
-  "version": "1.0.0",
-  "createdAt": "2026-02-15",
-  "author": "EZGalaxy Community",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Suivi d'habitudes quotidiennes avec heatmap, séries et statistiques de progression",
+  "containerPort": 8000,
+  "hostPort": 10017,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

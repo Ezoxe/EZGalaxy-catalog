@@ -1,5 +1,5 @@
-# ─── EZGalaxy Docker Package Validator ───
-# Validates ezcontainer.json, Dockerfile, docker-compose.yml for each app
+# ─── EZGalaxy Docker Package Validator (React + FastAPI) ───
+# Validates ezcontainer.json, Dockerfile, docker-compose.yml, backend/, frontend/ for each app
 
 param(
   [string]$Root
@@ -23,13 +23,13 @@ if(!(Test-Path $appsRoot)){
 $apps = Get-ChildItem -LiteralPath $appsRoot -Directory
 $errors = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
+$usedPorts = @{}
 
 foreach($app in $apps){
   $appName = $app.Name
   $appRoot = $app.FullName
-  $webRoot = Join-Path $appRoot 'web'
 
-  # ---- ezcontainer.json (manifest)
+  # ---- ezcontainer.json
   $manifestPath = Join-Path $appRoot 'ezcontainer.json'
   if(!(Test-Path $manifestPath)) {
     $errors.Add("[$appName] Missing ezcontainer.json")
@@ -44,52 +44,43 @@ foreach($app in $apps){
     continue
   }
 
-  # Validate schemaVersion
-  if($manifest.schemaVersion -ne 2) {
-    $errors.Add("[$appName] ezcontainer.json.schemaVersion must be 2 (got: $($manifest.schemaVersion))")
-  }
-
-  # Validate required fields
+  # Required fields
   if([string]::IsNullOrWhiteSpace($manifest.id)) { $errors.Add("[$appName] ezcontainer.json.id missing") }
   if([string]::IsNullOrWhiteSpace($manifest.title)) { $errors.Add("[$appName] ezcontainer.json.title missing") }
-  if(-not $manifest.docker) { $errors.Add("[$appName] ezcontainer.json.docker section missing"); continue }
+  if(-not $manifest.containerPort) { $errors.Add("[$appName] ezcontainer.json.containerPort missing") }
+  if(-not $manifest.hostPort) { $errors.Add("[$appName] ezcontainer.json.hostPort missing") }
+  if($manifest.containerPort -ne 8000) { $errors.Add("[$appName] ezcontainer.json.containerPort must be 8000 (got: $($manifest.containerPort))") }
+  if($manifest.runtime -ne 'react-fastapi') { $warnings.Add("[$appName] ezcontainer.json.runtime should be 'react-fastapi' (got: $($manifest.runtime))") }
 
-  $dockerPort = $manifest.docker.port
-  if(-not $dockerPort) { $errors.Add("[$appName] ezcontainer.json.docker.port missing") }
+  # Port uniqueness
+  $hp = $manifest.hostPort
+  if($usedPorts.ContainsKey($hp)) {
+    $errors.Add("[$appName] Duplicate hostPort $hp (also used by $($usedPorts[$hp]))")
+  } else {
+    $usedPorts[$hp] = $appName
+  }
 
   # ---- Dockerfile
   $dockerfilePath = Join-Path $appRoot 'Dockerfile'
   if(!(Test-Path $dockerfilePath)) {
     $errors.Add("[$appName] Missing Dockerfile")
-    continue
-  }
-
-  $dockerfileContent = Get-Content -LiteralPath $dockerfilePath -Raw
-
-  # Check HEALTHCHECK
-  if($dockerfileContent -notmatch 'HEALTHCHECK') {
-    $errors.Add("[$appName] Dockerfile is missing HEALTHCHECK instruction")
-  }
-
-  # Check EXPOSE matches docker.port
-  $exposeMatch = [regex]::Match($dockerfileContent, 'EXPOSE\s+(\d+)')
-  if($exposeMatch.Success) {
-    $exposedPort = [int]$exposeMatch.Groups[1].Value
-    if($exposedPort -ne $dockerPort) {
-      $errors.Add("[$appName] Dockerfile EXPOSE $exposedPort != ezcontainer.json docker.port $dockerPort")
-    }
   } else {
-    $warnings.Add("[$appName] Dockerfile does not have an EXPOSE instruction")
-  }
-
-  # Check volumes: if declared, Dockerfile should mkdir
-  $volumes = @()
-  try { $volumes = @($manifest.docker.volumes) } catch { $volumes = @() }
-  if($volumes.Count -gt 0) {
-    foreach($vol in $volumes) {
-      if($dockerfileContent -notmatch [regex]::Escape($vol)) {
-        $warnings.Add("[$appName] Volume '$vol' declared but not referenced in Dockerfile")
+    $dockerfileContent = Get-Content -LiteralPath $dockerfilePath -Raw
+    if($dockerfileContent -notmatch 'HEALTHCHECK') {
+      $errors.Add("[$appName] Dockerfile is missing HEALTHCHECK instruction")
+    }
+    $exposeMatch = [regex]::Match($dockerfileContent, 'EXPOSE\s+(\d+)')
+    if($exposeMatch.Success) {
+      $exposedPort = [int]$exposeMatch.Groups[1].Value
+      if($exposedPort -ne 8000) {
+        $errors.Add("[$appName] Dockerfile EXPOSE $exposedPort != expected 8000")
       }
+    }
+    if($dockerfileContent -notmatch 'frontend') {
+      $warnings.Add("[$appName] Dockerfile does not reference frontend/")
+    }
+    if($dockerfileContent -notmatch 'uvicorn') {
+      $errors.Add("[$appName] Dockerfile missing uvicorn CMD")
     }
   }
 
@@ -97,56 +88,54 @@ foreach($app in $apps){
   $composePath = Join-Path $appRoot 'docker-compose.yml'
   if(!(Test-Path $composePath)) {
     $errors.Add("[$appName] Missing docker-compose.yml")
-  }
-
-  # ---- web/index.html
-  $indexPath = Join-Path $webRoot 'index.html'
-  if(!(Test-Path $indexPath)) {
-    $errors.Add("[$appName] Missing web/index.html")
-  }
-
-  # ---- Backend apps: check server.js and package.json
-  if($dockerPort -eq 3000) {
-    $serverPath = Join-Path $appRoot 'server.js'
-    if(!(Test-Path $serverPath)) {
-      $errors.Add("[$appName] Backend app (port 3000) missing server.js")
-    }
-
-    $pkgPath = Join-Path $appRoot 'package.json'
-    if(!(Test-Path $pkgPath)) {
-      $errors.Add("[$appName] Backend app (port 3000) missing package.json")
-    }
-
-    $sdkPath = Join-Path $appRoot 'ezgalaxy-sdk.js'
-    if(!(Test-Path $sdkPath)) {
-      $errors.Add("[$appName] Backend app (port 3000) missing ezgalaxy-sdk.js (SDK shim)")
+  } else {
+    $composeContent = Get-Content -LiteralPath $composePath -Raw
+    if($composeContent -notmatch ':8000') {
+      $errors.Add("[$appName] docker-compose.yml does not map to container port 8000")
     }
   }
 
-  # ---- Check for old files that should have been removed
-  $oldEzpage = Join-Path $appRoot 'ezpage.json'
-  if(Test-Path $oldEzpage) {
-    $warnings.Add("[$appName] Old ezpage.json still present (should be removed)")
+  # ---- Backend
+  $backendDir = Join-Path $appRoot 'backend'
+  if(!(Test-Path $backendDir)) {
+    $errors.Add("[$appName] Missing backend/ directory")
+  } else {
+    $mainPy = Join-Path $backendDir 'main.py'
+    $reqTxt = Join-Path $backendDir 'requirements.txt'
+    if(!(Test-Path $mainPy)) { $errors.Add("[$appName] Missing backend/main.py") }
+    if(!(Test-Path $reqTxt)) { $errors.Add("[$appName] Missing backend/requirements.txt") }
   }
 
-  $oldAuth = Join-Path $webRoot 'ezgalaxy-authorization.json'
+  # ---- Frontend
+  $frontendDir = Join-Path $appRoot 'frontend'
+  if(!(Test-Path $frontendDir)) {
+    $errors.Add("[$appName] Missing frontend/ directory")
+  } else {
+    $feFiles = @('index.html','package.json','vite.config.js')
+    foreach($f in $feFiles) {
+      if(!(Test-Path (Join-Path $frontendDir $f))) { $errors.Add("[$appName] Missing frontend/$f") }
+    }
+    $srcDir = Join-Path $frontendDir 'src'
+    if(!(Test-Path $srcDir)) {
+      $errors.Add("[$appName] Missing frontend/src/")
+    } else {
+      $srcFiles = @('main.jsx','App.jsx','App.css','api.js')
+      foreach($f in $srcFiles) {
+        if(!(Test-Path (Join-Path $srcDir $f))) { $errors.Add("[$appName] Missing frontend/src/$f") }
+      }
+    }
+  }
+
+  # ---- Old files check
+  $oldFiles = @('server.js','ezgalaxy-sdk.js','ezpage.json')
+  foreach($f in $oldFiles) {
+    if(Test-Path (Join-Path $appRoot $f)) {
+      $warnings.Add("[$appName] Old file '$f' still present (should be removed)")
+    }
+  }
+  $oldAuth = Join-Path $appRoot 'web\ezgalaxy-authorization.json'
   if(Test-Path $oldAuth) {
-    $warnings.Add("[$appName] Old web/ezgalaxy-authorization.json still present (should be removed)")
-  }
-
-  # ---- Scan web files: forbid shared refs
-  $scanFiles = @()
-  if(Test-Path $webRoot){
-    $scanFiles = Get-ChildItem -LiteralPath $webRoot -Recurse -File -Include *.html,*.js,*.css |
-      Where-Object { $_.FullName -notmatch '\\vendor\\' -and $_.FullName -notmatch '\\node_modules\\' }
-  }
-
-  foreach($f in $scanFiles){
-    $text = Get-Content -LiteralPath $f.FullName -Raw
-    if($text.IndexOf('/shared/', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-       $text.IndexOf('../shared', [StringComparison]::OrdinalIgnoreCase) -ge 0){
-      $errors.Add("[$appName] Forbidden shared reference in: $($f.FullName.Substring($Root.Length+1))")
-    }
+    $warnings.Add("[$appName] Old web/ezgalaxy-authorization.json still present")
   }
 }
 
@@ -157,7 +146,6 @@ if(Test-Path $catalogPath) {
   if($catalog.schemaVersion -ne 2) {
     $errors.Add("[catalog.json] schemaVersion must be 2 (got: $($catalog.schemaVersion))")
   }
-
   foreach($pkg in $catalog.packages) {
     if($pkg.hash) {
       $warnings.Add("[catalog.json] Package '$($pkg.id)' still has legacy 'hash' field")
@@ -172,7 +160,7 @@ if(Test-Path $catalogPath) {
 }
 
 # ---- Report
-Write-Host "--- Docker Package Validation Report ---"
+Write-Host "--- React+FastAPI Docker Package Validation Report ---"
 Write-Host ("Apps checked: {0}" -f $apps.Count)
 Write-Host ("Errors: {0} | Warnings: {1}" -f $errors.Count, $warnings.Count)
 

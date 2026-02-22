@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.flaggame",
   "title": "Flag Game",
-  "function": "Jeu de drapeaux en mode survie : devine le pays à partir de son drapeau. 3 modes de difficulté, classement en ligne, 3 vies.",
-  "version": "1.0.0",
-  "createdAt": "2026-01-12",
-  "author": "EZGalaxy Community",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Jeu de drapeaux en mode survie : devine le pays à partir de son drapeau. 3 modes (facile, normal, difficile), 3 vies, classement en ligne via Community Data API.",
+  "containerPort": 8000,
+  "hostPort": 10010,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }

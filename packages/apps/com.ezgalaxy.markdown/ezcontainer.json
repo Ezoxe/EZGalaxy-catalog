@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 2,
   "id": "com.ezgalaxy.markdown",
   "title": "MarkDown Studio",
-  "function": "Éditeur Markdown split-view avec preview temps réel, coloration syntaxique, gestion multi-documents et sauvegarde cloud.",
-  "version": "1.0.0",
-  "createdAt": "2026-02-15",
-  "author": "EZGalaxy Community",
-  "docker": {
-    "dockerfile": "Dockerfile",
-    "port": 3000,
-    "env": {
-      "NODE_ENV": "production",
-      "DB_PATH": "/app/data/database.sqlite"
-    },
-    "volumes": [
-      "/app/data"
-    ],
-    "healthcheck": {
-      "endpoint": "/health",
-      "interval": 30,
-      "timeout": 10
-    }
-  }
+  "description": "Éditeur Markdown split-view avec aperçu temps réel, barre d'outils et gestion multi-documents",
+  "containerPort": 8000,
+  "hostPort": 10018,
+  "healthCheck": "/health",
+  "runtime": "react-fastapi",
+  "dataVolume": "app-data"
 }
