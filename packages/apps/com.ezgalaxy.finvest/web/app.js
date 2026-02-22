@@ -385,7 +385,7 @@
 
       // Auto-dismiss after 15s
       setTimeout(() => { if (document.getElementById('desktop-install-popup')) dismiss(); }, 15000);
-    }, 5000); // 5s delay
+    }, 2000); // 2s delay — quick but non-intrusive
   }
 
   function init() {

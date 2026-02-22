@@ -30,10 +30,11 @@
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   body.is-mobile-app {
-    overscroll-behavior-y: contain;
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
-    touch-action: manipulation;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   body.is-mobile-app .main {
@@ -54,11 +55,19 @@
     display: none !important;
   }
 
-  /* Body scroll lock when drawer/sidebar open */
+  /* Touch actions on interactive elements only (not body — breaks scrolling) */
+  body.is-mobile-app button,
+  body.is-mobile-app a,
+  body.is-mobile-app input,
+  body.is-mobile-app select,
+  body.is-mobile-app textarea {
+    touch-action: manipulation;
+  }
+
+  /* Body scroll lock when drawer open */
   body.drawer-open {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
+    overflow: hidden !important;
+    touch-action: none;
   }
 }
 
@@ -603,6 +612,59 @@
   padding: 6px;
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7b. PERSISTENT INSTALL BUTTON (small pill above tab bar)
+   ═══════════════════════════════════════════════════════════════ */
+.mobile-install-persistent {
+  position: fixed;
+  bottom: calc(var(--mobile-tab-height, 60px) + var(--mobile-safe-bottom, 0px) + 8px);
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(14, 165, 164, 0.15);
+  border: 1px solid rgba(14, 165, 164, 0.3);
+  border-radius: 999px;
+  color: var(--mobile-accent, #0ea5a4);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  z-index: 800;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s, opacity 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mobile-install-persistent:active {
+  transform: scale(0.93);
+}
+
+.mobile-install-persistent__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mobile-install-persistent__text {
+  white-space: nowrap;
+}
+
+/* Hide in standalone PWA mode */
+@media (display-mode: standalone) {
+  .mobile-install-persistent { display: none !important; }
+}
+
+/* On desktop (no tab bar), position at bottom-right corner */
+@media (min-width: 769px) {
+  .mobile-install-persistent {
+    bottom: 16px;
+    right: 16px;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════

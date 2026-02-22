@@ -406,9 +406,6 @@
     // Build drawer
     buildDrawer(root);
 
-    // Init gestures
-    _initGestures();
-
     // Cloud sync
     if (Store) Store.subscribe(() => updateDrawerCloud());
     updateDrawerCloud();
@@ -492,7 +489,7 @@
     if (_installBannerShown) return;
     _installBannerShown = true;
 
-    // Wait for app to load
+    // Show quickly after page load
     setTimeout(() => {
       const banner = UI.el('div', { className: 'mobile-install-banner', id: 'install-banner' }, [
         UI.el('div', { className: 'mobile-install-banner__content' }, [
@@ -519,7 +516,7 @@
       document.body.appendChild(banner);
       // Animate in
       requestAnimationFrame(() => banner.classList.add('mobile-install-banner--visible'));
-    }, 3000);
+    }, 800);
   }
 
   function _triggerInstall() {
@@ -579,8 +576,42 @@
         ]);
         document.body.appendChild(hint);
         requestAnimationFrame(() => hint.classList.add('mobile-ios-hint--visible'));
-      }, 5000);
+      }, 1200);
     }
+  }
+
+  /* ---------- Persistent install button (bottom of page) ------- */
+  function _addPersistentInstallBtn() {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+    if (isStandalone) return;
+
+    const btn = UI.el('a', {
+      className: 'mobile-install-persistent',
+      id: 'persistent-install-btn',
+      href: './install.html'
+    }, [
+      UI.el('span', { className: 'mobile-install-persistent__icon', textContent: '📲' }),
+      UI.el('span', { className: 'mobile-install-persistent__text', textContent: 'Installer l\'app' })
+    ]);
+
+    // Also allow direct install if prompt available
+    btn.addEventListener('click', (e) => {
+      if (_deferredPrompt) {
+        e.preventDefault();
+        _deferredPrompt.prompt();
+        _deferredPrompt.userChoice.then(choice => {
+          if (choice.outcome === 'accepted') {
+            btn.remove();
+            UI.toast('✅ Installation en cours...', 'success');
+          }
+          _deferredPrompt = null;
+        });
+      }
+      // else: follow the href to install.html
+    });
+
+    document.body.appendChild(btn);
   }
 
   /* ---------- Init -------------------------------------------- */
@@ -591,6 +622,7 @@
     }
     _initGestures();
     _checkiOSInstallHint();
+    _addPersistentInstallBtn();
   }
 
   /* ---------- Public API -------------------------------------- */
