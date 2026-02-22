@@ -277,6 +277,33 @@
 
   /* ---------- Cloud — EZGalaxy SDK Storage ---------------------- */
 
+  async function register(name, email, password, passwordConfirmation) {
+    _isCloudOp = true;
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        // Laravel returns validation errors as an object
+        if (err.errors) {
+          const firstField = Object.keys(err.errors)[0];
+          throw new Error(err.errors[firstField][0] || 'Erreur de validation');
+        }
+        throw new Error(err.message || 'Erreur lors de l\'inscription');
+      }
+      const data = await res.json();
+      const auth = { token: data.token, user: data.user };
+      safeLS.setItem(LS_AUTH, JSON.stringify(auth));
+      setState({ auth, cloudStatus: 'connected' });
+      return data.user;
+    } finally {
+      _isCloudOp = false;
+    }
+  }
+
   async function login(email, password) {
     // Block auto-save during login+cloudLoad sequence to prevent overwriting cloud data
     _isCloudOp = true;
@@ -318,6 +345,7 @@
         settings: state.settings,
         step: state.step,
         questionnaireStep: state.questionnaireStep,
+        questionnaireMode: state.questionnaireMode,
         currentView: state.currentView,
         xp: state.xp || 0,
         transactions: state.transactions || [],
@@ -375,6 +403,7 @@
           settings: { ...defaultSettings, ...(payload.settings || {}) },
           step: resolvedStep,
           questionnaireStep: payload.questionnaireStep || 0,
+          questionnaireMode: payload.questionnaireMode || null,
           currentView: resolvedView,
           xp: payload.xp || state.xp || 0,
           transactions: payload.transactions || state.transactions || [],
@@ -577,20 +606,21 @@
   /* ---------- Init -------------------------------------------- */
   let _autoSaveTimer = null;
   let _isCloudOp = false; // guard to prevent auto-save loop during cloud ops
-  const AUTO_SAVE_DELAY = 5000; // 5 seconds debounce
+  const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce — save quickly after each action
 
   function _scheduleAutoSave() {
     // Don't schedule while a cloud operation is in progress (prevents infinite loop)
     if (_isCloudOp) return;
     // Only auto-save if authenticated and ezgalaxy.storage is available
     if (!state.auth || !state.auth.user || typeof ezgalaxy === 'undefined' || !ezgalaxy.storage) return;
-    // NEVER auto-save empty welcome state — it would overwrite real cloud data
-    if (!state.analysis && state.step === 'welcome') return;
+    // Don't auto-save if we're on welcome AND have no meaningful data yet
+    if (state.step === 'welcome' && !state.analysis && (!state.profile || state.profile.monthlyNetIncome === 0) && (state.transactions || []).length === 0) return;
     if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
     _autoSaveTimer = setTimeout(async () => {
       _autoSaveTimer = null;
       // Re-check guard (state may have changed during the delay)
-      if (_isCloudOp || (!state.analysis && state.step === 'welcome')) return;
+      if (_isCloudOp) return;
+      if (state.step === 'welcome' && !state.analysis && (!state.profile || state.profile.monthlyNetIncome === 0) && (state.transactions || []).length === 0) return;
       _isCloudOp = true;
       try {
         await cloudSave();
@@ -636,7 +666,7 @@
     subscribe, getState, setState,
     setProfile, updateProfile, resetProfile,
     runAnalysis,
-    login, logout,
+    register, login, logout,
     cloudSave, cloudLoad,
     exportJSON, importJSON,
     // ── New Phase-1 API ────────────────────────────────────

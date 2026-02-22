@@ -406,6 +406,148 @@ p { margin: 0 0 8px; }
   border-top: 1px solid var(--glass-border);
 }
 
+/* ── Welcome Auth Section (not logged in) ────────────────────── */
+.welcome__auth-box {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 520px;
+  text-align: center;
+}
+.welcome__auth-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.welcome__auth-desc {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+.welcome__auth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.welcome__auth-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 14px 20px;
+  font-size: 15px;
+}
+.welcome__features {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  text-align: left;
+}
+.welcome__feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.welcome__feature .icon svg { stroke: var(--success); width: 16px; height: 16px; }
+.welcome__auth-separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.welcome__auth-separator::before,
+.welcome__auth-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--glass-border);
+}
+.welcome__guest-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── Welcome Auth Section (logged in) ────────────────────────── */
+.welcome__auth-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  max-width: 600px;
+}
+.welcome__user-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  width: 100%;
+}
+.welcome__user-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent-purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.welcome__user-avatar .icon svg { stroke: #fff; }
+.welcome__user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.welcome__user-greeting {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.welcome__secondary-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Auth Modal Helpers ──────────────────────────────────────── */
+.auth-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  color: #ef4444;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.auth-switch {
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+  margin-top: 8px;
+}
+.auth-switch__link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.auth-switch__link:hover {
+  text-decoration: underline;
+}
+.mt-12 { margin-top: 12px; }
+
 /* ---------- BUTTONS ------------------------------------------ */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;

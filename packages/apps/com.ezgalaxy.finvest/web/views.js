@@ -27,52 +27,40 @@
       el('p', { className: 'welcome__subtitle' }, ['Analyse financière complète & conseils de placement personnalisés']),
     ]);
 
-    // Steps preview
-    const stepsPreview = el('div', { className: 'welcome__steps ez-fade-in' }, [
-      el('div', { className: 'welcome__step' }, [
-        el('div', { className: 'welcome__step-num' }, ['1']),
-        icon('edit', 28),
-        el('h3', {}, ['Questionnaire']),
-        el('p', {}, ['Renseignez votre situation financière en 7 étapes simples'])
-      ]),
-      el('div', { className: 'welcome__step' }, [
-        el('div', { className: 'welcome__step-num' }, ['2']),
-        icon('activity', 28),
-        el('h3', {}, ['Analyse']),
-        el('p', {}, ['Score de santé, ratios, simulation Monte Carlo, projections'])
-      ]),
-      el('div', { className: 'welcome__step' }, [
-        el('div', { className: 'welcome__step-num' }, ['3']),
-        icon('star', 28),
-        el('h3', {}, ['Conseils']),
-        el('p', {}, ['Allocation optimale, optimisation fiscale, plan d\'action'])
-      ])
-    ]);
-
-    // Actions
-    const actions = el('div', { className: 'welcome__actions ez-fade-in' });
-    const startBtn = el('button', { className: 'btn btn--primary btn--lg', onClick: () => {
-      Store.setState({ step: 'questionnaire', questionnaireStep: 0 });
-      window.navigateTo('questionnaire');
-    } }, [icon('chevron-right', 20), 'Commencer l\'analyse']);
-    actions.appendChild(startBtn);
-
-    // Load existing
-    if (s.analysis) {
-      actions.appendChild(el('button', { className: 'btn btn--outline', onClick: () => {
-        Store.setState({ step: 'dashboard', currentView: 'overview' });
-        window.navigateTo('overview');
-      } }, [icon('chart-bar', 18), 'Reprendre mon analyse']));
-    }
-
-    // Cloud login
-    const cloudSection = el('div', { className: 'welcome__cloud ez-fade-in' });
+    // ── Logged-in user: show dashboard access ─────────────────
     if (s.auth.token) {
-      cloudSection.appendChild(el('div', { className: 'cloud-status cloud-status--connected' }, [
-        icon('cloud', 16), ` Connecté : ${s.auth.user?.name || s.auth.user?.email || 'Utilisateur'}`
-      ]));
-      // Always show the cloud load button when logged in (fallback if auto-load failed)
-      cloudSection.appendChild(el('button', { className: 'btn btn--sm', onClick: async () => {
+      const userSection = el('div', { className: 'welcome__auth-section ez-fade-in' });
+
+      // User info card
+      const userName = s.auth.user?.name || s.auth.user?.email || 'Utilisateur';
+      const userCard = el('div', { className: 'welcome__user-card' }, [
+        el('div', { className: 'welcome__user-avatar' }, [icon('user', 32)]),
+        el('div', { className: 'welcome__user-info' }, [
+          el('div', { className: 'welcome__user-greeting', textContent: `Bonjour, ${userName} 👋` }),
+          el('div', { className: 'cloud-status cloud-status--connected' }, [
+            icon('cloud', 14), ' Données synchronisées'
+          ])
+        ])
+      ]);
+      userSection.appendChild(userCard);
+
+      // Action buttons for logged-in user
+      const loggedActions = el('div', { className: 'welcome__actions' });
+
+      if (s.analysis) {
+        loggedActions.appendChild(el('button', { className: 'btn btn--primary btn--lg', onClick: () => {
+          Store.setState({ step: 'dashboard', currentView: s.currentView || 'overview' });
+          window.navigateTo(s.currentView || 'overview');
+        } }, [icon('activity', 20), 'Accéder à mon tableau de bord']));
+      }
+
+      loggedActions.appendChild(el('button', { className: s.analysis ? 'btn btn--outline' : 'btn btn--primary btn--lg', onClick: () => {
+        Store.setState({ step: 'questionnaire', questionnaireStep: 0 });
+        window.navigateTo('questionnaire');
+      } }, [icon('edit', 18), s.analysis ? 'Refaire l\'analyse' : 'Commencer l\'analyse']));
+
+      // Cloud load button (fallback)
+      loggedActions.appendChild(el('button', { className: 'btn btn--sm', onClick: async () => {
         try {
           toast('Chargement des données...', 'info');
           const ok = await Store.cloudLoad();
@@ -90,16 +78,103 @@
           console.error('[FinVest] Cloud load error:', e);
           toast('Erreur : ' + e.message, 'error');
         }
-      } }, [icon('download', 14), 'Charger mes données']));
-    } else {
-      const loginBtn = el('button', { className: 'btn btn--sm btn--ghost', onClick: () => showLoginModal() }, [
-        icon('login', 16), 'Se connecter (sauvegarde cloud)'
-      ]);
-      cloudSection.appendChild(loginBtn);
+      } }, [icon('download', 14), 'Recharger depuis le cloud']));
+
+      userSection.appendChild(loggedActions);
+
+      // Secondary actions
+      const secondaryActions = el('div', { className: 'welcome__secondary-actions' });
+      secondaryActions.appendChild(el('button', { className: 'btn btn--sm btn--ghost', onClick: () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.addEventListener('change', async () => {
+          if (input.files.length) {
+            try {
+              await Store.importJSON(input.files[0]);
+              toast('Profil importé avec succès', 'success');
+              window.renderApp();
+            } catch (e) { toast(e.message, 'error'); }
+          }
+        });
+        input.click();
+      } }, [icon('upload', 14), 'Importer un fichier']));
+
+      secondaryActions.appendChild(el('button', { className: 'btn btn--sm btn--ghost', onClick: () => {
+        Store.logout();
+        toast('Déconnecté', 'info');
+        window.renderApp();
+      } }, [icon('logout', 14), 'Se déconnecter']));
+
+      userSection.appendChild(secondaryActions);
+
+      wrap.append(hero, userSection);
+      container.appendChild(wrap);
+      return;
     }
 
-    // Import
-    const importBtn = el('button', { className: 'btn btn--sm btn--ghost', onClick: () => {
+    // ── Not logged in: show auth section ───────────────────────
+
+    // Steps preview
+    const stepsPreview = el('div', { className: 'welcome__steps ez-fade-in' }, [
+      el('div', { className: 'welcome__step' }, [
+        el('div', { className: 'welcome__step-num' }, ['1']),
+        icon('user', 28),
+        el('h3', {}, ['Créez votre compte']),
+        el('p', {}, ['Inscription gratuite pour sauvegarder vos données en toute sécurité'])
+      ]),
+      el('div', { className: 'welcome__step' }, [
+        el('div', { className: 'welcome__step-num' }, ['2']),
+        icon('edit', 28),
+        el('h3', {}, ['Questionnaire']),
+        el('p', {}, ['Renseignez votre situation financière en 7 étapes simples'])
+      ]),
+      el('div', { className: 'welcome__step' }, [
+        el('div', { className: 'welcome__step-num' }, ['3']),
+        icon('activity', 28),
+        el('h3', {}, ['Analyse & Conseils']),
+        el('p', {}, ['Score de santé, projections, allocation optimale, plan d\'action'])
+      ])
+    ]);
+
+    // Auth section — prominent registration + login
+    const authSection = el('div', { className: 'welcome__auth-box ez-fade-in' });
+    authSection.appendChild(el('h2', { className: 'welcome__auth-title', textContent: 'Commencez votre parcours financier' }));
+    authSection.appendChild(el('p', { className: 'welcome__auth-desc', textContent: 'Créez un compte pour sauvegarder automatiquement vos données et y accéder depuis n\'importe quel appareil.' }));
+
+    const authButtons = el('div', { className: 'welcome__auth-buttons' });
+
+    // Create account (primary CTA)
+    authButtons.appendChild(el('button', { className: 'btn btn--primary btn--lg welcome__auth-btn', onClick: () => showRegisterModal() }, [
+      icon('user', 20), 'Créer un compte gratuit'
+    ]));
+
+    // Login (secondary)
+    authButtons.appendChild(el('button', { className: 'btn btn--outline btn--lg welcome__auth-btn', onClick: () => showLoginModal() }, [
+      icon('login', 20), 'Se connecter'
+    ]));
+
+    authSection.appendChild(authButtons);
+
+    // Features list
+    const features = el('div', { className: 'welcome__features' }, [
+      el('div', { className: 'welcome__feature' }, [icon('cloud', 16), el('span', { textContent: 'Sauvegarde automatique dans le cloud' })]),
+      el('div', { className: 'welcome__feature' }, [icon('shield', 16), el('span', { textContent: 'Données sécurisées et privées' })]),
+      el('div', { className: 'welcome__feature' }, [icon('refresh', 16), el('span', { textContent: 'Synchronisation en temps réel' })])
+    ]);
+    authSection.appendChild(features);
+
+    authSection.appendChild(el('div', { className: 'welcome__auth-separator' }, [
+      el('span', { textContent: 'ou' })
+    ]));
+
+    // Guest / import options
+    const guestActions = el('div', { className: 'welcome__guest-actions' });
+    guestActions.appendChild(el('button', { className: 'btn btn--sm btn--ghost', onClick: () => {
+      Store.setState({ step: 'questionnaire', questionnaireStep: 0 });
+      window.navigateTo('questionnaire');
+    } }, [icon('chevron-right', 14), 'Continuer sans compte (données locales uniquement)']));
+    guestActions.appendChild(el('button', { className: 'btn btn--sm btn--ghost', onClick: () => {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.json';
@@ -113,38 +188,116 @@
         }
       });
       input.click();
-    } }, [icon('upload', 14), 'Importer un fichier']);
-    cloudSection.appendChild(importBtn);
+    } }, [icon('upload', 14), 'Importer un fichier']));
+    authSection.appendChild(guestActions);
 
-    wrap.append(hero, stepsPreview, actions, cloudSection);
+    wrap.append(hero, stepsPreview, authSection);
     container.appendChild(wrap);
+  }
+
+  /* ----- Register modal helper -------------------------------- */
+  function showRegisterModal() {
+    let nameVal = '', emailVal = '', passVal = '', passConfirmVal = '';
+    let registerBtn, errorEl;
+
+    const m = modal({
+      title: 'Créer un compte — FinVest',
+      body: [
+        el('p', { className: 'text-muted', textContent: 'Inscrivez-vous pour sauvegarder vos données et y accéder depuis n\'importe quel appareil.' }),
+        (() => { errorEl = el('div', { className: 'auth-error', style: { display: 'none' } }); return errorEl; })(),
+        el('label', { className: 'form-label', textContent: 'Nom' }),
+        (() => { const i = el('input', { type: 'text', className: 'input input--full', placeholder: 'Votre nom', autocomplete: 'name' });
+          i.addEventListener('input', () => { nameVal = i.value; }); return i; })(),
+        el('label', { className: 'form-label mt-12', textContent: 'Email' }),
+        (() => { const i = el('input', { type: 'email', className: 'input input--full', placeholder: 'email@example.com', autocomplete: 'email' });
+          i.addEventListener('input', () => { emailVal = i.value; }); return i; })(),
+        el('label', { className: 'form-label mt-12', textContent: 'Mot de passe' }),
+        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: '8 caractères minimum', autocomplete: 'new-password' });
+          i.addEventListener('input', () => { passVal = i.value; }); return i; })(),
+        el('label', { className: 'form-label mt-12', textContent: 'Confirmer le mot de passe' }),
+        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: 'Confirmez votre mot de passe', autocomplete: 'new-password' });
+          i.addEventListener('input', () => { passConfirmVal = i.value; }); return i; })()
+      ],
+      actions: [
+        el('button', { className: 'btn', onClick: () => m.close() }, ['Annuler']),
+        (() => {
+          registerBtn = el('button', { className: 'btn btn--primary', onClick: async () => {
+            // Client-side validation
+            if (!nameVal.trim()) { _showAuthError(errorEl, 'Veuillez entrer votre nom.'); return; }
+            if (!emailVal.trim()) { _showAuthError(errorEl, 'Veuillez entrer votre email.'); return; }
+            if (passVal.length < 8) { _showAuthError(errorEl, 'Le mot de passe doit contenir au moins 8 caractères.'); return; }
+            if (passVal !== passConfirmVal) { _showAuthError(errorEl, 'Les mots de passe ne correspondent pas.'); return; }
+
+            registerBtn.disabled = true;
+            registerBtn.textContent = 'Création du compte...';
+            errorEl.style.display = 'none';
+            try {
+              await Store.register(nameVal.trim(), emailVal.trim(), passVal, passConfirmVal);
+              toast('Compte créé avec succès !', 'success');
+
+              // Remove modal
+              if (m.overlay && m.overlay.parentNode) m.overlay.remove();
+
+              // Initial cloud save (empty profile)
+              try { await Store.cloudSave(); } catch (_) { /* first save, ignore if empty */ }
+
+              window.renderApp();
+            } catch (e) {
+              registerBtn.disabled = false;
+              registerBtn.textContent = 'Créer mon compte';
+              _showAuthError(errorEl, e.message);
+            }
+          } }, ['Créer mon compte']);
+          return registerBtn;
+        })()
+      ]
+    });
+
+    // Link to switch to login
+    const switchLink = el('div', { className: 'auth-switch', style: { textAlign: 'center', marginTop: '12px' } }, [
+      el('span', { className: 'text-muted', textContent: 'Déjà un compte ? ' }),
+      el('a', { href: '#', className: 'auth-switch__link', onClick: (e) => {
+        e.preventDefault();
+        if (m.overlay && m.overlay.parentNode) m.overlay.remove();
+        showLoginModal();
+      }, textContent: 'Se connecter' })
+    ]);
+
+    // Append the switch link to the modal body
+    const modalBody = m.overlay.querySelector('.modal-body');
+    if (modalBody) modalBody.appendChild(switchLink);
   }
 
   /* ----- login modal helper ---------------------------------- */
   function showLoginModal() {
     let emailVal = '', passVal = '';
-    let loginBtn;
+    let loginBtn, errorEl;
     const isMobile = window._isMobile || false;
     const m = modal({
-      title: 'Connexion — EZGalaxy Cloud',
+      title: 'Connexion — FinVest',
       body: [
-        el('p', { className: 'text-muted', textContent: 'Connectez-vous pour sauvegarder vos données sur le cloud EZGalaxy.' }),
+        el('p', { className: 'text-muted', textContent: 'Connectez-vous pour retrouver vos données et analyses financières.' }),
+        (() => { errorEl = el('div', { className: 'auth-error', style: { display: 'none' } }); return errorEl; })(),
         el('label', { className: 'form-label', textContent: 'Email' }),
-        (() => { const i = el('input', { type: 'email', className: 'input input--full', placeholder: 'email@example.com' });
+        (() => { const i = el('input', { type: 'email', className: 'input input--full', placeholder: 'email@example.com', autocomplete: 'email' });
           i.addEventListener('input', () => { emailVal = i.value; }); return i; })(),
         el('label', { className: 'form-label mt-12', textContent: 'Mot de passe' }),
-        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: '••••••••' });
+        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: '••••••••', autocomplete: 'current-password' });
           i.addEventListener('input', () => { passVal = i.value; }); return i; })()
       ],
       actions: [
         el('button', { className: 'btn', onClick: () => m.close() }, ['Annuler']),
         (() => {
           loginBtn = el('button', { className: 'btn btn--primary', onClick: async () => {
+            if (!emailVal.trim()) { _showAuthError(errorEl, 'Veuillez entrer votre email.'); return; }
+            if (!passVal) { _showAuthError(errorEl, 'Veuillez entrer votre mot de passe.'); return; }
+
             loginBtn.disabled = true;
             loginBtn.textContent = 'Connexion...';
+            errorEl.style.display = 'none';
             try {
               // 1. Login
-              await Store.login(emailVal, passVal);
+              await Store.login(emailVal.trim(), passVal);
               console.log('[FinVest] Login OK — isMobile:', isMobile);
               toast('Connecté avec succès', 'success');
 
@@ -172,13 +325,33 @@
             } catch (e) {
               loginBtn.disabled = false;
               loginBtn.textContent = 'Se connecter';
-              toast(e.message, 'error');
+              _showAuthError(errorEl, e.message);
             }
           } }, ['Se connecter']);
           return loginBtn;
         })()
       ]
     });
+
+    // Link to switch to register
+    const switchLink = el('div', { className: 'auth-switch', style: { textAlign: 'center', marginTop: '12px' } }, [
+      el('span', { className: 'text-muted', textContent: 'Pas encore de compte ? ' }),
+      el('a', { href: '#', className: 'auth-switch__link', onClick: (e) => {
+        e.preventDefault();
+        if (m.overlay && m.overlay.parentNode) m.overlay.remove();
+        showRegisterModal();
+      }, textContent: 'Créer un compte' })
+    ]);
+
+    const modalBody = m.overlay.querySelector('.modal-body');
+    if (modalBody) modalBody.appendChild(switchLink);
+  }
+
+  /* ----- Auth error helper ------------------------------------ */
+  function _showAuthError(errorEl, message) {
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.style.display = 'block';
   }
 
   /* =============================================================

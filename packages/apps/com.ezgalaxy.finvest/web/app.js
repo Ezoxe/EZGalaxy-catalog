@@ -21,12 +21,12 @@
     { key: 'radar',             label: 'Radar financier',    icon: 'shield' },
     { key: 'scorecard',         label: 'Scorecard',          icon: 'award' },
 
-    { type: 'divider', label: '� Marchés & Investissements' },
+    { type: 'divider', label: '📈 Marchés & Investissements' },
     { key: 'bourse',            label: 'Bourse en direct',   icon: 'trending-up', badge: 'LIVE', badgeType: 'live' },
     { key: 'portefeuille',      label: 'Mon portefeuille',   icon: 'briefcase' },
     { key: 'immobilier',        label: 'Simulateur immo',    icon: 'home' },
 
-    { type: 'divider', label: '�🔧 Outils d\'analyse' },
+    { type: 'divider', label: '🔧 Outils d\'analyse' },
     { key: 'projections',       label: 'Projections',        icon: 'trending-up' },
     { key: 'retirement',        label: 'Retraite',           icon: 'clock' },
     { key: 'retraiteImmersive', label: 'Retraite immersive', icon: 'compass' },

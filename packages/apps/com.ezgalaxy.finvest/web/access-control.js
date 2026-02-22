@@ -928,24 +928,20 @@
     const resetBtn = el('button', {
       className: 'btn btn--danger-ghost btn--sm',
       onClick: () => {
-        modal({
+        const { close: closeModal } = modal({
           title: '⚠️ Réinitialiser les données',
-          content: el('div', {}, [
+          body: [
             el('p', { textContent: 'Cette action supprimera toutes vos données locales (profil, transactions, portefeuille, journal...). Cette action est irréversible.' }),
             el('p', { className: 'text-muted', textContent: 'Les données dans le cloud ne seront pas affectées.' })
-          ]),
+          ],
           actions: [
-            {
-              label: '🗑️ Réinitialiser',
-              cls: 'btn--danger',
-              onClick: (close) => {
-                Store.resetProfile();
-                toast('Données réinitialisées', 'warning');
-                close();
-                navigateTo('welcome');
-              }
-            },
-            { label: 'Annuler', cls: 'btn--ghost' }
+            el('button', { className: 'btn btn--danger', onClick: () => {
+              Store.resetProfile();
+              toast('Données réinitialisées', 'warning');
+              closeModal();
+              navigateTo('welcome');
+            } }, ['🗑️ Réinitialiser']),
+            el('button', { className: 'btn btn--ghost', onClick: () => closeModal() }, ['Annuler'])
           ]
         });
       }
