@@ -121,7 +121,7 @@
         el('div', { className: 'welcome__step-num' }, ['1']),
         icon('user', 28),
         el('h3', {}, ['Créez votre compte']),
-        el('p', {}, ['Inscription gratuite pour sauvegarder vos données en toute sécurité'])
+        el('p', {}, ['Inscription rapide pour synchroniser vos données'])
       ]),
       el('div', { className: 'welcome__step' }, [
         el('div', { className: 'welcome__step-num' }, ['2']),
@@ -195,7 +195,7 @@
     container.appendChild(wrap);
   }
 
-  /* ----- Register modal helper -------------------------------- */
+  /* ----- Register modal — in-app registration form ----------- */
   function showRegisterModal() {
     let nameVal = '', emailVal = '', passVal = '', passConfirmVal = '';
     let registerBtn, errorEl;
@@ -203,7 +203,7 @@
     const m = modal({
       title: 'Créer un compte — FinVest',
       body: [
-        el('p', { className: 'text-muted', textContent: 'Inscrivez-vous pour sauvegarder vos données et y accéder depuis n\'importe quel appareil.' }),
+        el('p', { className: 'text-muted', textContent: 'Créez votre compte EZGalaxy pour sauvegarder vos données et analyses financières.' }),
         (() => { errorEl = el('div', { className: 'auth-error', style: { display: 'none' } }); return errorEl; })(),
         el('label', { className: 'form-label', textContent: 'Nom' }),
         (() => { const i = el('input', { type: 'text', className: 'input input--full', placeholder: 'Votre nom', autocomplete: 'name' });
@@ -212,35 +212,34 @@
         (() => { const i = el('input', { type: 'email', className: 'input input--full', placeholder: 'email@example.com', autocomplete: 'email' });
           i.addEventListener('input', () => { emailVal = i.value; }); return i; })(),
         el('label', { className: 'form-label mt-12', textContent: 'Mot de passe' }),
-        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: '8 caractères minimum', autocomplete: 'new-password' });
+        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: '••••••••', autocomplete: 'new-password' });
           i.addEventListener('input', () => { passVal = i.value; }); return i; })(),
         el('label', { className: 'form-label mt-12', textContent: 'Confirmer le mot de passe' }),
-        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: 'Confirmez votre mot de passe', autocomplete: 'new-password' });
+        (() => { const i = el('input', { type: 'password', className: 'input input--full', placeholder: '••••••••', autocomplete: 'new-password' });
           i.addEventListener('input', () => { passConfirmVal = i.value; }); return i; })()
       ],
       actions: [
         el('button', { className: 'btn', onClick: () => m.close() }, ['Annuler']),
         (() => {
           registerBtn = el('button', { className: 'btn btn--primary', onClick: async () => {
-            // Client-side validation
             if (!nameVal.trim()) { _showAuthError(errorEl, 'Veuillez entrer votre nom.'); return; }
             if (!emailVal.trim()) { _showAuthError(errorEl, 'Veuillez entrer votre email.'); return; }
-            if (passVal.length < 8) { _showAuthError(errorEl, 'Le mot de passe doit contenir au moins 8 caractères.'); return; }
+            if (!passVal) { _showAuthError(errorEl, 'Veuillez entrer un mot de passe.'); return; }
+            if (passVal.length < 6) { _showAuthError(errorEl, 'Le mot de passe doit contenir au moins 6 caractères.'); return; }
             if (passVal !== passConfirmVal) { _showAuthError(errorEl, 'Les mots de passe ne correspondent pas.'); return; }
 
             registerBtn.disabled = true;
-            registerBtn.textContent = 'Création du compte...';
+            registerBtn.textContent = 'Création...';
             errorEl.style.display = 'none';
             try {
-              await Store.register(nameVal.trim(), emailVal.trim(), passVal, passConfirmVal);
+              await Store.register(nameVal.trim(), emailVal.trim(), passVal);
               toast('Compte créé avec succès !', 'success');
-
-              // Remove modal
               if (m.overlay && m.overlay.parentNode) m.overlay.remove();
 
-              // Initial cloud save (empty profile)
-              try { await Store.cloudSave(); } catch (_) { /* first save, ignore if empty */ }
-
+              const st = Store.getState();
+              if (st.step === 'welcome') {
+                Store.setState({ step: 'questionnaire', questionnaireStep: 0 });
+              }
               window.renderApp();
             } catch (e) {
               registerBtn.disabled = false;
@@ -263,7 +262,6 @@
       }, textContent: 'Se connecter' })
     ]);
 
-    // Append the switch link to the modal body
     const modalBody = m.overlay.querySelector('.modal-body');
     if (modalBody) modalBody.appendChild(switchLink);
   }

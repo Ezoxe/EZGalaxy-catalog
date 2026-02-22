@@ -533,6 +533,102 @@ Ils sont normalement appelés par le bridge PageViewer, pas directement par les 
 - `ezgalaxy.storage.*` → données **privées** (isolées par `owner_type` + `owner_id`)
 - `ezgalaxy.app.*` → données **partagées** de l'app (stockées avec `owner_type='app'`)
 
+### Architecture mobile (Android / iOS)
+
+```
+┌─────────────────────────────────────────────────────┐
+│  App Mobile (Android / iOS / React Native / Flutter)│
+│  ┌───────────────────────┐                          │
+│  │  ezgalaxy-sdk.js      │                          │
+│  │  configureMobile()    │                          │
+│  │  ezgalaxy.storage.set │──── HTTP direct ────┐    │
+│  └───────────────────────┘                     │    │
+│       ou appels REST natifs (Kotlin/Swift)      │    │
+└────────────────────────────────────────────────│────┘
+                                                 │
+                    Headers:                     │
+                    X-App-Key: ezm_xxx           │
+                    X-Device-UUID: uuid-v4       │
+                                                 │
+┌────────────────────────────────────────────────│────┐
+│  Backend Laravel                               │    │
+│  ┌────────────────────────┐                    │    │
+│  │  AuthenticateMobileApp │◄───────────────────┘    │
+│  │  (middleware)          │                          │
+│  └──────────┬─────────────┘                          │
+│             │                                        │
+│  ┌──────────▼─────────────┐  ┌─────────────────────┐│
+│  │  AppStorageController  │──│  Table: app_storage  ││
+│  └────────────────────────┘  └─────────────────────┘│
+│  ┌────────────────────────┐  ┌─────────────────────┐│
+│  │  AppApiKeyController   │──│  Table: app_api_keys ││
+│  └────────────────────────┘  └─────────────────────┘│
+└──────────────────────────────────────────────────────┘
+```
+
+**Différences clés par rapport au mode web :**
+- Pas de bridge postMessage — HTTP direct sur `/api/mobile/...`
+- Auth via clé API (`X-App-Key`) au lieu de Sanctum/cookies
+- Le device est identifié par UUID (`X-Device-UUID`) au lieu du visiteur web
+- Les données `storage.*` sont isolées par device (owner_type = `device`)
+- Les données `app.*` restent partagées (même table, même logique)
+
+### API REST mobile
+
+| Méthode | URL | Description |
+|---------|-----|-------------|
+| `GET` | `/api/mobile/{ext}/{col}` | Lister mes records |
+| `GET` | `/api/mobile/{ext}/{col}/{key}` | Lire un record |
+| `PUT` | `/api/mobile/{ext}/{col}/{key}` | Créer/remplacer |
+| `PATCH` | `/api/mobile/{ext}/{col}/{key}` | Mise à jour partielle |
+| `DELETE` | `/api/mobile/{ext}/{col}/{key}` | Supprimer un record |
+| `DELETE` | `/api/mobile/{ext}/{col}` | Vider une collection |
+| `GET` | `/api/mobile/{ext}/{col}/count` | Compter mes records |
+| `GET` | `/api/mobile/info` | Info appareil / clé |
+| | | **Données partagées de l'app** |
+| `GET` | `/api/mobile/@app/{ext}/{col}` | Lister les records app |
+| `GET` | `/api/mobile/@app/{ext}/{col}/{key}` | Lire un record app |
+| `PUT` | `/api/mobile/@app/{ext}/{col}/{key}` | Créer/remplacer app |
+| `PATCH` | `/api/mobile/@app/{ext}/{col}/{key}` | Mise à jour partielle app |
+| `DELETE` | `/api/mobile/@app/{ext}/{col}/{key}` | Supprimer un record app |
+| `DELETE` | `/api/mobile/@app/{ext}/{col}` | Vider une collection app |
+| `GET` | `/api/mobile/@app/{ext}/{col}/count` | Compter les records app |
+
+**Auth mobile :** Clé API (`X-App-Key: ezm_xxx`) + UUID appareil (`X-Device-UUID: uuid-v4`).
+
+### Gestion des clés API (admin)
+
+| Méthode | URL | Description |
+|---------|-----|-------------|
+| `GET` | `/api/admin/mobile-keys` | Lister toutes les clés |
+| `POST` | `/api/admin/mobile-keys` | Créer une clé (retourne la clé en clair — unique fois) |
+| `GET` | `/api/admin/mobile-keys/{id}` | Détails d'une clé |
+| `PUT` | `/api/admin/mobile-keys/{id}` | Modifier (label, enabled, expiry...) |
+| `DELETE` | `/api/admin/mobile-keys/{id}` | Révoquer une clé |
+| `POST` | `/api/admin/mobile-keys/revoke-extension` | Révoquer toutes les clés d'une app |
+
+**Body (POST create) :**
+```json
+{
+  "extension_id": "com.ezgalaxy.my-app",
+  "label": "Production Android",
+  "platform": "android",
+  "rate_limit": 120,
+  "expires_at": "2027-01-01T00:00:00Z"
+}
+```
+
+**Réponse :**
+```json
+{
+  "message": "API key created. Store it securely — it will not be shown again.",
+  "key": "ezm_a1b2c3d4e5...",
+  "id": 1,
+  "extension_id": "com.ezgalaxy.my-app",
+  "platform": "android"
+}
+```
+
 ---
 
 ## Configuration serveur (.env)
@@ -601,6 +697,15 @@ Il y a deux espaces de stockage :
 
 **Q: Une app peut-elle lire les données privées d'un autre utilisateur ?**
 Non. Les données `storage.*` restent strictement isolées par utilisateur. Seul l'espace `app.*` est partagé.
+
+**Q: Les données sont-elles partagées entre la version web et la version mobile d'une même app ?**
+Oui pour l'espace `app.*` (partagé). Pour l'espace `storage.*`, les données sont isolées par type de propriétaire : un visiteur web (owner_type=visitor) et un appareil mobile (owner_type=device) ont des données séparées. C'est intentionnel : chaque appareil a ses propres sauvegardes privées, mais les classements et données publiques sont communs.
+
+**Q: Comment obtenir une clé API mobile ?**
+L'admin EZGalaxy génère une clé via Admin → Clés API Mobiles, ou via l'API `POST /api/admin/mobile-keys`. La clé est affichée une seule fois à la création.
+
+**Q: La clé API mobile est-elle liée à un appareil ?**
+Non. La clé est liée à une application (extension_id). L'appareil est identifié par le header `X-Device-UUID`. Plusieurs appareils peuvent utiliser la même clé.
 
 **Q: Comment tester en local sans serveur EZGalaxy ?**
 Ouvrez directement votre `index.html` dans un navigateur. Le SDK utilise `localStorage` automatiquement.

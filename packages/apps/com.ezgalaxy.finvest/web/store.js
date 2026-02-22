@@ -277,33 +277,6 @@
 
   /* ---------- Cloud — EZGalaxy SDK Storage ---------------------- */
 
-  async function register(name, email, password, passwordConfirmation) {
-    _isCloudOp = true;
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        // Laravel returns validation errors as an object
-        if (err.errors) {
-          const firstField = Object.keys(err.errors)[0];
-          throw new Error(err.errors[firstField][0] || 'Erreur de validation');
-        }
-        throw new Error(err.message || 'Erreur lors de l\'inscription');
-      }
-      const data = await res.json();
-      const auth = { token: data.token, user: data.user };
-      safeLS.setItem(LS_AUTH, JSON.stringify(auth));
-      setState({ auth, cloudStatus: 'connected' });
-      return data.user;
-    } finally {
-      _isCloudOp = false;
-    }
-  }
-
   async function login(email, password) {
     // Block auto-save during login+cloudLoad sequence to prevent overwriting cloud data
     _isCloudOp = true;
@@ -326,6 +299,28 @@
       // Note: _isCloudOp stays true if cloudLoad follows immediately after login
       // The caller (showLoginModal) will call cloudLoad which also sets _isCloudOp = true
       // If no cloudLoad follows, we reset it here
+      _isCloudOp = false;
+    }
+  }
+
+  async function register(name, email, password) {
+    _isCloudOp = true;
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de l\'inscription');
+      }
+      const data = await res.json();
+      const auth = { token: data.token, user: data.user };
+      safeLS.setItem(LS_AUTH, JSON.stringify(auth));
+      setState({ auth, cloudStatus: 'connected' });
+      return data.user;
+    } finally {
       _isCloudOp = false;
     }
   }
@@ -666,7 +661,7 @@
     subscribe, getState, setState,
     setProfile, updateProfile, resetProfile,
     runAnalysis,
-    register, login, logout,
+    login, register, logout,
     cloudSave, cloudLoad,
     exportJSON, importJSON,
     // ── New Phase-1 API ────────────────────────────────────
