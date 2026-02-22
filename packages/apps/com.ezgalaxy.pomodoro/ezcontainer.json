@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.pomodoro",
+  "title": "Pomodoro Pro",
+  "function": "Timer de productivité Pomodoro avec sessions configurables, sons de notification, historique et graphiques de performance.",
+  "version": "1.0.0",
+  "createdAt": "2026-02-15",
+  "author": "EZGalaxy Community",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 3000,
+    "env": {
+      "NODE_ENV": "production",
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
+}

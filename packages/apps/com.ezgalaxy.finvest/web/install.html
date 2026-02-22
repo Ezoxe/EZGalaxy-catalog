@@ -403,22 +403,22 @@
       <div class="step">
         <div class="step-num">1</div>
         <div class="step-body">
-          <h3>Ouvrir dans Chrome</h3>
-          <p>Ouvrez cette page dans <strong>Google Chrome</strong> sur votre téléphone Android.</p>
+          <h3>Ouvrir FinVest directement</h3>
+          <p>Cliquez sur le bouton <strong>« Ouvrir FinVest pour installer »</strong> ci-dessus. FinVest s'ouvre dans un <strong>nouvel onglet Chrome</strong>, en dehors d'EZGalaxy.</p>
         </div>
       </div>
       <div class="step">
         <div class="step-num">2</div>
         <div class="step-body">
-          <h3>Appuyer sur « Installer »</h3>
-          <p>Cliquez sur le bouton <strong>Installer</strong> ci-dessus, ou appuyez sur le menu <code>⋮</code> puis <strong>« Installer l'application »</strong>.</p>
+          <h3>Installer via le menu Chrome</h3>
+          <p>Dans le nouvel onglet, appuyez sur le menu <code>⋮</code> (3 points en haut à droite) puis sur <strong>« Installer l'application »</strong> ou <strong>« Ajouter à l'écran d'accueil »</strong>.</p>
         </div>
       </div>
       <div class="step">
         <div class="step-num">3</div>
         <div class="step-body">
           <h3>Confirmer l'installation</h3>
-          <p>Une popup apparaît — appuyez sur <strong>« Installer »</strong>. L'icône FinVest s'ajoute à votre écran d'accueil.</p>
+          <p>Une popup apparaît — appuyez sur <strong>« Installer »</strong>. L'icône <strong>FinVest</strong> (et non EZGalaxy) s'ajoute à votre écran d'accueil.</p>
         </div>
       </div>
       <div class="step">
@@ -569,6 +569,13 @@
   const isEdge = /Edg/i.test(ua);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
+  // Detect iframe context (EZGalaxy loads apps in iframes)
+  let isInIframe = false;
+  try { isInIframe = window.self !== window.top; } catch (_) { isInIframe = true; }
+
+  // Build the direct URL for FinVest (outside iframe)
+  const finvestDirectUrl = new URL('./index.html', window.location.href).href;
+
   const icon = document.getElementById('platformIcon');
   const title = document.getElementById('ctaTitle');
   const subtitle = document.getElementById('ctaSubtitle');
@@ -590,57 +597,91 @@
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    btn.textContent = '📥 Installer FinVest';
+    btn.textContent = '\ud83d\udce5 Installer FinVest';
     btn.className = 'btn-install btn-install--android';
   });
 
   btn.addEventListener('click', async () => {
+    // If inside an iframe, always open FinVest directly in a new tab first
+    if (isInIframe) {
+      window.open(finvestDirectUrl, '_blank');
+      return;
+    }
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
-        btn.textContent = '✅ Installation en cours…';
+        btn.textContent = '\u2705 Installation en cours\u2026';
       }
       deferredPrompt = null;
     } else if (isIOS) {
-      // Scroll to iOS tutorial
-      document.querySelector('[data-tab="ios"]').click();
-      document.querySelector('.tutorial').scrollIntoView({ behavior: 'smooth' });
+      _showManualInstallGuide('ios');
     } else if (isAndroid) {
-      // No beforeinstallprompt available — show manual instructions
-      _showManualInstallGuide();
+      _showManualInstallGuide('android');
     } else {
-      // Desktop fallback — show tutorial
-      document.querySelector('[data-tab="desktop"]').click();
-      document.querySelector('.tutorial').scrollIntoView({ behavior: 'smooth' });
+      _showManualInstallGuide('desktop');
     }
   });
 
-  // ── Manual install guide overlay (Android fallback) ─────
-  function _showManualInstallGuide() {
+  // ── Manual install guide overlay ────────────
+  function _showManualInstallGuide(platform) {
+    let stepsHtml = '';
+    if (platform === 'ios') {
+      stepsHtml = `
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">1</span>
+          <span style="font-size:14px;color:var(--text)">Ouvrez cette page dans <strong>Safari</strong></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">2</span>
+          <span style="font-size:14px;color:var(--text)">Appuyez sur <strong>Partager</strong> (\u2191) puis <strong>\xab Sur l'\xe9cran d'accueil \xbb</strong></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">3</span>
+          <span style="font-size:14px;color:var(--text)">Appuyez sur <strong>\xab Ajouter \xbb</strong></span>
+        </div>`;
+    } else if (platform === 'desktop') {
+      stepsHtml = `
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">1</span>
+          <span style="font-size:14px;color:var(--text)">Ouvrez dans <strong>Chrome</strong> ou <strong>Edge</strong></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">2</span>
+          <span style="font-size:14px;color:var(--text)">Cliquez sur l'ic\xf4ne \ud83d\udcbe dans la barre d'adresse, ou menu <strong>\u22ee \u2192 Installer</strong></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">3</span>
+          <span style="font-size:14px;color:var(--text)">Confirmez en cliquant sur <strong>\xab Installer \xbb</strong></span>
+        </div>`;
+    } else {
+      // Android
+      stepsHtml = `
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">1</span>
+          <span style="font-size:14px;color:var(--text)">Appuyez sur le menu <strong>\u22ee</strong> (3 points) en haut \xe0 droite de Chrome</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">2</span>
+          <span style="font-size:14px;color:var(--text)">Appuyez sur <strong>\xab Installer l'application \xbb</strong> ou <strong>\xab Ajouter \xe0 l'\xe9cran d'accueil \xbb</strong></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">3</span>
+          <span style="font-size:14px;color:var(--text)">Confirmez en appuyant sur <strong>\xab Installer \xbb</strong></span>
+        </div>`;
+    }
+
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)';
     overlay.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:400px;width:100%;padding:24px;text-align:center">
-        <div style="font-size:48px;margin-bottom:12px">⋮</div>
-        <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text)">Installation manuelle</h3>
+        <div style="font-size:48px;margin-bottom:12px">\ud83d\udcf2</div>
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text)">Installer FinVest</h3>
         <p style="font-size:14px;color:var(--text-muted);line-height:1.6;margin-bottom:16px">
-          L'installation automatique n'est pas disponible dans ce contexte.<br>
-          Suivez ces étapes :
+          Pour installer <strong>FinVest</strong> (et non EZGalaxy), suivez ces \xe9tapes :
         </p>
         <div style="text-align:left;background:rgba(255,255,255,0.03);border-radius:12px;padding:16px">
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-            <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">1</span>
-            <span style="font-size:14px;color:var(--text)">Appuyez sur le menu <strong>⋮</strong> (3 points) en haut à droite de Chrome</span>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-            <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">2</span>
-            <span style="font-size:14px;color:var(--text)">Appuyez sur <strong>« Installer l'application »</strong> ou <strong>« Ajouter à l'écran d'accueil »</strong></span>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">3</span>
-            <span style="font-size:14px;color:var(--text)">Confirmez en appuyant sur <strong>« Installer »</strong></span>
-          </div>
+          ${stepsHtml}
         </div>
         <button onclick="this.closest('div[style]').parentElement.remove()" style="margin-top:16px;padding:12px 24px;background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%">Compris !</button>
       </div>
@@ -650,49 +691,63 @@
   }
 
   // ── Platform-specific UI ───────────────────
+
+  // IMPORTANT: If inside an iframe, the primary action MUST open FinVest in a
+  // separate tab so the browser sees FinVest's manifest (not EZGalaxy's).
+
   if (isAndroid) {
-    icon.textContent = '🤖';
+    icon.textContent = '\ud83e\udd16';
     title.textContent = 'Installer sur Android';
-    subtitle.textContent = isChrome ? 'Installation directe via Chrome' : 'Ouvrez dans Chrome pour installer';
     btn.className = 'btn-install btn-install--android';
-    if (isChrome) {
-      btn.textContent = '📥 Installer FinVest';
+    if (isInIframe) {
+      subtitle.textContent = 'Ouvrez FinVest directement pour l\u2019installer';
+      btn.textContent = '\ud83d\ude80 Ouvrir FinVest pour installer';
+      note.textContent = 'FinVest s\u2019ouvrira dans un nouvel onglet. Depuis l\xe0, utilisez le menu \u22ee \u2192 \xab Installer l\u2019application \xbb.';
+    } else if (isChrome) {
+      subtitle.textContent = 'Installation directe via Chrome';
+      btn.textContent = '\ud83d\udce5 Installer FinVest';
       note.textContent = '';
     } else {
+      subtitle.textContent = 'Ouvrez dans Chrome pour installer';
       btn.textContent = 'Ouvrir dans Chrome';
-      btn.addEventListener('click', () => {
-        window.open(window.location.href, '_blank');
-      }, { once: true });
-      note.textContent = 'L\'installation PWA nécessite Google Chrome.';
+      note.textContent = 'L\u2019installation PWA n\xe9cessite Google Chrome.';
     }
-    // Auto-select Android tab
     document.querySelector('[data-tab="android"]').click();
 
   } else if (isIOS) {
-    icon.textContent = '🍎';
+    icon.textContent = '\ud83c\udf4e';
     title.textContent = 'Installer sur iPhone';
-    subtitle.textContent = isSafari ? 'Ajoutez à l\'écran d\'accueil via Safari' : 'Ouvrez dans Safari pour installer';
     btn.className = 'btn-install btn-install--ios';
-    if (isSafari) {
-      btn.textContent = '📖 Voir le tutoriel';
+    if (isInIframe) {
+      subtitle.textContent = 'Ouvrez FinVest directement pour l\u2019installer';
+      btn.textContent = '\ud83d\ude80 Ouvrir FinVest pour installer';
+      note.textContent = 'FinVest s\u2019ouvrira dans Safari. Utilisez Partager \u2192 \xab Sur l\u2019\xe9cran d\u2019accueil \xbb.';
+    } else if (isSafari) {
+      subtitle.textContent = 'Ajoutez \xe0 l\u2019\xe9cran d\u2019accueil via Safari';
+      btn.textContent = '\ud83d\udcd6 Voir le tutoriel';
     } else {
+      subtitle.textContent = 'Ouvrez dans Safari pour installer';
       btn.textContent = 'Ouvrir dans Safari';
-      note.textContent = 'L\'installation PWA sur iOS nécessite Safari.';
+      note.textContent = 'L\u2019installation PWA sur iOS n\xe9cessite Safari.';
     }
-    // Auto-select iOS tab
     document.querySelector('[data-tab="ios"]').click();
 
   } else {
     // Desktop
-    icon.textContent = '💻';
+    icon.textContent = '\ud83d\udcbb';
     title.textContent = 'Installer sur PC';
-    subtitle.textContent = (isChrome || isEdge) ? 'Installation disponible' : 'Ouvrez dans Chrome ou Edge';
     btn.className = 'btn-install btn-install--generic';
-    if (isChrome || isEdge) {
-      btn.textContent = '📥 Installer FinVest';
+    if (isInIframe) {
+      subtitle.textContent = 'Ouvrez FinVest directement pour l\u2019installer';
+      btn.textContent = '\ud83d\ude80 Ouvrir FinVest pour installer';
+      note.textContent = 'FinVest s\u2019ouvrira dans un nouvel onglet. Depuis l\xe0, cliquez sur l\u2019ic\xf4ne d\u2019installation dans la barre d\u2019adresse.';
+    } else if (isChrome || isEdge) {
+      subtitle.textContent = 'Installation disponible';
+      btn.textContent = '\ud83d\udce5 Installer FinVest';
       note.textContent = '';
     } else {
-      btn.textContent = '📖 Voir le tutoriel';
+      subtitle.textContent = 'Ouvrez dans Chrome ou Edge';
+      btn.textContent = '\ud83d\udcd6 Voir le tutoriel';
     }
     document.querySelector('[data-tab="desktop"]').click();
   }
@@ -716,6 +771,11 @@
       if (!wasOpen) item.classList.add('open');
     });
   });
+
+  // ── Register service worker (needed for beforeinstallprompt) ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  }
 
 })();
 </script>

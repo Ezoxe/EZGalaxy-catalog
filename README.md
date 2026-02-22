@@ -1,36 +1,103 @@
-# Catalogue EZGalaxy (guide rapide)
+﻿# Catalogue EZGalaxy — Applications Docker
 
-Ce dossier montre le format attendu par EZGalaxy pour lister et installer des pages via GitHub.
+Ce dossier contient le format attendu par EZGalaxy pour lister et installer des **applications Docker** depuis GitHub.
 
 Le standard complet est dans [`CATALOG_STANDARD.md`](../CATALOG_STANDARD.md) (à la racine du repo EZGalaxy).
 
-## 1) Ajouter une page dans le dépôt officiel `EZGalaxy-catalog` (Pull Request)
+## Architecture
 
-Objectif : proposer une nouvelle page pour qu’elle apparaisse dans le catalogue officiel.
+Chaque application du catalogue est un **container Docker** indépendant :
+- EZGalaxy télécharge le Dockerfile depuis GitHub
+- Construit l'image Docker localement
+- Démarre le container sur un port dédié (plage 10000-10999)
+- Configure Nginx en reverse proxy pour servir l'app sous `/apps/{slug}/`
+- Surveille la santé du container via des health checks automatiques
+
+## 1) Ajouter une app au dépôt officiel (Pull Request)
+
+Objectif : proposer une nouvelle application Docker pour le catalogue officiel.
 
 Étapes :
 1. Fork le dépôt officiel `Ezoxe/EZGalaxy-catalog`.
-2. Crée un dossier d’app : `packages/apps/<id>/`.
-3. Ajoute le manifest : `packages/apps/<id>/ezpage.json`.
-4. Ajoute les fichiers web (minimum) : `packages/apps/<id>/web/index.html` (+ JS/CSS si besoin).
-5. Déclare ton package dans `catalog.json` (à la racine) en ajoutant une entrée dans `packages[]`.
+2. Crée un dossier d'app : `packages/apps/<id>/`.
+3. Ajoute le manifest : `packages/apps/<id>/ezcontainer.json`.
+4. Ajoute le `Dockerfile` et les fichiers nécessaires au build.
+5. Déclare ton package dans `catalog.json` (racine) en ajoutant une entrée dans `packages[]`.
 6. Ouvre une Pull Request.
 
 Rappels :
-- `<id>` doit être stable et unique (conseillé : `a-z0-9-`).
-- `entry` doit être un chemin relatif (ex: `web/index.html`, pas de `/`, pas de `..`).
-- Par défaut, les appels sortants sont bloqués (CSP). Tu peux demander l’activation via `network.allowOutgoing=true`.
+- `<id>` doit être stable et unique (format : `a-z0-9-` ou reverse-domain `com.example.app`).
+- Le `Dockerfile` doit exposer un seul port HTTP.
+- Ajoute un `HEALTHCHECK` dans le Dockerfile pour le monitoring automatique.
 
-Style / animations :
-- Le template fournit des fichiers de style dans `shared/` (base + animations).
-- Pour qu’ils fonctionnent après installation, copie-les dans ton app (ex: `packages/apps/<id>/web/`).
+## 2) Structure d'un package Docker
 
-IA + BDD :
-- Voir `AI_GUIDE.md` pour les contraintes (sécurité, style, réseau) et les points importants si une page a besoin de persistance/BDD.
-- Voir `COMMUNITY_DATA_API.md` pour l’API de stockage sécurisée (Community Data) utilisable par les pages.- Voir `MOBILE_APP_GUIDE.md` pour créer des applications mobiles (Android/iOS) avec accès à la BDD.
-## 2) Créer son propre dépôt (catalogue custom)
+```
+packages/apps/<id>/
+  ezcontainer.json       # manifest (schemaVersion 2)
+  Dockerfile             # instructions de build Docker
+  emoji.txt              # optionnel — emoji pour la tuile (défaut 📦)
+  web/                   # fichiers de l'app (copiés dans le container)
+    index.html
+    style.css
+    app.js
+  config/                # optionnel — fichiers de config
+  screens/               # optionnel — screenshots
+    1.png
+```
 
-Objectif : héberger tes pages dans TON dépôt GitHub, puis l’ajouter dans EZGalaxy.
+## 3) Fichier `ezcontainer.json` (manifest)
+
+Format minimal :
+```json
+{
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.my-app",
+  "title": "Mon Application",
+  "function": "Description courte de l'app",
+  "version": "1.0.0",
+  "createdAt": "2026-02-22",
+  "author": "VotreNom",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 80,
+    "healthcheck": {
+      "endpoint": "/"
+    }
+  }
+}
+```
+
+Champs Docker :
+- `docker.dockerfile` (string, requis) : chemin du Dockerfile relatif au dossier du package.
+- `docker.port` (number, requis) : port HTTP exposé par le container.
+- `docker.env` (object, optionnel) : variables d'environnement à passer au container.
+- `docker.volumes` (array, optionnel) : points de montage pour la persistance des données.
+- `docker.healthcheck.endpoint` (string) : endpoint HTTP pour le health check (défaut `/`).
+- `docker.healthcheck.interval` (number) : intervalle en secondes (défaut 30).
+- `docker.healthcheck.timeout` (number) : timeout en secondes (défaut 10).
+
+## 4) Fichier `catalog.json`
+
+```json
+{
+  "schemaVersion": 2,
+  "packages": [
+    {
+      "id": "com.ezgalaxy.my-app",
+      "title": "Mon Application",
+      "function": "Description courte",
+      "path": "packages/apps/com.ezgalaxy.my-app",
+      "version": "1.0.0",
+      "hash": "<sha256>"
+    }
+  ]
+}
+```
+
+> **Important** : `schemaVersion` doit être `2` pour les catalogues Docker.
+
+## 5) Créer son propre dépôt (catalogue custom)
 
 Structure minimale du dépôt :
 ```
@@ -38,39 +105,51 @@ catalog.json
 packages/
   apps/
     <id>/
-      ezpage.json
-      emoji.txt        # optionnel - emoji affiché sur la tuile d'accueil
+      ezcontainer.json
+      Dockerfile
+      emoji.txt            # optionnel
       web/
         index.html
-      mobile/           # optionnel - pour les apps Android/iOS
-        README.md
-        config.json
 ```
-
-### Fichier `emoji.txt`
-
-Ce fichier optionnel contient un emoji unique qui sera utilisé comme icône sur la tuile de la page d'accueil.
-Exemple de contenu : `🎮`
-
-Si absent, l'emoji par défaut `📦` sera affiché.
 
 Configuration dans EZGalaxy :
 1. Admin → Catalogue → Paramètres (roue dentée).
-2. Ajoute un dépôt : `owner`, `repo`, `ref` (branche), `catalog_path` (souvent `catalog.json`).
-3. Pour réduire les limitations GitHub : configure une GitHub App (Read‑Only) via la tuile dédiée dans l’admin.
-4. Si besoin (ex: test rapide) : configure un token GitHub (PAT) en alternative dans la page Catalogue.
+2. Ajoute un dépôt : `owner`, `repo`, `ref` (branche), `catalog_path`.
+3. Pour les dépôts privés : configure un token GitHub (PAT) ou une GitHub App.
 
-Style / IA :
-- Les fichiers `shared/ezgalaxy-base.css` et `shared/ezgalaxy-animations.css` sont là pour être copiés dans tes packages.
-- Le guide `AI_GUIDE.md` donne un “prompt” et des règles pour générer des packages conformes.
-## 3) Applications mobiles (Android / iOS)
+## 6) Cycle de vie d'une app
 
-Le catalogue supporte les applications mobiles qui peuvent accéder à la même base de données que les apps web.
+| Action | Ce qui se passe |
+|--------|----------------|
+| **Installer** | Clone le repo → Build l'image Docker → Démarre le container → Configure Nginx → Health check |
+| **Mettre à jour** | Stop le container → Rebuild l'image → Redémarre → Vérifie la santé |
+| **Désinstaller** | Stop le container → Supprime l'image → Supprime la config Nginx → Nettoie les données |
 
-Pour créer une app mobile :
-1. Ajoute le champ `"platform": ["web", "android", "ios"]` dans `ezpage.json`.
-2. Ajoute un objet `"mobile"` dans `ezpage.json` avec les infos de la plateforme (packageName, bundleId...).
-3. Demande à l'admin EZGalaxy de générer une clé API mobile (`X-App-Key`).
-4. Utilise le SDK EZGalaxy configuré en mode mobile, ou appelle directement l'API REST `/api/mobile/...`.
+## 7) Persistance des données
 
-Voir `MOBILE_APP_GUIDE.md` pour le guide complet d'intégration mobile.
+Chaque container dispose d'un volume de données persistant :
+```
+/var/lib/ezgalaxy_data/containers/<slug>/data/
+```
+
+Pour utiliser la persistance, déclarez un volume dans `ezcontainer.json` :
+```json
+{
+  "docker": {
+    "volumes": ["/app/data"]
+  }
+}
+```
+EZGalaxy montera automatiquement le dossier persistant vers le chemin déclaré dans le container.
+
+## 8) Réseau
+
+Tous les containers sont connectés au réseau Docker `ezgalaxy_apps`.
+Nginx sert de reverse proxy : chaque app est accessible via `/apps/<slug>/`.
+
+Les apps **n'ont pas besoin** de gérer HTTPS — Nginx s'en charge.
+
+## Guides supplémentaires
+
+- [`AI_GUIDE.md`](AI_GUIDE.md) — Guide pour générer des apps Docker via IA.
+- [`../CATALOG_STANDARD.md`](../CATALOG_STANDARD.md) — Standard technique complet.

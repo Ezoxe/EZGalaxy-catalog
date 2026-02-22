@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.sopor",
+  "title": "Sopor: Le Sommeil de l'Architecte",
+  "function": "MMO RPG offline en pixel art néon-organique : monde continu, NPC complets, quêtes de stabilité communautaires simulées, Essence Chromatique (monnaie=énergie), piliers de région, 15+ armes, sauvegardes par pseudo, musique procédurale évolutive.",
+  "version": "1.0.0",
+  "createdAt": "2025-12-27",
+  "author": "EZGalaxy Community",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 80,
+    "env": {},
+    "volumes": [],
+    "healthcheck": {
+      "endpoint": "/",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
+}

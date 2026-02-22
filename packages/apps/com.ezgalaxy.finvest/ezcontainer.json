@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.finvest",
+  "title": "FinVest — Analyse Financière",
+  "function": "Application complète d'analyse financière personnelle : questionnaire profil investisseur, score de santé financière, allocation portefeuille, projections Monte Carlo, planification retraite, gestion de dettes, bourse en direct, IA Gemini, et bien plus. Disponible en PWA installable sur Android et iOS.",
+  "version": "2.0.0",
+  "createdAt": "2026-02-08",
+  "author": "EZGalaxy Community",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 3000,
+    "env": {
+      "NODE_ENV": "production",
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  },
+  "platform": [
+    "web",
+    "android",
+    "ios"
+  ],
+  "mobile": {
+    "requiresApiKey": true,
+    "type": "pwa",
+    "installUrl": "web/install.html",
+    "android": {
+      "packageName": "com.ezgalaxy.finvest",
+      "downloadUrl": "web/install.html",
+      "minSdkVersion": 24
+    },
+    "ios": {
+      "bundleId": "com.ezgalaxy.finvest",
+      "downloadUrl": "web/install.html",
+      "minOsVersion": "15.0"
+    }
+  }
+}

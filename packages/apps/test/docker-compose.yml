@@ -1,0 +1,7 @@
+﻿services:
+  app:
+    build: .
+    container_name: ezgalaxy-test
+    ports:
+      - "10026:80"
+    restart: unless-stopped

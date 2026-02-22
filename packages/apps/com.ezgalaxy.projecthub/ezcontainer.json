@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.projecthub",
+  "title": "Project Hub — Smart Project Management",
+  "function": "Application de gestion de projet intelligente : Kanban drag-and-drop, timeline Gantt, prédictions IA (vélocité, risques, burndown), NLP pour création rapide de tâches, graphiques SVG interactifs, gestion d'équipe avec matrice de compétences, suivi budgétaire, palette de commandes (Ctrl+K), thème sombre/clair, et synchronisation cloud via Community Data API.",
+  "version": "2.0.0",
+  "createdAt": "2026-01-28",
+  "author": "EZGalaxy Community",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 3000,
+    "env": {
+      "NODE_ENV": "production",
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
+}

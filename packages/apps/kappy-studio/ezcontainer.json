@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "kappy-studio",
+  "title": "Kappy Studio",
+  "function": "Éditeur / studio KAPPY (package standard)",
+  "version": "1.0.0",
+  "createdAt": "2025-12-23",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 80,
+    "env": {},
+    "volumes": [],
+    "healthcheck": {
+      "endpoint": "/",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
+}

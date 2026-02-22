@@ -1,0 +1,7 @@
+﻿services:
+  app:
+    build: .
+    container_name: ezgalaxy-network-sim
+    ports:
+      - "10025:80"
+    restart: unless-stopped

@@ -1,0 +1,7 @@
+﻿services:
+  app:
+    build: .
+    container_name: ezgalaxy-com.ezgalaxy.example
+    ports:
+      - "10003:80"
+    restart: unless-stopped

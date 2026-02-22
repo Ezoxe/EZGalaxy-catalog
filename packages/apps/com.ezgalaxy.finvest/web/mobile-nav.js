@@ -250,8 +250,8 @@
       }, [UI.icon('home', 18), UI.el('span', { textContent: 'Écran d\'accueil' })]),
       UI.el('a', {
         className: 'mobile-drawer__install-link',
-        href: './install.html',
-        target: '_self'
+        href: './index.html',
+        target: '_blank'
       }, [UI.icon('download', 18), UI.el('span', { textContent: 'Installer l\'app' })])
     ]);
     _drawerEl.appendChild(footer);
@@ -530,8 +530,8 @@
         _dismissInstallBanner();
       });
     } else {
-      // Fallback: redirect to install page
-      window.location.href = './install.html';
+      // Fallback: open FinVest directly in new tab (so browser sees FinVest's manifest, not EZGalaxy's)
+      window.open('./index.html', '_blank');
     }
   }
 
@@ -586,16 +586,21 @@
       || window.navigator.standalone === true;
     if (isStandalone) return;
 
+    // Detect if running inside an EZGalaxy iframe
+    let _isInIframe = false;
+    try { _isInIframe = window.self !== window.top; } catch (_) { _isInIframe = true; }
+
     const btn = UI.el('a', {
       className: 'mobile-install-persistent',
       id: 'persistent-install-btn',
-      href: './install.html'
+      href: _isInIframe ? './index.html' : './install.html',
+      target: _isInIframe ? '_blank' : '_self'
     }, [
       UI.el('span', { className: 'mobile-install-persistent__icon', textContent: '📲' }),
       UI.el('span', { className: 'mobile-install-persistent__text', textContent: 'Installer l\'app' })
     ]);
 
-    // Also allow direct install if prompt available
+    // Also allow direct install if prompt available (only works outside iframe)
     btn.addEventListener('click', (e) => {
       if (_deferredPrompt) {
         e.preventDefault();
@@ -608,7 +613,7 @@
           _deferredPrompt = null;
         });
       }
-      // else: follow the href to install.html
+      // else: follow the href (index.html in new tab if iframe, install.html if not)
     });
 
     document.body.appendChild(btn);

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.pollmaker",
+  "title": "PollMaker",
+  "function": "Créez et partagez des sondages interactifs avec résultats en temps réel",
+  "version": "1.0.0",
+  "createdAt": "2026-02-22",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 3000,
+    "env": {
+      "NODE_ENV": "production",
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
+}

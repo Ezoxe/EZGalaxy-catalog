@@ -1,0 +1,7 @@
+﻿services:
+  app:
+    build: .
+    container_name: ezgalaxy-world-capitals
+    ports:
+      - "10027:80"
+    restart: unless-stopped

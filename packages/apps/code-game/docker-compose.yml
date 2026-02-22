@@ -1,0 +1,7 @@
+﻿services:
+  app:
+    build: .
+    container_name: ezgalaxy-code-game
+    ports:
+      - "10000:80"
+    restart: unless-stopped

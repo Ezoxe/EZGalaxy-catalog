@@ -1,0 +1,15 @@
+﻿services:
+  app:
+    build: .
+    container_name: ezgalaxy-com.ezgalaxy.it-discovery
+    ports:
+      - "10008:3000"
+    volumes:
+      - app-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - DB_PATH=/app/data/database.sqlite
+    restart: unless-stopped
+
+volumes:
+  app-data:

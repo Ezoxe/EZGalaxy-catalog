@@ -1,0 +1,7 @@
+﻿services:
+  app:
+    build: .
+    container_name: ezgalaxy-kappy-studio
+    ports:
+      - "10024:80"
+    restart: unless-stopped

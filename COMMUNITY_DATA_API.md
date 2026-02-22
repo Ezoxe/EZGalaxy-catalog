@@ -1,711 +1,319 @@
-# EZGalaxy SDK — Stockage persistant pour les apps du catalogue
+﻿# EZGalaxy — Persistance des données (Apps Docker)
 
-> **Une seule ligne de code pour sauvegarder des données.**
+> **Chaque application Docker gère ses propres données de manière autonome.**
 
-## Démarrage rapide (30 secondes)
+## Vue d'ensemble
 
-Ajoutez le SDK dans votre `index.html` :
+Dans EZGalaxy, chaque application du catalogue est un **container Docker indépendant**. Contrairement à l'ancien système centralisé, chaque app est responsable de sa propre gestion de données.
 
-```html
-<script src="/api/ezgalaxy-sdk.js"></script>
-```
-
-C'est tout. Vous pouvez maintenant sauvegarder et lire des données :
-
-```js
-// Sauvegarder
-await ezgalaxy.storage.set('scores', 'level-1', { score: 100, time: 45 });
-
-// Lire
-const record = await ezgalaxy.storage.get('scores', 'level-1');
-console.log(record.data); // { score: 100, time: 45 }
-```
+EZGalaxy fournit :
+- Un **volume persistant** monté automatiquement dans le container
+- Un **réseau Docker** partagé pour la communication inter-containers
+- Un **reverse proxy Nginx** pour servir l'app
 
 ---
 
-## Concepts clés
+## Stockage persistant
 
-| Concept | Description | Exemple |
-|---------|-------------|---------|
-| **Collection** | Un groupe de données (comme une "table") | `'scores'`, `'settings'`, `'profiles'` |
-| **Clé (key)** | Identifiant unique dans une collection | `'level-1'`, `'user-profile'`, `'config'` |
-| **Data** | Un objet JSON quelconque | `{ score: 100, name: "Alice" }` |
+### Fonctionnement
 
-Les données `storage` sont **automatiquement isolées par visiteur/utilisateur**. Chaque personne ne voit que ses propres données.
+Quand une app déclare des volumes dans `ezcontainer.json`, EZGalaxy monte un dossier persistant du serveur hôte dans le container :
 
-Les données `app` sont **partagées** entre tous les utilisateurs de l'application. Idéal pour les classements, la config publique, etc.
-
----
-
-## API complète
-
-### `ezgalaxy.storage.set(collection, key, data, options?)`
-
-Sauvegarde des données. Crée ou remplace.
-
-```js
-// Simple
-await ezgalaxy.storage.set('settings', 'preferences', {
-  lang: 'fr',
-  theme: 'dark',
-  notifications: true
-});
-
-// Avec expiration (TTL en secondes)
-await ezgalaxy.storage.set('sessions', 'token-abc', { valid: true }, { ttl: 3600 });
-// → expire dans 1 heure
+```
+Serveur hôte :  /var/lib/ezgalaxy_data/containers/<slug>/data/
+     ↕  (bind mount)
+Container :     /app/data  (ou le chemin déclaré dans "volumes")
 ```
 
-### `ezgalaxy.storage.get(collection, key)`
+### Configuration dans `ezcontainer.json`
 
-Lit un enregistrement. Retourne l'objet complet ou `null` si non trouvé.
-
-```js
-const record = await ezgalaxy.storage.get('settings', 'preferences');
-
-if (record) {
-  console.log(record.data);       // { lang: 'fr', theme: 'dark', ... }
-  console.log(record.created_at); // "2026-01-15T10:30:00.000000Z"
-  console.log(record.updated_at); // "2026-02-12T14:22:00.000000Z"
-} else {
-  console.log('Pas encore de données sauvegardées');
+```json
+{
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.my-app",
+  "title": "Mon App",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 3000,
+    "volumes": ["/app/data"]
+  }
 }
 ```
 
-### `ezgalaxy.storage.update(collection, key, data)`
+### Cycle de vie des données
 
-Mise à jour partielle — fusionne les champs fournis avec les données existantes.
-
-```js
-// Données existantes : { score: 100, time: 45 }
-await ezgalaxy.storage.update('scores', 'level-1', { time: 30 });
-// Résultat : { score: 100, time: 30 }
-
-// Ajouter un nouveau champ
-await ezgalaxy.storage.update('scores', 'level-1', { stars: 3 });
-// Résultat : { score: 100, time: 30, stars: 3 }
-```
-
-> La clé doit déjà exister. Utilisez `set()` pour créer un enregistrement.
-
-### `ezgalaxy.storage.delete(collection, key)`
-
-Supprime un enregistrement.
-
-```js
-await ezgalaxy.storage.delete('scores', 'level-1');
-```
-
-### `ezgalaxy.storage.list(collection, options?)`
-
-Liste tous les enregistrements d'une collection.
-
-```js
-const result = await ezgalaxy.storage.list('scores');
-console.log(result.total);  // nombre total
-console.log(result.items);  // [{ record_key, data, ... }, ...]
-
-// Avec pagination
-const page2 = await ezgalaxy.storage.list('scores', { limit: 10, offset: 10 });
-
-// Filtrer par préfixe de clé
-const levels = await ezgalaxy.storage.list('scores', { prefix: 'level-' });
-```
-
-### `ezgalaxy.storage.clear(collection)`
-
-Supprime TOUS les enregistrements d'une collection.
-
-```js
-await ezgalaxy.storage.clear('scores');
-// → { message: 'Cleared', deleted: 15 }
-```
-
-### `ezgalaxy.storage.count(collection)`
-
-Compte les enregistrements d'une collection.
-
-```js
-const { count } = await ezgalaxy.storage.count('scores');
-console.log(`${count} scores sauvegardés`);
-```
-
-### `ezgalaxy.storage.getOrDefault(collection, key, defaultData)`
-
-Lit un enregistrement ou crée avec des valeurs par défaut s'il n'existe pas.
-
-```js
-const settings = await ezgalaxy.storage.getOrDefault('settings', 'config', {
-  volume: 80,
-  difficulty: 'normal',
-  language: 'fr'
-});
-// → retourne les données existantes OU crée avec ces valeurs par défaut
-```
-
-### `ezgalaxy.user.info()`
-
-Informations sur le visiteur/utilisateur actuel.
-
-```js
-const user = await ezgalaxy.user.info();
-console.log(user.type); // 'visitor', 'user', ou 'dev'
-console.log(user.id);   // UUID du visiteur ou ID utilisateur
-```
+| Événement | Données persistantes |
+|-----------|---------------------|
+| Redémarrage du container | ✅ Conservées |
+| Mise à jour de l'app | ✅ Conservées |
+| Arrêt / démarrage | ✅ Conservées |
+| Désinstallation de l'app | ❌ Supprimées |
 
 ---
 
-## API App — Stockage partagé de l'application
+## Options de base de données
 
-`ezgalaxy.app` est un espace de stockage **partagé** qui appartient à l'application elle-même (pas à un utilisateur). Toute personne utilisant l'app peut lire et écrire dans cet espace. C'est l'endroit idéal pour :
-- **Classements** (leaderboards)
-- **Statistiques globales**
-- **Configuration partagée**
-- **Données publiques** de l'application
+Chaque app choisit sa propre solution de stockage. Voici les options recommandées :
 
-Les mêmes filtres de sécurité s'appliquent (taille max, quotas, validation des clés).
+### SQLite (recommandé pour la plupart des apps)
 
-### `ezgalaxy.app.set(collection, key, data, options?)`
+Simple, léger, aucune dépendance externe.
 
-Sauvegarde des données au niveau de l'application. Crée ou remplace.
-
-```js
-// Ajouter un score au classement
-await ezgalaxy.app.set('leaderboard', 'player-alice', {
-  pseudo: 'Alice',
-  score: 1500,
-  date: new Date().toISOString()
-});
-
-// Avec expiration
-await ezgalaxy.app.set('daily-challenge', 'today', { theme: 'espace' }, { ttl: 86400 });
+```dockerfile
+FROM node:20-alpine
+RUN apk add --no-cache curl
+WORKDIR /app
+COPY . .
+RUN npm ci --production
+RUN mkdir -p /app/data
+EXPOSE 3000
+CMD ["node", "server.js"]
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
 ```
 
-### `ezgalaxy.app.get(collection, key)`
-
-Lit un enregistrement app-level.
-
 ```js
-const record = await ezgalaxy.app.get('leaderboard', 'player-alice');
-if (record) {
-  console.log(record.data); // { pseudo: 'Alice', score: 1500, ... }
-}
+// server.js
+const Database = require('better-sqlite3');
+const db = new Database('/app/data/database.sqlite');
+
+// Créer les tables au démarrage
+db.exec(`
+  CREATE TABLE IF NOT EXISTS scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pseudo TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 ```
 
-### `ezgalaxy.app.update(collection, key, data)`
-
-Mise à jour partielle (merge) d'un enregistrement app-level.
-
-```js
-await ezgalaxy.app.update('leaderboard', 'player-alice', { score: 1800 });
-// Le pseudo et la date restent inchangés
-```
-
-### `ezgalaxy.app.delete(collection, key)`
-
-Supprime un enregistrement app-level.
-
-```js
-await ezgalaxy.app.delete('leaderboard', 'player-alice');
-```
-
-### `ezgalaxy.app.list(collection, options?)`
-
-Liste les enregistrements app-level d'une collection.
-
-```js
-const result = await ezgalaxy.app.list('leaderboard');
-console.log(result.total);  // nombre total d'entrées
-console.log(result.items);  // [{ record_key, data, ... }, ...]
-
-// Avec tri et pagination
-const top10 = await ezgalaxy.app.list('leaderboard', {
-  limit: 10,
-  sort_by: 'updated_at',   // 'created_at' (défaut), 'updated_at', 'record_key'
-  sort_order: 'desc'       // 'desc' (défaut) ou 'asc'
-});
-
-// Filtrer par préfixe
-const weekScores = await ezgalaxy.app.list('leaderboard', { prefix: 'week-07-' });
-```
-
-### `ezgalaxy.app.clear(collection)`
-
-Supprime TOUS les enregistrements app-level d'une collection.
-
-```js
-await ezgalaxy.app.clear('leaderboard');
-```
-
-### `ezgalaxy.app.count(collection)`
-
-Compte les enregistrements app-level d'une collection.
-
-```js
-const { count } = await ezgalaxy.app.count('leaderboard');
-console.log(`${count} entrées au classement`);
-```
-
-### `ezgalaxy.app.getOrDefault(collection, key, defaultData)`
-
-Lit ou crée avec des valeurs par défaut.
-
-```js
-const config = await ezgalaxy.app.getOrDefault('config', 'settings', {
-  maxPlayers: 100,
-  gameMode: 'classic'
-});
-```
-
----
-
-## Exemples concrets
-
-### Jeu avec sauvegarde de score
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Mon Jeu</title>
-  <script src="/api/ezgalaxy-sdk.js"></script>
-</head>
-<body>
-  <h1>Mon Super Jeu</h1>
-  <p>Score actuel : <span id="score">0</span></p>
-  <button onclick="jouer()">Jouer</button>
-  <button onclick="sauvegarder()">Sauvegarder</button>
-
-  <script>
-    let score = 0;
-
-    // Charger le score au démarrage
-    async function charger() {
-      const record = await ezgalaxy.storage.get('game', 'save');
-      if (record) {
-        score = record.data.score || 0;
-        document.getElementById('score').textContent = score;
-      }
+```json
+{
+  "docker": {
+    "port": 3000,
+    "volumes": ["/app/data"],
+    "env": {
+      "DB_PATH": "/app/data/database.sqlite"
     }
-
-    function jouer() {
-      score += Math.floor(Math.random() * 100);
-      document.getElementById('score').textContent = score;
-    }
-
-    async function sauvegarder() {
-      await ezgalaxy.storage.set('game', 'save', {
-        score: score,
-        date: new Date().toISOString()
-      });
-      alert('Score sauvegardé !');
-    }
-
-    charger();
-  </script>
-</body>
-</html>
+  }
+}
 ```
 
-### Application avec profil utilisateur
+### Fichiers JSON
 
-```html
-<script src="/api/ezgalaxy-sdk.js"></script>
-<script>
-  // Créer ou récupérer le profil
-  async function initProfile() {
-    const profile = await ezgalaxy.storage.getOrDefault('app', 'profile', {
-      nickname: 'Nouveau joueur',
-      level: 1,
-      xp: 0,
-      created: new Date().toISOString()
-    });
-
-    document.getElementById('nickname').textContent = profile.nickname;
-    document.getElementById('level').textContent = profile.level;
-  }
-
-  // Mettre à jour le profil (fusion partielle)
-  async function gagnerXP(amount) {
-    await ezgalaxy.storage.update('app', 'profile', {
-      xp: currentXP + amount,
-      lastPlayed: new Date().toISOString()
-    });
-  }
-
-  initProfile();
-</script>
-```
-
-### Classement global (leaderboard multi-joueurs)
-
-```html
-<script src="/api/ezgalaxy-sdk.js"></script>
-<script>
-  // Quand un joueur termine une partie, son score est sauvegardé
-  // dans l'espace partagé de l'app (visible par tous)
-  async function sauvegarderScore(pseudo, score) {
-    // Utiliser le pseudo comme clé → chaque joueur n'a qu'une entrée
-    await ezgalaxy.app.set('leaderboard', 'player-' + pseudo, {
-      pseudo: pseudo,
-      score: score,
-      date: new Date().toISOString()
-    });
-  }
-
-  // Mettre à jour le score d'un joueur existant
-  async function mettreAJourScore(pseudo, nouveauScore) {
-    await ezgalaxy.app.update('leaderboard', 'player-' + pseudo, {
-      score: nouveauScore,
-      date: new Date().toISOString()
-    });
-  }
-
-  // Afficher le classement complet
-  async function afficherClassement() {
-    const result = await ezgalaxy.app.list('leaderboard', { limit: 100 });
-    const scores = result.items
-      .map(item => item.data)
-      .sort((a, b) => b.score - a.score);
-
-    const ol = document.getElementById('classement');
-    ol.innerHTML = '';
-    scores.forEach((s, i) => {
-      const li = document.createElement('li');
-      li.textContent = `${i + 1}. ${s.pseudo} — ${s.score} pts`;
-      ol.appendChild(li);
-    });
-  }
-
-  // Nombre total de joueurs
-  async function nombreJoueurs() {
-    const { count } = await ezgalaxy.app.count('leaderboard');
-    document.getElementById('nb-joueurs').textContent = count + ' joueurs';
-  }
-
-  // Supprimer un joueur du classement
-  async function supprimerJoueur(pseudo) {
-    await ezgalaxy.app.delete('leaderboard', 'player-' + pseudo);
-  }
-
-  afficherClassement();
-  nombreJoueurs();
-</script>
-```
-
----
-
-## Mode développement (hors EZGalaxy)
-
-Quand vous développez votre app en local (pas dans un iframe EZGalaxy), le SDK utilise automatiquement `localStorage` comme fallback. Toutes les méthodes fonctionnent de la même manière.
-
-Vous verrez dans la console :
-```
- EZGalaxy SDK  Dev mode – using localStorage fallback
-```
-
----
-
-## Règles de nommage
-
-| Champ | Format autorisé | Longueur max |
-|-------|----------------|-------------|
-| Collection | `a-z 0-9 . _ -` (commence par lettre/chiffre) | 120 caractères |
-| Clé (key) | `A-Z a-z 0-9 . _ : @ -` (commence par lettre/chiffre) | 190 caractères |
-
-**Exemples valides :** `scores`, `user-data`, `level.progress`, `score-2026-02-12`
-
-**Exemples invalides :** `_private` (commence par _), `ma collection` (espaces), `données` (accents)
-
----
-
-## Limites et quotas
-
-| Limite | Valeur par défaut | Configurable |
-|--------|-------------------|-------------|
-| Taille max d'un enregistrement | 16 Ko (JSON) | Oui (.env) |
-| Records par collection | 2 000 | Oui (.env) |
-| Collections par app | 100 | Oui (.env) |
-| TTL maximum | 365 jours | Oui (.env) |
-| Requêtes par minute | 120 | Oui (throttle) |
-
----
-
-## Gestion des erreurs
-
-Toutes les méthodes retournent des Promises. Utilisez `try/catch` :
+Pour les apps simples avec peu de données.
 
 ```js
-try {
-  await ezgalaxy.storage.set('scores', 'level-1', { score: 100 });
-} catch (error) {
-  console.error('Erreur:', error.message);
-  // Messages possibles :
-  // - "Payload too large"         → données trop volumineuses (>16 Ko)
-  // - "Record quota exceeded"     → trop d'enregistrements dans la collection
-  // - "Collection quota exceeded" → trop de collections pour cette extension
-  // - "Not found"                 → clé inexistante (pour update/delete)
-  // - "Extension not allowed"     → extension pas dans la liste autorisée
-  // - "EZGalaxy: request timeout" → le serveur ne répond pas
+const fs = require('fs');
+const DATA_FILE = '/app/data/settings.json';
+
+function load() {
+  try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
+  catch { return {}; }
+}
+
+function save(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 ```
 
----
+### Redis / PostgreSQL / MySQL
 
-## API REST directe (avancé)
+Pour les apps complexes, on peut inclure un service supplémentaire via Docker Compose. Le `docker-compose.yml` est généré par EZGalaxy lors du déploiement.
 
-Si vous préférez appeler l'API REST directement (sans le SDK), voici les endpoints.
-Ils sont normalement appelés par le bridge PageViewer, pas directement par les apps.
+Si l'app a besoin d'une base de données externe, elle peut utiliser Docker Compose multi-service :
 
-| Méthode | URL | Description |
-|---------|-----|-------------|
-| `GET` | `/api/app-storage/{ext}/{col}` | Lister mes records |
-| `GET` | `/api/app-storage/{ext}/{col}/{key}` | Lire un de mes records |
-| `PUT` | `/api/app-storage/{ext}/{col}/{key}` | Créer/remplacer |
-| `PATCH` | `/api/app-storage/{ext}/{col}/{key}` | Mise à jour partielle |
-| `DELETE` | `/api/app-storage/{ext}/{col}/{key}` | Supprimer un record |
-| `DELETE` | `/api/app-storage/{ext}/{col}` | Vider une collection |
-| `GET` | `/api/app-storage/{ext}/{col}/count` | Compter mes records |
-| `GET` | `/api/app-storage/info` | Info utilisateur |
-| | | **Données partagées de l'app** |
-| `GET` | `/api/app-storage/@app/{ext}/{col}` | Lister les records app |
-| `GET` | `/api/app-storage/@app/{ext}/{col}/{key}` | Lire un record app |
-| `PUT` | `/api/app-storage/@app/{ext}/{col}/{key}` | Créer/remplacer un record app |
-| `PATCH` | `/api/app-storage/@app/{ext}/{col}/{key}` | Mise à jour partielle app |
-| `DELETE` | `/api/app-storage/@app/{ext}/{col}/{key}` | Supprimer un record app |
-| `DELETE` | `/api/app-storage/@app/{ext}/{col}` | Vider une collection app |
-| `GET` | `/api/app-storage/@app/{ext}/{col}/count` | Compter les records app |
-
-**Auth :** Token Sanctum (`Authorization: Bearer ...`) OU UUID visiteur (`X-Visitor-UUID: ...`).
-
-**Body (PUT) :**
 ```json
 {
-  "data": { "score": 100 },
-  "expires_in": 3600
+  "docker": {
+    "port": 3000,
+    "volumes": ["/app/data"],
+    "env": {
+      "DATABASE_URL": "postgresql://app:secret@db:5432/myapp"
+    }
+  }
 }
 ```
 
-**Body (PATCH) :**
+> Note : les bases de données multi-service (PostgreSQL, Redis, etc.) nécessitent une configuration avancée du Dockerfile et ne sont pas couvertes par le système de déploiement automatique standard.
+
+---
+
+## Communication inter-containers
+
+Les containers Docker d'EZGalaxy partagent le réseau `ezgalaxy_apps`. Chaque container est accessible par son nom :
+
+```
+ezgalaxy-<slug>
+```
+
+### Exemple : appeler un autre container
+
+```js
+// Depuis le container "mon-app", appeler le container "api-service"
+const response = await fetch('http://ezgalaxy-api-service:3000/data');
+const data = await response.json();
+```
+
+---
+
+## Accès depuis l'extérieur
+
+Les apps sont servies par Nginx en reverse proxy :
+
+```
+https://<domain>/apps/<slug>/  →  http://127.0.0.1:<port>/
+```
+
+Les utilisateurs accèdent à l'app via l'URL publique. Le container n'a pas besoin de gérer HTTPS.
+
+---
+
+## Exemples complets
+
+### App de scores (Node.js + SQLite)
+
+**`ezcontainer.json`**
 ```json
 {
-  "data": { "time": 30 }
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.scores",
+  "title": "Tableau de scores",
+  "function": "Classement interactif avec persistance",
+  "version": "1.0.0",
+  "createdAt": "2026-02-22",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 3000,
+    "volumes": ["/app/data"],
+    "healthcheck": { "endpoint": "/health" }
+  }
 }
 ```
 
----
-
-## Architecture technique
-
-```
-┌─────────────────────────────────────────────────────┐
-│  Votre App (iframe sandbox)                         │
-│  ┌───────────────────────┐                          │
-│  │  ezgalaxy-sdk.js      │                          │
-│  │  ezgalaxy.storage.set │──── postMessage ────┐    │
-│  └───────────────────────┘                     │    │
-└────────────────────────────────────────────────│────┘
-                                                 │
-┌────────────────────────────────────────────────│────┐
-│  EZGalaxy (page parent)                        │    │
-│  ┌───────────────────────┐                     │    │
-│  │  PageViewer Bridge    │◄────────────────────┘    │
-│  │  (postMessage relay)  │                          │
-│  └──────────┬────────────┘                          │
-│             │ fetch(/api/app-storage/...)            │
-└─────────────│───────────────────────────────────────┘
-              │
-┌─────────────▼───────────────────────────────────────┐
-│  Backend Laravel                                     │
-│  ┌───────────────────────┐  ┌─────────────────────┐ │
-│  │  AppStorageController │──│  Table: app_storage  │ │
-│  └───────────────────────┘  └─────────────────────┘ │
-└──────────────────────────────────────────────────────┘
+**`Dockerfile`**
+```dockerfile
+FROM node:20-alpine
+RUN apk add --no-cache curl
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --production
+COPY . .
+RUN mkdir -p /app/data
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+CMD ["node", "server.js"]
 ```
 
-**Pourquoi un bridge (postMessage) ?**
-- L'iframe sandbox (`allow-scripts` sans `allow-same-origin`) n'a pas accès aux cookies/tokens
-- Le bridge dans la page parent a accès à l'authentification
-- Les données sont isolées par extension : une app ne peut pas accéder aux données d'une autre
+**`server.js`**
+```js
+const express = require('express');
+const Database = require('better-sqlite3');
+const path = require('path');
 
-**Deux espaces de stockage :**
-- `ezgalaxy.storage.*` → données **privées** (isolées par `owner_type` + `owner_id`)
-- `ezgalaxy.app.*` → données **partagées** de l'app (stockées avec `owner_type='app'`)
+const app = express();
+const db = new Database(process.env.DB_PATH || '/app/data/scores.sqlite');
 
-### Architecture mobile (Android / iOS)
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'web')));
 
-```
-┌─────────────────────────────────────────────────────┐
-│  App Mobile (Android / iOS / React Native / Flutter)│
-│  ┌───────────────────────┐                          │
-│  │  ezgalaxy-sdk.js      │                          │
-│  │  configureMobile()    │                          │
-│  │  ezgalaxy.storage.set │──── HTTP direct ────┐    │
-│  └───────────────────────┘                     │    │
-│       ou appels REST natifs (Kotlin/Swift)      │    │
-└────────────────────────────────────────────────│────┘
-                                                 │
-                    Headers:                     │
-                    X-App-Key: ezm_xxx           │
-                    X-Device-UUID: uuid-v4       │
-                                                 │
-┌────────────────────────────────────────────────│────┐
-│  Backend Laravel                               │    │
-│  ┌────────────────────────┐                    │    │
-│  │  AuthenticateMobileApp │◄───────────────────┘    │
-│  │  (middleware)          │                          │
-│  └──────────┬─────────────┘                          │
-│             │                                        │
-│  ┌──────────▼─────────────┐  ┌─────────────────────┐│
-│  │  AppStorageController  │──│  Table: app_storage  ││
-│  └────────────────────────┘  └─────────────────────┘│
-│  ┌────────────────────────┐  ┌─────────────────────┐│
-│  │  AppApiKeyController   │──│  Table: app_api_keys ││
-│  └────────────────────────┘  └─────────────────────┘│
-└──────────────────────────────────────────────────────┘
+// Créer la table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS scores (
+    pseudo TEXT PRIMARY KEY,
+    score INTEGER NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// API
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+app.get('/api/scores', (req, res) => {
+  const scores = db.prepare('SELECT * FROM scores ORDER BY score DESC LIMIT 100').all();
+  res.json(scores);
+});
+
+app.post('/api/scores', (req, res) => {
+  const { pseudo, score } = req.body;
+  db.prepare('INSERT OR REPLACE INTO scores (pseudo, score, updated_at) VALUES (?, ?, datetime("now"))').run(pseudo, score);
+  res.json({ ok: true });
+});
+
+app.listen(3000, () => console.log('Scores app running on :3000'));
 ```
 
-**Différences clés par rapport au mode web :**
-- Pas de bridge postMessage — HTTP direct sur `/api/mobile/...`
-- Auth via clé API (`X-App-Key`) au lieu de Sanctum/cookies
-- Le device est identifié par UUID (`X-Device-UUID`) au lieu du visiteur web
-- Les données `storage.*` sont isolées par device (owner_type = `device`)
-- Les données `app.*` restent partagées (même table, même logique)
+### App statique simple (Nginx)
 
-### API REST mobile
-
-| Méthode | URL | Description |
-|---------|-----|-------------|
-| `GET` | `/api/mobile/{ext}/{col}` | Lister mes records |
-| `GET` | `/api/mobile/{ext}/{col}/{key}` | Lire un record |
-| `PUT` | `/api/mobile/{ext}/{col}/{key}` | Créer/remplacer |
-| `PATCH` | `/api/mobile/{ext}/{col}/{key}` | Mise à jour partielle |
-| `DELETE` | `/api/mobile/{ext}/{col}/{key}` | Supprimer un record |
-| `DELETE` | `/api/mobile/{ext}/{col}` | Vider une collection |
-| `GET` | `/api/mobile/{ext}/{col}/count` | Compter mes records |
-| `GET` | `/api/mobile/info` | Info appareil / clé |
-| | | **Données partagées de l'app** |
-| `GET` | `/api/mobile/@app/{ext}/{col}` | Lister les records app |
-| `GET` | `/api/mobile/@app/{ext}/{col}/{key}` | Lire un record app |
-| `PUT` | `/api/mobile/@app/{ext}/{col}/{key}` | Créer/remplacer app |
-| `PATCH` | `/api/mobile/@app/{ext}/{col}/{key}` | Mise à jour partielle app |
-| `DELETE` | `/api/mobile/@app/{ext}/{col}/{key}` | Supprimer un record app |
-| `DELETE` | `/api/mobile/@app/{ext}/{col}` | Vider une collection app |
-| `GET` | `/api/mobile/@app/{ext}/{col}/count` | Compter les records app |
-
-**Auth mobile :** Clé API (`X-App-Key: ezm_xxx`) + UUID appareil (`X-Device-UUID: uuid-v4`).
-
-### Gestion des clés API (admin)
-
-| Méthode | URL | Description |
-|---------|-----|-------------|
-| `GET` | `/api/admin/mobile-keys` | Lister toutes les clés |
-| `POST` | `/api/admin/mobile-keys` | Créer une clé (retourne la clé en clair — unique fois) |
-| `GET` | `/api/admin/mobile-keys/{id}` | Détails d'une clé |
-| `PUT` | `/api/admin/mobile-keys/{id}` | Modifier (label, enabled, expiry...) |
-| `DELETE` | `/api/admin/mobile-keys/{id}` | Révoquer une clé |
-| `POST` | `/api/admin/mobile-keys/revoke-extension` | Révoquer toutes les clés d'une app |
-
-**Body (POST create) :**
+**`ezcontainer.json`**
 ```json
 {
-  "extension_id": "com.ezgalaxy.my-app",
-  "label": "Production Android",
-  "platform": "android",
-  "rate_limit": 120,
-  "expires_at": "2027-01-01T00:00:00Z"
+  "schemaVersion": 2,
+  "id": "com.ezgalaxy.hello",
+  "title": "Hello World",
+  "function": "Page de démonstration",
+  "version": "1.0.0",
+  "createdAt": "2026-02-22",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 80,
+    "healthcheck": { "endpoint": "/" }
+  }
 }
 ```
 
-**Réponse :**
-```json
-{
-  "message": "API key created. Store it securely — it will not be shown again.",
-  "key": "ezm_a1b2c3d4e5...",
-  "id": 1,
-  "extension_id": "com.ezgalaxy.my-app",
-  "platform": "android"
-}
+**`Dockerfile`**
+```dockerfile
+FROM nginx:alpine
+COPY web/ /usr/share/nginx/html/
+EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost/ || exit 1
 ```
 
 ---
 
-## Configuration serveur (.env)
+## Migration depuis l'ancien système
 
-```env
-# Activer/désactiver l'API de stockage
-EZ_COMMUNITY_API_ENABLED=true
+L'ancien système utilisait un SDK centralisé (`ezgalaxy-sdk.js`) avec stockage dans une table `app_storage` partagée. Ce système a été remplacé par des containers Docker autonomes.
 
-# Extensions autorisées (vide = toutes)
-EZ_COMMUNITY_ALLOWED_EXTENSIONS=
+| Ancien système | Nouveau système |
+|----------------|-----------------|
+| `ezpage.json` (schemaVersion 1) | `ezcontainer.json` (schemaVersion 2) |
+| Fichiers statiques servis par EZGalaxy | Container Docker autonome |
+| SDK `ezgalaxy.storage.*` / `ezgalaxy.app.*` | Base de données propre au container |
+| iframe sandbox + postMessage bridge | Reverse proxy Nginx |
+| Table `app_storage` partagée | Volume persistant par app |
+| API `/api/app-storage/*` | API propre à chaque app |
 
-# Limites
-EZ_COMMUNITY_MAX_JSON_BYTES=16384
-EZ_COMMUNITY_MAX_RECORDS_PER_COLLECTION=2000
-EZ_COMMUNITY_MAX_COLLECTIONS_PER_EXTENSION=100
-EZ_COMMUNITY_MAX_TTL_SECONDS=31536000
-```
-
----
-
-## Migration (base de données)
-
-La table `app_storage` est créée automatiquement lors de l'installation/mise à jour.
-
-Structure :
-
-| Colonne | Type | Description |
-|---------|------|-------------|
-| `extension_id` | string(120) | ID de l'app (ex: `com.ezgalaxy.example`) |
-| `collection` | string(120) | Nom de la collection |
-| `record_key` | string(190) | Clé du record |
-| `owner_type` | string(10) | `'user'` ou `'visitor'` |
-| `owner_id` | string(255) | ID utilisateur ou UUID visiteur |
-| `data` | json | Les données stockées |
-| `expires_at` | timestamp? | Expiration optionnelle |
-
-Contrainte unique : `(extension_id, collection, record_key, owner_type, owner_id)`
-
----
-
-## Ancien API (Community Data) — rétrocompatibilité
-
-L'ancien API REST (`/api/community/...`) reste disponible pour les utilisateurs authentifiés via Sanctum.
-Le nouveau SDK (`/api/app-storage/...`) le remplace avec le support visiteur en plus.
+Pour migrer une app existante :
+1. Créer un `Dockerfile` qui sert l'app
+2. Remplacer `ezpage.json` par `ezcontainer.json` (schemaVersion 2)
+3. Remplacer les appels SDK par une solution de stockage locale (SQLite, fichiers JSON)
+4. Mettre à jour `catalog.json` vers schemaVersion 2
 
 ---
 
 ## FAQ
 
-**Q: Les données persistent-elles après un redémarrage du serveur ?**
-Oui. Les données sont stockées en base de données (MySQL/SQLite).
+**Q: Les données persistent-elles après un redémarrage ?**
+Oui, si vous utilisez un volume déclaré dans `ezcontainer.json`. Les données sont stockées sur le serveur hôte.
 
-**Q: Un visiteur retrouve-t-il ses données ?**
-Oui, tant qu'il utilise le même navigateur (l'UUID visiteur est stocké dans le localStorage du parent).
+**Q: Puis-je utiliser n'importe quelle base de données ?**
+Oui. SQLite, PostgreSQL, Redis, fichiers JSON — le container est autonome. SQLite est recommandé pour la plupart des cas.
 
-**Q: Une app peut-elle lire les données d'une autre app ?**
-Non. Le bridge force l'`extension_id` à celui de l'app chargée. Chaque app est isolée.
+**Q: Les apps peuvent-elles communiquer entre elles ?**
+Oui, via le réseau Docker `ezgalaxy_apps`. Chaque container est accessible par `ezgalaxy-<slug>`.
 
-**Q: Quelle est la taille max des données ?**
-16 Ko par enregistrement (configurable). Pour stocker plus, découpez en plusieurs clés.
+**Q: Comment gérer les migrations de BDD lors d'une mise à jour ?**
+L'app doit gérer ses propres migrations au démarrage (pattern "migrate on boot"). Créez les tables avec `IF NOT EXISTS` et ajoutez les colonnes de manière non destructive.
 
-**Q: Les données sont-elles partagées entre utilisateurs ?**
-Il y a deux espaces de stockage :
-- `ezgalaxy.storage.*` — **privé**, chaque utilisateur ne voit que ses propres données.
-- `ezgalaxy.app.*` — **partagé**, toute personne utilisant l'app peut lire et écrire dans cet espace. Idéal pour les classements, config partagée, etc.
+**Q: Quelle est la taille limite du stockage ?**
+Il n'y a pas de limite imposée par EZGalaxy. La limite est celle du disque du serveur hôte.
 
-**Q: Une app peut-elle lire les données privées d'un autre utilisateur ?**
-Non. Les données `storage.*` restent strictement isolées par utilisateur. Seul l'espace `app.*` est partagé.
-
-**Q: Les données sont-elles partagées entre la version web et la version mobile d'une même app ?**
-Oui pour l'espace `app.*` (partagé). Pour l'espace `storage.*`, les données sont isolées par type de propriétaire : un visiteur web (owner_type=visitor) et un appareil mobile (owner_type=device) ont des données séparées. C'est intentionnel : chaque appareil a ses propres sauvegardes privées, mais les classements et données publiques sont communs.
-
-**Q: Comment obtenir une clé API mobile ?**
-L'admin EZGalaxy génère une clé via Admin → Clés API Mobiles, ou via l'API `POST /api/admin/mobile-keys`. La clé est affichée une seule fois à la création.
-
-**Q: La clé API mobile est-elle liée à un appareil ?**
-Non. La clé est liée à une application (extension_id). L'appareil est identifié par le header `X-Device-UUID`. Plusieurs appareils peuvent utiliser la même clé.
-
-**Q: Comment tester en local sans serveur EZGalaxy ?**
-Ouvrez directement votre `index.html` dans un navigateur. Le SDK utilise `localStorage` automatiquement.
+**Q: Que se passe-t-il lors de la désinstallation ?**
+Le container est arrêté et supprimé, l'image Docker est supprimée, et le dossier de données persistantes (`/var/lib/ezgalaxy_data/containers/<slug>/`) est supprimé.
