@@ -611,8 +611,48 @@
       // Scroll to iOS tutorial
       document.querySelector('[data-tab="ios"]').click();
       document.querySelector('.tutorial').scrollIntoView({ behavior: 'smooth' });
+    } else if (isAndroid) {
+      // No beforeinstallprompt available — show manual instructions
+      _showManualInstallGuide();
+    } else {
+      // Desktop fallback — show tutorial
+      document.querySelector('[data-tab="desktop"]').click();
+      document.querySelector('.tutorial').scrollIntoView({ behavior: 'smooth' });
     }
   });
+
+  // ── Manual install guide overlay (Android fallback) ─────
+  function _showManualInstallGuide() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)';
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:400px;width:100%;padding:24px;text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">⋮</div>
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text)">Installation manuelle</h3>
+        <p style="font-size:14px;color:var(--text-muted);line-height:1.6;margin-bottom:16px">
+          L'installation automatique n'est pas disponible dans ce contexte.<br>
+          Suivez ces étapes :
+        </p>
+        <div style="text-align:left;background:rgba(255,255,255,0.03);border-radius:12px;padding:16px">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+            <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">1</span>
+            <span style="font-size:14px;color:var(--text)">Appuyez sur le menu <strong>⋮</strong> (3 points) en haut à droite de Chrome</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+            <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">2</span>
+            <span style="font-size:14px;color:var(--text)">Appuyez sur <strong>« Installer l'application »</strong> ou <strong>« Ajouter à l'écran d'accueil »</strong></span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">3</span>
+            <span style="font-size:14px;color:var(--text)">Confirmez en appuyant sur <strong>« Installer »</strong></span>
+          </div>
+        </div>
+        <button onclick="this.closest('div[style]').parentElement.remove()" style="margin-top:16px;padding:12px 24px;background:linear-gradient(135deg,#0ea5a4,#6366f1);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%">Compris !</button>
+      </div>
+    `;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
 
   // ── Platform-specific UI ───────────────────
   if (isAndroid) {
@@ -621,9 +661,10 @@
     subtitle.textContent = isChrome ? 'Installation directe via Chrome' : 'Ouvrez dans Chrome pour installer';
     btn.className = 'btn-install btn-install--android';
     if (isChrome) {
+      // Enable immediately — don't wait for beforeinstallprompt (may never fire in iframe)
       btn.textContent = '📥 Installer FinVest';
-      // Will be enabled by beforeinstallprompt
-      note.textContent = 'Le bouton s\'active dès que Chrome est prêt…';
+      btn.disabled = false;
+      note.textContent = '';
     } else {
       btn.textContent = 'Ouvrir dans Chrome';
       btn.disabled = false;
@@ -657,12 +698,12 @@
     title.textContent = 'Installer sur PC';
     subtitle.textContent = (isChrome || isEdge) ? 'Installation disponible' : 'Ouvrez dans Chrome ou Edge';
     btn.className = 'btn-install btn-install--generic';
+    btn.disabled = false;
     if (isChrome || isEdge) {
       btn.textContent = '📥 Installer FinVest';
-      note.textContent = 'Le bouton s\'active dès que le navigateur est prêt…';
+      note.textContent = '';
     } else {
       btn.textContent = '📖 Voir le tutoriel';
-      btn.disabled = false;
     }
     document.querySelector('[data-tab="desktop"]').click();
   }

@@ -235,6 +235,7 @@
     if (view === 'welcome' || s.step === 'welcome') {
       root.className = 'app app--fullscreen';
       hideSidebar();
+      _setAIButtonVisible(false);
       Views.welcome(document.getElementById('main-content') || root);
       return;
     }
@@ -242,14 +243,16 @@
     if (view === 'questionnaire' || s.step === 'questionnaire') {
       root.className = 'app app--fullscreen';
       hideSidebar();
+      _setAIButtonVisible(false);
       const main = document.getElementById('main-content') || root;
       Views.questionnaire(main);
       return;
     }
 
-    // Dashboard mode — show sidebar
+    // Dashboard mode — show sidebar + AI button
     root.className = 'app app--dashboard';
     showSidebar();
+    _setAIButtonVisible(true);
     renderCurrentView(view);
     updateCloudIndicator();
 
@@ -294,6 +297,17 @@
   }
 
   /* ---------- Init -------------------------------------------- */
+  /* ---------- AI button visibility helper -------------------- */
+  function _setAIButtonVisible(visible) {
+    const btn = document.getElementById('ai-toggle-btn');
+    if (btn) btn.style.display = visible ? '' : 'none';
+    // Also hide/show the panel if it's open and we're leaving dashboard
+    if (!visible) {
+      const panel = document.getElementById('ai-panel');
+      if (panel) panel.style.display = 'none';
+    }
+  }
+
   /* ---------- Desktop install popup (web version) ------------- */
   let _desktopDeferredPrompt = null;
   window.addEventListener('beforeinstallprompt', e => {
