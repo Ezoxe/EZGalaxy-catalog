@@ -1,0 +1,45 @@
+{
+  "name": "Game Studio — Créateur de Jeux",
+  "short_name": "Game Studio",
+  "description": "Créateur de mini-jeux vidéo ultra complet : éditeur visuel de scènes, moteurs 2D et 3D, physique, IA, éclairage, scripting visuel, 200+ sprites, 40+ modèles 3D, 60+ sons, 40+ tuiles, particules, 6 templates (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner). Sauvegarde via Community Data API.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0a0f1c",
+  "background_color": "#0a0f1c",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": [
+    "games",
+    "developer tools"
+  ],
+  "icons": [
+    {
+      "src": "./icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/icon-maskable-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

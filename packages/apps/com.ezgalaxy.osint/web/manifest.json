@@ -1,0 +1,45 @@
+{
+  "name": "OSINT Suite",
+  "short_name": "OSINT Suite",
+  "description": "OSINT : recherche universelle + résumé global + analyse + sauvegardes via Community Data API. Mode conforme par défaut, mode agressif réservé aux admins via proxy.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0a0f1c",
+  "background_color": "#0a0f1c",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": [
+    "security",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "./icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/icon-maskable-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
