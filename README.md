@@ -1,4 +1,5 @@
-﻿# Catalogue EZGalaxy — Applications Docker
+﻿
+# Catalogue EZGalaxy — Applications Docker
 
 Ce dossier contient le format attendu par EZGalaxy pour lister et installer des **applications Docker** depuis GitHub.
 
@@ -10,7 +11,7 @@ Chaque application du catalogue est un **container Docker** indépendant :
 - EZGalaxy télécharge le Dockerfile depuis GitHub
 - Construit l'image Docker localement
 - Démarre le container sur un port dédié (plage 10000-10999)
-- Configure Nginx en reverse proxy pour servir l'app sous `/apps/{slug}/`
+- Configure Nginx en reverse proxy pour servir l'app sous `/p/{slug}/`
 - Surveille la santé du container via des health checks automatiques
 
 ## 1) Ajouter une app au dépôt officiel (Pull Request)
@@ -145,7 +146,7 @@ EZGalaxy montera automatiquement le dossier persistant vers le chemin déclaré 
 ## 8) Réseau
 
 Tous les containers sont connectés au réseau Docker `ezgalaxy_apps`.
-Nginx sert de reverse proxy : chaque app est accessible via `/apps/<slug>/`.
+Nginx sert de reverse proxy : chaque app est accessible via `/p/<slug>/`.
 
 Les apps **n'ont pas besoin** de gérer HTTPS — Nginx s'en charge.
 

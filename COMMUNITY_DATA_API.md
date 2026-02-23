@@ -163,7 +163,7 @@ const data = await response.json();
 Les apps sont servies par Nginx en reverse proxy :
 
 ```
-https://<domain>/apps/<slug>/  →  http://127.0.0.1:<port>/
+https://<domain>/p/<slug>/  →  http://127.0.0.1:<port>/
 ```
 
 Les utilisateurs accèdent à l'app via l'URL publique. Le container n'a pas besoin de gérer HTTPS.

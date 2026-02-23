@@ -5,7 +5,7 @@ Ce document est destiné aux outils IA (Copilot/ChatGPT/etc.) pour générer des
 ## Contexte technique (important)
 
 - Une application du catalogue est un **container Docker** construit depuis un Dockerfile hébergé sur GitHub.
-- EZGalaxy clone le dépôt, build l'image, démarre le container, et le sert via un **reverse proxy Nginx** sous `/apps/<slug>/`.
+- EZGalaxy clone le dépôt, build l'image, démarre le container, et le sert via un **reverse proxy Nginx** sous `/p/<slug>/`.
 - Chaque container tourne sur un port dédié (plage 10000-10999) sur le réseau Docker `ezgalaxy_apps`.
 - Le container doit exposer un seul **port HTTP** et inclure un **HEALTHCHECK**.
 
@@ -62,7 +62,7 @@ FROM nginx:alpine
 COPY web/ /usr/share/nginx/html/
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD curl -f http://localhost/ || exit 1
+  CMD wget -q --spider http://localhost/ || exit 1
 ```
 
 #### `web/index.html` (contenu de l'app)
@@ -84,7 +84,7 @@ FROM nginx:alpine
 COPY web/ /usr/share/nginx/html/
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD curl -f http://localhost/ || exit 1
+  CMD wget -q --spider http://localhost/ || exit 1
 ```
 
 ### App Node.js
@@ -97,7 +97,7 @@ RUN npm ci --production
 COPY . .
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD wget -q --spider http://localhost:3000/health || exit 1
 CMD ["node", "server.js"]
 ```
 
@@ -120,6 +120,8 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
+> **Note** : `python:3.12-slim` inclut `curl`. Pour les images Alpine, utilisez `wget -q --spider` à la place.
+
 ### App PHP
 
 ```dockerfile
@@ -135,7 +137,6 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 
 ```dockerfile
 FROM node:20-alpine
-RUN apk add --no-cache curl
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --production
@@ -144,7 +145,7 @@ COPY . .
 RUN mkdir -p /app/data
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD wget -q --spider http://localhost:3000/health || exit 1
 CMD ["node", "server.js"]
 ```
 
@@ -212,7 +213,7 @@ Elles sont supprimées uniquement lors de la désinstallation.
 
 - Tous les containers sont sur le réseau Docker `ezgalaxy_apps`.
 - Les containers peuvent communiquer entre eux via leur nom (`ezgalaxy-<slug>`).
-- Nginx sert de reverse proxy : l'app est accessible via `https://<domain>/apps/<slug>/`.
+- Nginx sert de reverse proxy : l'app est accessible via `https://<domain>/p/<slug>/`.
 - **Pas besoin de gérer HTTPS** dans le container — Nginx s'en charge.
 
 ## Prompt IA (exemple)
