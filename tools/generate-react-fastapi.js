@@ -59,14 +59,24 @@ volumes:
 
 function ezcontainerJson(id, title, fn, port) {
   return JSON.stringify({
+    schemaVersion: 2,
     id,
     title,
-    description: fn,
-    containerPort: 8000,
-    hostPort: port,
-    healthCheck: "/health",
-    runtime: "react-fastapi",
-    dataVolume: "app-data"
+    function: fn,
+    version: "1.0.0",
+    createdAt: new Date().toISOString().slice(0, 10),
+    author: "EZGalaxy",
+    docker: {
+      dockerfile: "Dockerfile",
+      port: 8000,
+      env: { DB_PATH: "/app/data/database.sqlite" },
+      volumes: ["/app/data"],
+      healthcheck: {
+        endpoint: "/health",
+        interval: 30,
+        timeout: 10
+      }
+    }
   }, null, 2) + '\n';
 }
 

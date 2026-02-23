@@ -1,10 +1,24 @@
 {
+  "schemaVersion": 2,
   "id": "network-sim",
   "title": "Network Sim",
-  "description": "Simulation réseau (package standard)",
-  "containerPort": 8000,
-  "hostPort": 10002,
-  "healthCheck": "/health",
-  "runtime": "react-fastapi",
-  "dataVolume": "app-data"
+  "function": "Simulation réseau (package standard)",
+  "version": "1.1.0",
+  "createdAt": "2025-07-08",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 8000,
+    "env": {
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
 }

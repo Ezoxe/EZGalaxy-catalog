@@ -1,10 +1,24 @@
 {
+  "schemaVersion": 2,
   "id": "com.ezgalaxy.terminal",
   "title": "Terminal Customizer",
-  "description": "Générateur de fichiers de personnalisation pour terminaux (Kitty, Alacritty, WezTerm, Windows Terminal). Éditeur de couleurs graphique, preview live, import/export, thèmes prédéfinis, presets via Community Data API.",
-  "containerPort": 8000,
-  "hostPort": 10009,
-  "healthCheck": "/health",
-  "runtime": "react-fastapi",
-  "dataVolume": "app-data"
+  "function": "Générateur de fichiers de personnalisation pour terminaux (Kitty, Alacritty, WezTerm, Windows Terminal). Éditeur de couleurs graphique, preview live, import/export, thèmes prédéfinis, presets via Community Data API.",
+  "version": "1.0.0",
+  "createdAt": "2025-07-08",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 8000,
+    "env": {
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
 }

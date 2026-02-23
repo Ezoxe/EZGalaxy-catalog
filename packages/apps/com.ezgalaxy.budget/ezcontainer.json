@@ -1,10 +1,24 @@
 {
+  "schemaVersion": 2,
   "id": "com.ezgalaxy.budget",
   "title": "Budget Graphique",
-  "description": "Gestion de budget ultra graphique (SPA) avec export chiffré et sauvegarde cloud optionnelle via Community Data API",
-  "containerPort": 8000,
-  "hostPort": 10006,
-  "healthCheck": "/health",
-  "runtime": "react-fastapi",
-  "dataVolume": "app-data"
+  "function": "Gestion de budget ultra graphique (SPA) avec export chiffré et sauvegarde cloud optionnelle via Community Data API",
+  "version": "1.0.0",
+  "createdAt": "2025-07-08",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 8000,
+    "env": {
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
 }

@@ -1,10 +1,24 @@
 {
+  "schemaVersion": 2,
   "id": "com.ezgalaxy.pomodoro",
   "title": "Pomodoro Pro",
-  "description": "Minuteur Pomodoro avec statistiques de sessions, graphiques et personnalisation complète",
-  "containerPort": 8000,
-  "hostPort": 10016,
-  "healthCheck": "/health",
-  "runtime": "react-fastapi",
-  "dataVolume": "app-data"
+  "function": "Minuteur Pomodoro avec statistiques de sessions, graphiques et personnalisation complète",
+  "version": "1.0.0",
+  "createdAt": "2025-07-08",
+  "author": "EZGalaxy",
+  "docker": {
+    "dockerfile": "Dockerfile",
+    "port": 8000,
+    "env": {
+      "DB_PATH": "/app/data/database.sqlite"
+    },
+    "volumes": [
+      "/app/data"
+    ],
+    "healthcheck": {
+      "endpoint": "/health",
+      "interval": 30,
+      "timeout": 10
+    }
+  }
 }

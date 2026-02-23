@@ -23,7 +23,6 @@ if(!(Test-Path $appsRoot)){
 $apps = Get-ChildItem -LiteralPath $appsRoot -Directory
 $errors = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
-$usedPorts = @{}
 
 foreach($app in $apps){
   $appName = $app.Name
@@ -44,20 +43,25 @@ foreach($app in $apps){
     continue
   }
 
-  # Required fields
+  # Required fields (schemaVersion 2 format)
+  if($manifest.schemaVersion -ne 2) { $errors.Add("[$appName] ezcontainer.json.schemaVersion must be 2 (got: $($manifest.schemaVersion))") }
   if([string]::IsNullOrWhiteSpace($manifest.id)) { $errors.Add("[$appName] ezcontainer.json.id missing") }
   if([string]::IsNullOrWhiteSpace($manifest.title)) { $errors.Add("[$appName] ezcontainer.json.title missing") }
-  if(-not $manifest.containerPort) { $errors.Add("[$appName] ezcontainer.json.containerPort missing") }
-  if(-not $manifest.hostPort) { $errors.Add("[$appName] ezcontainer.json.hostPort missing") }
-  if($manifest.containerPort -ne 8000) { $errors.Add("[$appName] ezcontainer.json.containerPort must be 8000 (got: $($manifest.containerPort))") }
-  if($manifest.runtime -ne 'react-fastapi') { $warnings.Add("[$appName] ezcontainer.json.runtime should be 'react-fastapi' (got: $($manifest.runtime))") }
+  if([string]::IsNullOrWhiteSpace($manifest.function)) { $errors.Add("[$appName] ezcontainer.json.function missing") }
+  if([string]::IsNullOrWhiteSpace($manifest.version)) { $errors.Add("[$appName] ezcontainer.json.version missing") }
 
-  # Port uniqueness
-  $hp = $manifest.hostPort
-  if($usedPorts.ContainsKey($hp)) {
-    $errors.Add("[$appName] Duplicate hostPort $hp (also used by $($usedPorts[$hp]))")
+  # Docker block
+  if(-not $manifest.docker) {
+    $errors.Add("[$appName] ezcontainer.json.docker block missing")
   } else {
-    $usedPorts[$hp] = $appName
+    if(-not $manifest.docker.port) { $errors.Add("[$appName] ezcontainer.json.docker.port missing") }
+    elseif($manifest.docker.port -ne 8000) { $errors.Add("[$appName] ezcontainer.json.docker.port must be 8000 (got: $($manifest.docker.port))") }
+    if([string]::IsNullOrWhiteSpace($manifest.docker.dockerfile)) { $warnings.Add("[$appName] ezcontainer.json.docker.dockerfile not set") }
+    if(-not $manifest.docker.healthcheck) {
+      $warnings.Add("[$appName] ezcontainer.json.docker.healthcheck block missing")
+    } elseif([string]::IsNullOrWhiteSpace($manifest.docker.healthcheck.endpoint)) {
+      $warnings.Add("[$appName] ezcontainer.json.docker.healthcheck.endpoint missing")
+    }
   }
 
   # ---- Dockerfile
