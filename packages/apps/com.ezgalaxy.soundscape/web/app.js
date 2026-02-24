@@ -362,6 +362,8 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const anyActive = Object.values(channels).some(c => c.active);
       if (anyActive) {
+        // Save "was active" state BEFORE pausing (so we can restore later)
+        Object.values(channels).forEach(c => c._wasActive = c.active);
         // Pause all
         Object.values(channels).forEach(c => { if (c.active) { stopChannel(c); c.active = false; } });
       } else {
@@ -373,8 +375,6 @@
         });
         if (!started) { channels.rain.volume = 0.5; startChannel(channels.rain); channels.rain.active = true; }
       }
-      // Save "was active" state for pause/resume
-      Object.values(channels).forEach(c => c._wasActive = c.active);
       updateUI();
       renderChannels();
     });

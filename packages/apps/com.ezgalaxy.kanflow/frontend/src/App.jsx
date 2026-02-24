@@ -10,24 +10,30 @@ export default function App() {
   const [form, setForm] = useState({ title: '', desc: '', tag: '', due: '', column: 'todo' });
 
   const load = useCallback(async () => {
-    const res = await storage.list('boards', { limit: 20 });
-    const items = (res.items || []).map(i => ({ key: i.record_key, ...i.data }));
-    setBoards(items);
-    if (!activeBoard && items.length > 0) setActiveBoard(items[0]);
+    try {
+      const res = await storage.list('boards', { limit: 20 });
+      const items = (res.items || []).map(i => ({ key: i.record_key, ...i.data }));
+      setBoards(items);
+      if (!activeBoard && items.length > 0) setActiveBoard(items[0]);
+    } catch (e) { console.error('KanFlow: load failed', e); }
   }, [activeBoard]);
   useEffect(() => { load(); }, [load]);
 
   const createBoard = async () => {
     const key = 'board-' + Date.now();
     const board = { name: 'Nouveau tableau', columns: ['todo','doing','done'], cards: [] };
-    await storage.set('boards', key, board);
-    load();
+    try {
+      await storage.set('boards', key, board);
+      load();
+    } catch (e) { console.error('KanFlow: create failed', e); }
   };
 
   const saveBoard = async (board) => {
-    await storage.set('boards', board.key, { name: board.name, columns: board.columns, cards: board.cards });
-    setActiveBoard(board);
-    load();
+    try {
+      await storage.set('boards', board.key, { name: board.name, columns: board.columns, cards: board.cards });
+      setActiveBoard(board);
+      load();
+    } catch (e) { console.error('KanFlow: save failed', e); }
   };
 
   const addCard = () => {

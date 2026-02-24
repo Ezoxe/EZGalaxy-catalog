@@ -8,25 +8,34 @@ export default function App() {
   const [activePoll, setActivePoll] = useState(null);
 
   const load = useCallback(async () => {
-    const res = await appStorage.list('polls', { limit: 50, sort_by: 'updated_at', sort_order: 'desc' });
-    setPolls((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await appStorage.list('polls', { limit: 50, sort_by: 'updated_at', sort_order: 'desc' });
+      setPolls((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('PollMaker: load failed', e); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const create = async () => {
     if (!form.question || form.options.filter(o => o.trim()).length < 2) return;
     const key = 'poll-' + Date.now();
-    await appStorage.set('polls', key, { question: form.question, options: form.options.filter(o => o.trim()).map(o => ({ text: o, votes: 0 })), created: new Date().toISOString() });
-    setForm({ question: '', options: ['', ''] }); setTab('list'); load();
+    try {
+      await appStorage.set('polls', key, { question: form.question, options: form.options.filter(o => o.trim()).map(o => ({ text: o, votes: 0 })), created: new Date().toISOString() });
+      setForm({ question: '', options: ['', ''] }); setTab('list'); load();
+    } catch (e) { console.error('PollMaker: create failed', e); }
   };
 
   const vote = async (poll, optIdx) => {
     const updated = { ...poll, options: poll.options.map((o, i) => i === optIdx ? { ...o, votes: (o.votes||0) + 1 } : o) };
-    await appStorage.set('polls', poll.key, updated);
-    load();
+    try {
+      await appStorage.set('polls', poll.key, updated);
+      load();
+    } catch (e) { console.error('PollMaker: vote failed', e); }
   };
 
-  const deletePoll = async (key) => { await appStorage.delete('polls', key); load(); };
+  const deletePoll = async (key) => {
+    try { await appStorage.delete('polls', key); load(); }
+    catch (e) { console.error('PollMaker: delete failed', e); }
+  };
 
   const totalVotes = (poll) => poll.options.reduce((s, o) => s + (o.votes || 0), 0);
 

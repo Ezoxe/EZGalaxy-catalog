@@ -12,21 +12,30 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const res = await storage.list('tasks', { limit: 200 });
-    setTasks((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('tasks', { limit: 200 });
+      setTasks((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('ProjectHub: load failed', e); }
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     const key = modal?.key || 'task-' + Date.now();
-    await storage.set('tasks', key, { ...form, updated: new Date().toISOString() });
-    setModal(null); setForm({ title: '', desc: '', status: 'todo', priority: 'medium', assignee: '' }); load();
+    try {
+      await storage.set('tasks', key, { ...form, updated: new Date().toISOString() });
+      setModal(null); setForm({ title: '', desc: '', status: 'todo', priority: 'medium', assignee: '' }); load();
+    } catch (e) { console.error('ProjectHub: save failed', e); }
   };
-  const remove = async (key) => { await storage.delete('tasks', key); load(); };
+  const remove = async (key) => {
+    try { await storage.delete('tasks', key); load(); }
+    catch (e) { console.error('ProjectHub: remove failed', e); }
+  };
   const moveTask = async (task, newStatus) => {
-    await storage.set('tasks', task.key, { ...task, status: newStatus, updated: new Date().toISOString() });
-    load();
+    try {
+      await storage.set('tasks', task.key, { ...task, status: newStatus, updated: new Date().toISOString() });
+      load();
+    } catch (e) { console.error('ProjectHub: move failed', e); }
   };
 
   const priorities = { high: '🔴', medium: '🟡', low: '🟢' };

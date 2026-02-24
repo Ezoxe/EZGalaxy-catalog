@@ -7,8 +7,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const res = await storage.list('habits', { limit: 50 });
-    setHabits((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('habits', { limit: 50 });
+      setHabits((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('Habits: load failed', e); }
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -16,8 +18,10 @@ export default function App() {
   const add = async () => {
     if (!newHabit.trim()) return;
     const key = 'habit-' + Date.now();
-    await storage.set('habits', key, { name: newHabit, checks: {}, streak: 0, created: new Date().toISOString() });
-    setNewHabit(''); load();
+    try {
+      await storage.set('habits', key, { name: newHabit, checks: {}, streak: 0, created: new Date().toISOString() });
+      setNewHabit(''); load();
+    } catch (e) { console.error('Habits: add failed', e); }
   };
 
   const toggle = async (habit) => {
@@ -27,11 +31,16 @@ export default function App() {
     // calc streak
     let streak = 0, d = new Date();
     while (checks[d.toISOString().slice(0,10)]) { streak++; d.setDate(d.getDate()-1); }
-    await storage.set('habits', habit.key, { ...habit, checks, streak });
-    load();
+    try {
+      await storage.set('habits', habit.key, { ...habit, checks, streak });
+      load();
+    } catch (e) { console.error('Habits: toggle failed', e); }
   };
 
-  const remove = async (key) => { await storage.delete('habits', key); load(); };
+  const remove = async (key) => {
+    try { await storage.delete('habits', key); load(); }
+    catch (e) { console.error('Habits: remove failed', e); }
+  };
 
   const today = new Date().toISOString().slice(0, 10);
   const last30 = Array.from({length:30}, (_, i) => { const d = new Date(); d.setDate(d.getDate()-29+i); return d.toISOString().slice(0,10); });

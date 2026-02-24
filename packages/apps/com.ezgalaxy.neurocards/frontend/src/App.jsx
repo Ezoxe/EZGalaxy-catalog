@@ -23,16 +23,20 @@ export default function App() {
   const [form, setForm] = useState({ front: '', back: '' });
 
   const load = useCallback(async () => {
-    const res = await storage.list('decks', { limit: 30 });
-    setDecks((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('decks', { limit: 30 });
+      setDecks((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('NeuroCards: load failed', e); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const createDeck = async () => {
     const name = prompt('Nom du deck:');
     if (!name) return;
-    await storage.set('decks', 'deck-' + Date.now(), { name, cards: [] });
-    load();
+    try {
+      await storage.set('decks', 'deck-' + Date.now(), { name, cards: [] });
+      load();
+    } catch (e) { console.error('NeuroCards: create failed', e); }
   };
 
   const openDeck = (d) => { setActiveDeck(d); setCards(d.cards || []); setMode('list'); };
@@ -41,8 +45,10 @@ export default function App() {
     if (!form.front || !form.back || !activeDeck) return;
     const newCard = { id: Date.now(), front: form.front, back: form.back, ef: 2.5, interval: 0, repetitions: 0, nextReview: 0 };
     const updated = { ...activeDeck, cards: [...cards, newCard] };
-    await storage.set('decks', activeDeck.key, updated);
-    setCards(updated.cards); setActiveDeck(updated); setForm({ front: '', back: '' }); load();
+    try {
+      await storage.set('decks', activeDeck.key, updated);
+      setCards(updated.cards); setActiveDeck(updated); setForm({ front: '', back: '' }); load();
+    } catch (e) { console.error('NeuroCards: add card failed', e); }
   };
 
   const startReview = () => {
@@ -56,10 +62,12 @@ export default function App() {
     const updated = { ...card, ...sm2(card, quality) };
     const allCards = activeDeck.cards.map(c => c.id === card.id ? updated : c);
     const deck = { ...activeDeck, cards: allCards };
-    await storage.set('decks', activeDeck.key, deck);
-    setActiveDeck(deck);
-    if (reviewIdx + 1 < cards.length) { setReviewIdx(reviewIdx + 1); setShowAnswer(false); }
-    else { setMode('list'); setCards(allCards); load(); }
+    try {
+      await storage.set('decks', activeDeck.key, deck);
+      setActiveDeck(deck);
+      if (reviewIdx + 1 < cards.length) { setReviewIdx(reviewIdx + 1); setShowAnswer(false); }
+      else { setMode('list'); setCards(allCards); load(); }
+    } catch (e) { console.error('NeuroCards: rate failed', e); }
   };
 
   if (!activeDeck) return (

@@ -15,14 +15,18 @@ export default function App() {
   const [saved, setSaved] = useState([]);
 
   const load = useCallback(async () => {
-    const res = await storage.list('themes', { limit: 50 });
-    setSaved((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('themes', { limit: 50 });
+      setSaved((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('Terminal: load failed', e); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {
-    await storage.set('themes', 'theme-' + Date.now(), { name, colors, format });
-    load();
+    try {
+      await storage.set('themes', 'theme-' + Date.now(), { name, colors, format });
+      load();
+    } catch (e) { console.error('Terminal: save failed', e); }
   };
 
   const exportTheme = () => {

@@ -551,13 +551,14 @@
     }
 
     // Fuzzy match with Levenshtein (tolerance based on word length)
-    const maxDistance = Math.min(2, Math.floor(normalizedName.length / 4));
-    if (levenshtein(normalizedAnswer, normalizedName) <= maxDistance) return true;
+    // For short names (<=4 chars), require exact match to avoid confusing similar countries (e.g. Iran/Irak)
+    const maxDistance = normalizedName.length <= 4 ? 0 : Math.min(2, Math.floor(normalizedName.length / 4));
+    if (maxDistance > 0 && levenshtein(normalizedAnswer, normalizedName) <= maxDistance) return true;
 
     for (const alt of country.alt) {
       const normAlt = normalize(alt);
-      const maxDistAlt = Math.min(2, Math.floor(normAlt.length / 4));
-      if (levenshtein(normalizedAnswer, normAlt) <= maxDistAlt) return true;
+      const maxDistAlt = normAlt.length <= 4 ? 0 : Math.min(2, Math.floor(normAlt.length / 4));
+      if (maxDistAlt > 0 && levenshtein(normalizedAnswer, normAlt) <= maxDistAlt) return true;
     }
 
     return false;

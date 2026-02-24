@@ -262,9 +262,23 @@
 
   async function submitVote() {
     if (!selectedOpts.length || !currentPollId) return;
+    // Prevent double-voting: check if already voted
+    if (myVotes[currentPollId]) return;
     const poll = polls.find(p => p.id === currentPollId);
     if (!poll) return;
+    // Generate a persistent voter ID for fingerprinting
+    let voterId = localStorage.getItem('pm_voter_id');
+    if (!voterId) { voterId = Date.now().toString(36) + Math.random().toString(36).slice(2); localStorage.setItem('pm_voter_id', voterId); }
+    // Check if this voter already voted on this poll (server-side dedup)
+    if (!poll._voters) poll._voters = [];
+    if (poll._voters.includes(voterId)) {
+      myVotes[currentPollId] = [...selectedOpts];
+      await savePrivate(VOTES_KEY, myVotes);
+      openVoteModal(poll);
+      return;
+    }
     selectedOpts.forEach(i => { if (poll.options[i]) poll.options[i].votes++; });
+    poll._voters.push(voterId);
     myVotes[currentPollId] = [...selectedOpts];
     await saveShared(POLLS_KEY, polls);
     await savePrivate(VOTES_KEY, myVotes);

@@ -209,7 +209,8 @@
         if (viewFn) {
           viewFn(main);
         } else {
-          main.innerHTML = `<div class="empty-state"><h3>Vue inconnue : ${view}</h3></div>`;
+          const safeView = String(view).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+          main.innerHTML = `<div class="empty-state"><h3>Vue inconnue : ${safeView}</h3></div>`;
         }
       }
 

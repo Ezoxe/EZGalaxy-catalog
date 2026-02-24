@@ -5,6 +5,14 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
+  /* ── URL sanitization for XSS prevention ── */
+  function sanitizeUrl(url) {
+    const decoded = url.trim();
+    // Block dangerous protocols
+    if (/^\s*(javascript|vbscript|data)\s*:/i.test(decoded)) return '';
+    return decoded;
+  }
+
   /* ── Minimal Markdown parser (no external lib needed) ── */
   function parseMD(md) {
     let html = md;
@@ -27,17 +35,24 @@
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     // Strikethrough
     html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    // Images (BEFORE links to avoid being consumed by link regex)
+    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
+      const safe = sanitizeUrl(url);
+      return safe ? `<img src="${safe}" alt="${alt}" />` : `[${alt}]`;
+    });
     // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    // Images
-    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
+      const safe = sanitizeUrl(url);
+      return safe ? `<a href="${safe}" target="_blank" rel="noopener">${text}</a>` : text;
+    });
     // HR
     html = html.replace(/^---$/gm, '<hr>');
     // Unordered lists
-    html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
-    html = html.replace(/((<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+    html = html.replace(/^[\-\*] (.+)$/gm, '<li class="ul-item">$1</li>');
+    html = html.replace(/((<li class="ul-item">.*<\/li>\n?)+)/g, (m) => '<ul>' + m.replace(/ class="ul-item"/g, '') + '</ul>');
     // Ordered lists
-    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/^\d+\. (.+)$/gm, '<li class="ol-item">$1</li>');
+    html = html.replace(/((<li class="ol-item">.*<\/li>\n?)+)/g, (m) => '<ol>' + m.replace(/ class="ol-item"/g, '') + '</ol>');
     // Tables
     html = html.replace(/^\|(.+)\|\s*$/gm, (match, content) => {
       const cells = content.split('|').map(c => c.trim());

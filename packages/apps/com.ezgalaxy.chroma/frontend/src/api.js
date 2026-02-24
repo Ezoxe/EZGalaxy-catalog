@@ -14,6 +14,7 @@ function buildQuery(options) {
 
 async function apiGet(url) {
   const r = await fetch(BASE + url);
+  if (!r.ok) throw new Error(`API error ${r.status}: ${r.statusText}`);
   return r.json();
 }
 
@@ -23,11 +24,13 @@ async function apiPut(url, data) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data })
   });
+  if (!r.ok) throw new Error(`API error ${r.status}: ${r.statusText}`);
   return r.json();
 }
 
 async function apiDelete(url) {
   const r = await fetch(BASE + url, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`API error ${r.status}: ${r.statusText}`);
   return r.json();
 }
 

@@ -77,7 +77,7 @@ export default function App() {
                   <p style={{color:'var(--text2)',fontSize:12}}>{new Date(s.date).toLocaleString()}</p>
                 </div>
                 <div className="flex">
-                  <button onClick={() => { setQuery(s.query); setTab('search'); search(); }}>🔍</button>
+                  <button onClick={() => { setQuery(s.query); setTab('search'); setTimeout(() => { const btn = document.querySelector('.flex button'); if(btn) btn.click(); }, 0); }}>🔍</button>
                   <button onClick={() => deleteSaved(s.key)} style={{background:'var(--danger)'}}>🗑</button>
                 </div>
               </div>

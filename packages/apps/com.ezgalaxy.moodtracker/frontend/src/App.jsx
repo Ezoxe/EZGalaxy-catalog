@@ -17,16 +17,20 @@ export default function App() {
   const today = new Date().toISOString().slice(0, 10);
 
   const load = useCallback(async () => {
-    const res = await storage.list('moods', { limit: 90, sort_by: 'updated_at', sort_order: 'desc' });
-    setEntries((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('moods', { limit: 90, sort_by: 'updated_at', sort_order: 'desc' });
+      setEntries((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('MoodTracker: load failed', e); }
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const logMood = async (mood) => {
     const key = 'mood-' + today;
-    await storage.set('moods', key, { date: today, mood: mood.value, emoji: mood.emoji, label: mood.label, note, color: mood.color });
-    setNote(''); load();
+    try {
+      await storage.set('moods', key, { date: today, mood: mood.value, emoji: mood.emoji, label: mood.label, note, color: mood.color });
+      setNote(''); load();
+    } catch (e) { console.error('MoodTracker: log failed', e); }
   };
 
   const todayEntry = entries.find(e => e.date === today);

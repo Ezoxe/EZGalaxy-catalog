@@ -5,6 +5,12 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
+  /* ── XSS prevention ── */
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   const TAGS = [
     { key: 'red', label: 'Urgent', cls: 'kf-tag-red' },
     { key: 'blue', label: 'Feature', cls: 'kf-tag-blue' },
@@ -80,7 +86,7 @@
       <div class="kf-header">
         <h1>📋 KanFlow</h1>
         <select id="kf-board-select">
-          ${state.boards.map(b => `<option value="${b.id}" ${b.id === state.activeBoardId ? 'selected' : ''}>${b.name}</option>`).join('')}
+          ${state.boards.map(b => `<option value="${esc(b.id)}" ${b.id === state.activeBoardId ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
         </select>
         <div class="kf-header-actions">
           <button data-action="new-board">+ Tableau</button>
@@ -93,7 +99,7 @@
         ${board.columns.map(col => `
           <div class="kf-column" data-colid="${col.id}">
             <div class="kf-col-header">
-              <h3>${col.title} <span class="count">${col.cards.length}</span></h3>
+              <h3>${esc(col.title)} <span class="count">${col.cards.length}</span></h3>
               <div style="display:flex;gap:2px">
                 <button data-addcard="${col.id}" title="Ajouter une carte">+</button>
                 ${board.columns.length > 1 ? `<button data-delcol="${col.id}" title="Supprimer">✕</button>` : ''}
@@ -122,7 +128,7 @@
           <button data-editcard="${card.id}" data-col="${colId}">✏</button>
           <button data-delcard="${card.id}" data-col="${colId}">✕</button>
         </div>
-        <div class="kf-card-title">${card.title}</div>
+        <div class="kf-card-title">${esc(card.title)}</div>
         <div class="kf-card-meta">
           ${(card.tags || []).map(t => {
             const tag = TAGS.find(tg => tg.key === t);
@@ -144,7 +150,7 @@
             <h2>${m.editing ? '✏️ Modifier la carte' : '➕ Nouvelle carte'}</h2>
             <div class="kf-modal-field">
               <label>Titre</label>
-              <input type="text" id="kf-card-title" value="${card.title}" maxlength="100" placeholder="Titre de la tâche" />
+              <input type="text" id="kf-card-title" value="${esc(card.title)}" maxlength="100" placeholder="Titre de la tâche" />
             </div>
             <div class="kf-modal-field">
               <label>Description</label>

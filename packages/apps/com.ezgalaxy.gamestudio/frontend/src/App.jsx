@@ -15,18 +15,22 @@ export default function App() {
   const canvasRef = useRef(null);
 
   const load = useCallback(async () => {
-    const res = await storage.list('projects', { limit: 50 });
-    setProjects((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('projects', { limit: 50 });
+      setProjects((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('GameStudio: load failed', e); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const newProject = async (template) => {
     const key = 'proj-' + Date.now();
     const data = { name: `Mon ${template}`, template, sprites: [], created: new Date().toISOString() };
-    await storage.set('projects', key, data);
-    setCurrent({ key, ...data });
-    setSprites([]);
-    load();
+    try {
+      await storage.set('projects', key, data);
+      setCurrent({ key, ...data });
+      setSprites([]);
+      load();
+    } catch (e) { console.error('GameStudio: create failed', e); }
   };
 
   const openProject = async (p) => {
@@ -36,14 +40,18 @@ export default function App() {
 
   const saveProject = async () => {
     if (!current) return;
-    await storage.set('projects', current.key, { ...current, sprites });
-    load();
+    try {
+      await storage.set('projects', current.key, { ...current, sprites });
+      load();
+    } catch (e) { console.error('GameStudio: save failed', e); }
   };
 
   const deleteProject = async (key) => {
-    await storage.delete('projects', key);
-    if (current?.key === key) { setCurrent(null); setSprites([]); }
-    load();
+    try {
+      await storage.delete('projects', key);
+      if (current?.key === key) { setCurrent(null); setSprites([]); }
+      load();
+    } catch (e) { console.error('GameStudio: delete failed', e); }
   };
 
   const draw = useCallback(() => {

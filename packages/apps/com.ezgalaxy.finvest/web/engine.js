@@ -176,11 +176,15 @@
     while (items.some(i => i.balance > 0.01) && month < maxMonths) {
       month++;
       let extra = 0;
+      // First pass: collect freed-up min payments from fully-paid debts
       for (const item of items) {
         if (item.balance <= 0.01) {
           extra += item.minPayment;
-          continue;
         }
+      }
+      // Second pass: apply interest and payments to remaining debts
+      for (const item of items) {
+        if (item.balance <= 0.01) continue;
         item.balance += item.balance * item.rate;
         let payment = item.minPayment + extra;
         extra = 0;

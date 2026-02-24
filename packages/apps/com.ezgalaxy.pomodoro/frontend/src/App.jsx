@@ -30,7 +30,7 @@ export default function App() {
             if (mode === 'work') {
               const newSessions = sessions + 1;
               setSessions(newSessions);
-              storage.set('sessions', 'session-' + Date.now(), { mode, duration: durations[mode], completed: new Date().toISOString() });
+              storage.set('sessions', 'session-' + Date.now(), { mode, duration: durations[mode], completed: new Date().toISOString() }).catch(e => console.error('Pomodoro: save session failed', e));
               loadStats();
               setMode(newSessions % 4 === 0 ? 'longBreak' : 'break');
               setTime(newSessions % 4 === 0 ? durations.longBreak : durations.break);

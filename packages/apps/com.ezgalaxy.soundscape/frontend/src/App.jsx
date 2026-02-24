@@ -21,8 +21,10 @@ export default function App() {
   const [timerActive, setTimerActive] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await storage.list('presets', { limit: 20 });
-    setPresets((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('presets', { limit: 20 });
+      setPresets((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('SoundScape: load failed', e); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -50,8 +52,10 @@ export default function App() {
   const savePreset = async () => {
     const name = prompt('Nom du preset:');
     if (!name) return;
-    await storage.set('presets', 'preset-' + Date.now(), { name, volumes });
-    load();
+    try {
+      await storage.set('presets', 'preset-' + Date.now(), { name, volumes });
+      load();
+    } catch (e) { console.error('SoundScape: save failed', e); }
   };
 
   const active = Object.keys(volumes).length;

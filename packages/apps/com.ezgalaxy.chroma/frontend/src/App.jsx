@@ -31,8 +31,10 @@ export default function App() {
   const [palettes, setPalettes] = useState([]);
 
   const load = useCallback(async () => {
-    const res = await storage.list('palettes', { limit: 30 });
-    setPalettes((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    try {
+      const res = await storage.list('palettes', { limit: 30 });
+      setPalettes((res.items || []).map(i => ({ key: i.record_key, ...i.data })));
+    } catch (e) { console.error('Chroma: load failed', e); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -50,8 +52,10 @@ export default function App() {
   }).flat();
 
   const savePalette = async () => {
-    await storage.set('palettes', 'palette-' + Date.now(), { harmony, baseHue, colors, date: new Date().toISOString() });
-    load();
+    try {
+      await storage.set('palettes', 'palette-' + Date.now(), { harmony, baseHue, colors, date: new Date().toISOString() });
+      load();
+    } catch (e) { console.error('Chroma: save failed', e); }
   };
 
   const exportCSS = () => {
