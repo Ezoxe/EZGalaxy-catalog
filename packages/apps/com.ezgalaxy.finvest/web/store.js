@@ -305,6 +305,15 @@
 
   /* ---------- Cloud — EZGalaxy SDK Storage ---------------------- */
 
+  /** Parse a fetch response as JSON safely, with Content-Type check */
+  async function _safeJsonResponse(res) {
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('text/html')) {
+      throw new Error('Le serveur a renvoyé une page HTML au lieu de JSON. Vérifiez que le backend est bien démarré.');
+    }
+    return res.json();
+  }
+
   async function login(email, password) {
     // Block auto-save during login+cloudLoad sequence to prevent overwriting cloud data
     _isCloudOp = true;
@@ -316,9 +325,9 @@
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Identifiants invalides');
+        throw new Error(err.detail || err.message || 'Identifiants invalides');
       }
-      const data = await res.json();
+      const data = await _safeJsonResponse(res);
       const auth = { token: data.token, user: data.user };
       safeLS.setItem(LS_AUTH, JSON.stringify(auth));
       setState({ auth, cloudStatus: 'connected' });
@@ -341,9 +350,9 @@
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Erreur lors de l\'inscription');
+        throw new Error(err.detail || err.message || 'Erreur lors de l\'inscription');
       }
-      const data = await res.json();
+      const data = await _safeJsonResponse(res);
       const auth = { token: data.token, user: data.user };
       safeLS.setItem(LS_AUTH, JSON.stringify(auth));
       setState({ auth, cloudStatus: 'connected' });
@@ -356,6 +365,13 @@
   function logout() {
     safeLS.removeItem(LS_AUTH);
     setState({ auth: { token: null, user: null }, cloudStatus: 'disconnected' });
+  }
+
+  /* ---------- Cloud key helper — scope data per user --------- */
+  function _cloudKey() {
+    const email = state.auth && state.auth.user && state.auth.user.email;
+    if (email) return 'user_' + email.toLowerCase().replace(/[^a-z0-9._@-]/g, '_');
+    return 'main';
   }
 
   async function cloudSave() {
@@ -385,7 +401,7 @@
         ? LZString.compressToUTF16(JSON.stringify(payload))
         : JSON.stringify(payload);
 
-      await ezgalaxy.storage.set('profiles', 'main', { compressed: typeof LZString !== 'undefined', payload: compressed });
+      await ezgalaxy.storage.set('profiles', _cloudKey(), { compressed: typeof LZString !== 'undefined', payload: compressed });
       setState({ cloudStatus: 'connected' });
       return true;
     } catch (e) {
@@ -402,15 +418,22 @@
     _isCloudOp = true;
     setState({ cloudStatus: 'syncing' });
     try {
-      const record = await ezgalaxy.storage.get('profiles', 'main');
-      if (!record) {
+      const key = _cloudKey();
+      const record = await ezgalaxy.storage.get('profiles', key);
+      // Fallback: if no per-user data found, try legacy 'main' key
+      const effectiveRecord = (record && record.data) ? record
+        : (key !== 'main' ? await ezgalaxy.storage.get('profiles', 'main') : null);
+      if (!effectiveRecord || !effectiveRecord.data) {
         setState({ cloudStatus: 'connected' });
         return false;
       }
-      const d = record.data;
+      const d = effectiveRecord.data;
       let payload;
       if (d && d.compressed && typeof LZString !== 'undefined') {
         payload = JSON.parse(LZString.decompressFromUTF16(d.payload));
+      } else if (d && d.compressed && typeof LZString === 'undefined') {
+        // Data is compressed but LZString not available — cannot decompress
+        throw new Error('Impossible de décompresser les données (LZString non disponible). Rechargez la page et réessayez.');
       } else if (d && d.payload) {
         payload = typeof d.payload === 'string' ? JSON.parse(d.payload) : d.payload;
       } else {
@@ -439,6 +462,10 @@
           onboardingDone: payload.onboardingDone || state.onboardingDone || false,
           cloudStatus: 'connected'
         });
+        // If we loaded from legacy 'main' key, re-save under user key for future loads
+        if (key !== 'main' && effectiveRecord !== record) {
+          try { await cloudSave(); } catch (_) { /* best-effort migration */ }
+        }
         return true;
       }
       setState({ cloudStatus: 'connected' });

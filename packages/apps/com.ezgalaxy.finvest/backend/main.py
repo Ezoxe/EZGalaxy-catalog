@@ -1,5 +1,5 @@
-"""EZGalaxy FastAPI Backend — Storage API + React SPA serving."""
-import os, json, sqlite3, logging
+"""EZGalaxy FastAPI Backend — Storage API + Auth + React SPA serving."""
+import os, json, sqlite3, logging, hashlib, secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import contextmanager
@@ -36,12 +36,96 @@ def init_db():
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now')),
                 PRIMARY KEY (scope, collection, record_key))""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                token TEXT UNIQUE,
+                created_at TEXT DEFAULT (datetime('now')))""")
             conn.commit()
     except Exception as e:
         logger.error("Failed to initialize database: %s", e)
         raise
 
 init_db()
+
+# ─── Auth helpers ──────────────────────────────────────────────────
+def _hash_password(password: str, salt: str) -> str:
+    """Hash a password with SHA-256 + salt."""
+    return hashlib.sha256((salt + password).encode()).hexdigest()
+
+def _generate_token() -> str:
+    """Generate a secure random token."""
+    return secrets.token_hex(32)
+
+@app.post("/api/auth/register")
+async def auth_register(request: Request):
+    """Register a new user account."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    name = (body.get("name") or "").strip()
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    if not name:
+        raise HTTPException(400, detail="Le nom est requis")
+    if not email or "@" not in email:
+        raise HTTPException(400, detail="Email invalide")
+    if len(password) < 4:
+        raise HTTPException(400, detail="Le mot de passe doit faire au moins 4 caractères")
+    salt = secrets.token_hex(16)
+    password_hash = _hash_password(password, salt)
+    token = _generate_token()
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO users (name, email, password_hash, salt, token) VALUES (?, ?, ?, ?, ?)",
+                (name, email, password_hash, salt, token)
+            )
+            conn.commit()
+    except sqlite3.IntegrityError:
+        raise HTTPException(409, detail="Un compte avec cet email existe déjà")
+    except sqlite3.Error as e:
+        logger.error("DB error in register: %s", e)
+        raise HTTPException(500, "Database error")
+    return {"token": token, "user": {"name": name, "email": email}}
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request):
+    """Authenticate a user and return a token."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    if not email or not password:
+        raise HTTPException(400, detail="Email et mot de passe requis")
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT id, name, email, password_hash, salt, token FROM users WHERE email = ?",
+                (email,)
+            ).fetchone()
+    except sqlite3.Error as e:
+        logger.error("DB error in login: %s", e)
+        raise HTTPException(500, "Database error")
+    if not row:
+        raise HTTPException(401, detail="Identifiants invalides")
+    if _hash_password(password, row["salt"]) != row["password_hash"]:
+        raise HTTPException(401, detail="Identifiants invalides")
+    # Refresh token on each login
+    new_token = _generate_token()
+    try:
+        with get_db() as conn:
+            conn.execute("UPDATE users SET token = ? WHERE id = ?", (new_token, row["id"]))
+            conn.commit()
+    except sqlite3.Error as e:
+        logger.error("DB error refreshing token: %s", e)
+    return {"token": new_token, "user": {"name": row["name"], "email": row["email"]}}
 
 def _validate_key(key: str, label: str = "key"):
     """Validate collection/key length and characters."""
@@ -260,8 +344,8 @@ def _delete(scope, collection, key):
         raise HTTPException(500, "Database error")
     return {"ok": True}
 
-# SDK shim
-SDK_JS = """(function(){'use strict';function bq(o){if(!o)return'';const p=new URLSearchParams();if(o.limit)p.set('limit',o.limit);if(o.offset)p.set('offset',o.offset);if(o.prefix)p.set('prefix',o.prefix);if(o.sort_by)p.set('sort_by',o.sort_by);if(o.sort_order)p.set('sort_order',o.sort_order);const s=p.toString();return s?'?'+s:'';}async function ag(u){const r=await fetch(u);if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ap(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:d})});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ad(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}function ns(pfx){return{async get(c,k){return ag('/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async set(c,k,d){return ap('/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k),d);},async delete(c,k){return ad('/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async list(c,o){return ag('/api/app-storage/'+pfx+encodeURIComponent(c)+bq(o));},async getData(k){const s=pfx==='@app/'?'app':'private';return ag('/api/app-data/'+s+'/'+encodeURIComponent(k));},async setData(k,v){const s=pfx==='@app/'?'app':'private';return ap('/api/app-data/'+s+'/'+encodeURIComponent(k),v);}};}window.ezgalaxy={storage:ns(''),app:ns('@app/'),isInsideEZGalaxy:true,async ready(){return{status:'ok',mode:'docker'};},configureMobile(){}};window.dispatchEvent(new CustomEvent('ezgalaxy-ready',{detail:window.ezgalaxy}));})();"""
+# SDK shim — with Content-Type validation to prevent cryptic JSON parse errors on HTML responses
+SDK_JS = """(function(){'use strict';function bq(o){if(!o)return'';const p=new URLSearchParams();if(o.limit)p.set('limit',o.limit);if(o.offset)p.set('offset',o.offset);if(o.prefix)p.set('prefix',o.prefix);if(o.sort_by)p.set('sort_by',o.sort_by);if(o.sort_order)p.set('sort_order',o.sort_order);const s=p.toString();return s?'?'+s:'';}function ck(r){const ct=r.headers.get('content-type')||'';if(!ct.includes('application/json')){const txt=ct.includes('text/html')?'Le serveur a renvoyé une page HTML au lieu de JSON. Vérifiez que le backend est bien démarré.':'Réponse inattendue du serveur ('+ct+')';throw new Error(txt);}return r.json();}async function ag(u){const r=await fetch(u);if(!r.ok){let msg='API error: '+r.status;try{const e=await r.json();if(e&&e.detail)msg=e.detail;}catch(_){}throw new Error(msg);}return ck(r);}async function ap(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:d})});if(!r.ok){let msg='API error: '+r.status;try{const e=await r.json();if(e&&e.detail)msg=e.detail;}catch(_){}throw new Error(msg);}return ck(r);}async function ad(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok){let msg='API error: '+r.status;try{const e=await r.json();if(e&&e.detail)msg=e.detail;}catch(_){}throw new Error(msg);}return ck(r);}function ns(pfx){return{async get(c,k){return ag('/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async set(c,k,d){return ap('/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k),d);},async delete(c,k){return ad('/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async list(c,o){return ag('/api/app-storage/'+pfx+encodeURIComponent(c)+bq(o));},async getData(k){const s=pfx==='@app/'?'app':'private';return ag('/api/app-data/'+s+'/'+encodeURIComponent(k));},async setData(k,v){const s=pfx==='@app/'?'app':'private';return ap('/api/app-data/'+s+'/'+encodeURIComponent(k),v);}};}window.ezgalaxy={storage:ns(''),app:ns('@app/'),isInsideEZGalaxy:true,async ready(){return{status:'ok',mode:'docker'};},configureMobile(){}};window.dispatchEvent(new CustomEvent('ezgalaxy-ready',{detail:window.ezgalaxy}));})();"""
 
 @app.get("/api/ezgalaxy-sdk.js")
 def serve_sdk():
