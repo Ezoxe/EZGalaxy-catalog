@@ -412,6 +412,17 @@
     }
   }
 
+  /** Safe wrapper: try to get a storage record, return null on any error (404, network, etc.) */
+  async function _safeStorageGet(collection, key) {
+    try {
+      const rec = await ezgalaxy.storage.get(collection, key);
+      return (rec && rec.data) ? rec : null;
+    } catch (e) {
+      console.warn('[Store] storage.get(' + collection + ', ' + key + ') failed:', e.message);
+      return null;
+    }
+  }
+
   async function cloudLoad() {
     // Cancel any pending auto-save to prevent race conditions
     if (_autoSaveTimer) { clearTimeout(_autoSaveTimer); _autoSaveTimer = null; }
@@ -419,10 +430,11 @@
     setState({ cloudStatus: 'syncing' });
     try {
       const key = _cloudKey();
-      const record = await ezgalaxy.storage.get('profiles', key);
-      // Fallback: if no per-user data found, try legacy 'main' key
-      const effectiveRecord = (record && record.data) ? record
-        : (key !== 'main' ? await ezgalaxy.storage.get('profiles', 'main') : null);
+      // Try user-scoped key first, then fallback to legacy 'main' key
+      let effectiveRecord = await _safeStorageGet('profiles', key);
+      if (!effectiveRecord && key !== 'main') {
+        effectiveRecord = await _safeStorageGet('profiles', 'main');
+      }
       if (!effectiveRecord || !effectiveRecord.data) {
         setState({ cloudStatus: 'connected' });
         return false;
@@ -463,7 +475,7 @@
           cloudStatus: 'connected'
         });
         // If we loaded from legacy 'main' key, re-save under user key for future loads
-        if (key !== 'main' && effectiveRecord !== record) {
+        if (key !== 'main') {
           try { await cloudSave(); } catch (_) { /* best-effort migration */ }
         }
         return true;
