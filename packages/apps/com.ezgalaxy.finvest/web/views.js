@@ -59,6 +59,25 @@
         window.navigateTo('questionnaire');
       } }, [icon('edit', 18), s.analysis ? 'Refaire l\'analyse' : 'Commencer l\'analyse']));
 
+      // Cloud save button (force save)
+      loggedActions.appendChild(el('button', { className: 'btn btn--sm', onClick: async (evt) => {
+        const btn = evt.currentTarget;
+        try {
+          btn.textContent = '⏳ Sauvegarde...';
+          btn.disabled = true;
+          await Store.cloudSave();
+          toast('☁️ Données sauvegardées dans le cloud !', 'success');
+          btn.textContent = '✓ Sauvegardé !';
+          setTimeout(() => { btn.disabled = false; btn.textContent = ''; btn.append(icon('upload', 14), ' Sauvegarder dans le cloud'); }, 2000);
+        } catch (e) {
+          console.error('[FinVest] Cloud save error:', e);
+          toast('Erreur : ' + e.message, 'error');
+          btn.disabled = false;
+          btn.textContent = '';
+          btn.append(icon('upload', 14), ' Sauvegarder dans le cloud');
+        }
+      } }, [icon('upload', 14), 'Sauvegarder dans le cloud']));
+
       // Cloud load button (fallback)
       loggedActions.appendChild(el('button', { className: 'btn btn--sm', onClick: async () => {
         try {
