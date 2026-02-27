@@ -415,32 +415,14 @@
       console.log('[FinVest] Running as installed PWA');
     }
 
-    // ── Device detection (EZGalaxy SDK) ──────────────────────────
-    if (typeof ezgalaxy !== 'undefined' && ezgalaxy.device) {
-      ezgalaxy.device.info().then(info => {
-        _isMobile = info.isMobile;
-        window._isMobile = _isMobile;
-        document.body.classList.add(info.platform); // 'mobile', 'tablet', 'desktop'
-        console.log('[FinVest] Device:', info.platform, 'isMobile:', info.isMobile);
-      }).catch(e => console.warn('[FinVest] Device detection failed:', e));
-
-      ezgalaxy.device.onChange(function(info) {
-        _isMobile = info.isMobile;
-        window._isMobile = _isMobile;
-        document.body.className = document.body.className
-          .replace(/\b(mobile|tablet|desktop)\b/g, '').trim();
-        document.body.classList.add(info.platform);
-        console.log('[FinVest] Device changed:', info.platform);
-      });
+    // ── Device detection ──────────────────────────────────────
+    // Mobile detection via user agent (no SDK dependency)
+    const ua = navigator.userAgent || '';
+    if (/Mobi|Android|iPhone|iPad/i.test(ua)) {
+      _isMobile = true;
+      window._isMobile = true;
+      document.body.classList.add('mobile');
     }
-
-    // Load authorization file
-    fetch('./ezgalaxy-authorization.json')
-      .then(r => r.json())
-      .then(auth => {
-        console.log('[FinVest] Authorization:', auth.capabilities.map(c => `${c.name}:${c.enabled}`).join(', '));
-      })
-      .catch(() => {});
 
     // Build shell and render
     buildShell();

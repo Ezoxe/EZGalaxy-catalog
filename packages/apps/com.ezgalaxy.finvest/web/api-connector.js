@@ -107,14 +107,12 @@
      QUOTA POOL MANAGEMENT
      ================================================================ */
 
-  /** Load persisted quotas from EZGalaxy storage (or LS fallback) */
+  /** Load persisted quotas from backend storage (or LS fallback) */
   async function loadQuotas() {
     let saved = null;
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.storage) {
-        const rec = await ezgalaxy.storage.get('api-quotas', 'pool');
-        if (rec && rec.data) saved = rec.data;
-      }
+      const rec = await AppStorage.get('api-quotas', 'pool');
+      if (rec && rec.data) saved = rec.data;
     } catch (_) {}
     if (!saved) {
       try {
@@ -169,11 +167,9 @@
     }
     // Always try LS for fast access
     try { safeLS.setItem('finvest_api_quotas', JSON.stringify(toSave)); } catch (_) {}
-    // Try EZGalaxy storage
+    // Try backend storage
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.storage) {
-        await ezgalaxy.storage.set('api-quotas', 'pool', toSave);
-      }
+      await AppStorage.set('api-quotas', 'pool', toSave);
     } catch (_) {}
   }
 

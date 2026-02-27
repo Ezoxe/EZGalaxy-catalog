@@ -13,6 +13,7 @@ const SHELL_ASSETS = [
   './ezgalaxy-base.css',
   './ezgalaxy-animations.css',
   './app.js',
+  './storage-api.js',
   './mobile-nav.js',
   './store.js',
   './engine.js',

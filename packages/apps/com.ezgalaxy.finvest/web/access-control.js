@@ -2,8 +2,8 @@
    FinVest — access-control.js  (Role-Based Access Control)
    Admin (admin@ezoxe.fr) manages all accounts.
    Controls: API access, AI access, per-user quota overrides.
-   Uses: ezgalaxy.app (shared) for permissions,
-         ezgalaxy.storage (private) for own auth state cache.
+   Uses: AppSharedStorage (shared) for permissions,
+         AppStorage (private) for own auth state cache.
    Exposes: window.AccessControl
    ================================================================ */
 (() => {
@@ -82,13 +82,11 @@
 
     // Load from app-level storage (shared data written by admin)
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.app) {
-        const rec = await ezgalaxy.app.get(PERM_COLLECTION, sanitizeKey(user.email));
-        if (rec && rec.data) {
-          currentPerms = { ...DEFAULT_PERMS, ...rec.data };
-          loaded = true;
-          return currentPerms;
-        }
+      const rec = await AppSharedStorage.get(PERM_COLLECTION, sanitizeKey(user.email));
+      if (rec && rec.data) {
+        currentPerms = { ...DEFAULT_PERMS, ...rec.data };
+        loaded = true;
+        return currentPerms;
       }
     } catch (e) {
       console.warn('[AccessControl] Failed to load permissions:', e.message);
@@ -160,16 +158,14 @@
   async function adminListUsers() {
     if (!isAdmin()) throw new Error('Accès refusé');
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.app) {
-        const result = await ezgalaxy.app.list(PERM_COLLECTION, { limit: 200 });
-        allUsers = (result.items || []).map(item => ({
-          email: item.data.email || item.record_key.replace(/_/g, '.'),
-          ...item.data,
-          key: item.record_key,
-          updatedAt: item.updated_at
-        }));
-        return allUsers;
-      }
+      const result = await AppSharedStorage.list(PERM_COLLECTION, { limit: 200 });
+      allUsers = ((result && result.items) || []).map(item => ({
+        email: item.data.email || item.record_key.replace(/_/g, '.'),
+        ...item.data,
+        key: item.record_key,
+        updatedAt: item.updated_at
+      }));
+      return allUsers;
     } catch (e) {
       console.error('[AccessControl] Failed to list users:', e);
     }
@@ -191,11 +187,9 @@
     };
 
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.app) {
-        await ezgalaxy.app.set(PERM_COLLECTION, key, data);
-        console.log(`[AccessControl] Permissions updated for ${email}:`, data);
-        return data;
-      }
+      await AppSharedStorage.set(PERM_COLLECTION, key, data);
+      console.log(`[AccessControl] Permissions updated for ${email}:`, data);
+      return data;
     } catch (e) {
       console.error('[AccessControl] Failed to set permissions:', e);
       throw e;
@@ -207,10 +201,8 @@
     if (!isAdmin()) throw new Error('Accès refusé');
     const key = sanitizeKey(email);
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.app) {
-        await ezgalaxy.app.delete(PERM_COLLECTION, key);
-        console.log(`[AccessControl] Permissions revoked for ${email}`);
-      }
+      await AppSharedStorage.delete(PERM_COLLECTION, key);
+      console.log(`[AccessControl] Permissions revoked for ${email}`);
     } catch (e) {
       console.error('[AccessControl] Failed to revoke:', e);
     }
@@ -231,14 +223,12 @@
   async function loadKeys() {
     if (keysLoaded) return keyVault;
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.app) {
-        const rec = await ezgalaxy.app.get(KEYS_COLLECTION, KEYS_RECORD);
-        if (rec && rec.data) {
-          keyVault = { ...keyVault, ...rec.data };
-          keysLoaded = true;
-          console.log('[KeyVault] Keys loaded from cloud storage');
-          return keyVault;
-        }
+      const rec = await AppSharedStorage.get(KEYS_COLLECTION, KEYS_RECORD);
+      if (rec && rec.data) {
+        keyVault = { ...keyVault, ...rec.data };
+        keysLoaded = true;
+        console.log('[KeyVault] Keys loaded from cloud storage');
+        return keyVault;
       }
     } catch (e) {
       console.warn('[KeyVault] Failed to load keys:', e.message);
@@ -269,9 +259,7 @@
       updatedBy: ADMIN_EMAIL
     };
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.app) {
-        await ezgalaxy.app.set(KEYS_COLLECTION, KEYS_RECORD, data);
-      }
+      await AppSharedStorage.set(KEYS_COLLECTION, KEYS_RECORD, data);
     } catch (e) {
       console.error('[KeyVault] Cloud save failed:', e);
     }

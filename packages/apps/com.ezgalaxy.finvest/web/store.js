@@ -1,6 +1,6 @@
 /* ================================================================
    FinVest — store.js  (State Management & Persistence)
-   Pub/sub store + Cloud sync via EZGalaxy SDK Storage + localStorage
+   Pub/sub store + Cloud sync via direct backend API + localStorage
    Exposes: window.Store
    ================================================================ */
 (() => {
@@ -303,7 +303,7 @@
     } catch (e) { return false; }
   }
 
-  /* ---------- Cloud — EZGalaxy SDK Storage ---------------------- */
+  /* ---------- Cloud — Direct Backend Storage API ---------------- */
 
   /** Parse a fetch response as JSON safely, with Content-Type check */
   async function _safeJsonResponse(res) {
@@ -401,7 +401,7 @@
         ? LZString.compressToUTF16(JSON.stringify(payload))
         : JSON.stringify(payload);
 
-      await ezgalaxy.storage.set('profiles', _cloudKey(), { compressed: typeof LZString !== 'undefined', payload: compressed });
+      await AppStorage.set('profiles', _cloudKey(), { compressed: typeof LZString !== 'undefined', payload: compressed });
       setState({ cloudStatus: 'connected' });
       return true;
     } catch (e) {
@@ -415,7 +415,7 @@
   /** Safe wrapper: try to get a storage record, return null on any error (404, network, etc.) */
   async function _safeStorageGet(collection, key) {
     try {
-      const rec = await ezgalaxy.storage.get(collection, key);
+      const rec = await AppStorage.get(collection, key);
       return (rec && rec.data) ? rec : null;
     } catch (e) {
       console.warn('[Store] storage.get(' + collection + ', ' + key + ') failed:', e.message);
@@ -673,8 +673,8 @@
   function _scheduleAutoSave() {
     // Don't schedule while a cloud operation is in progress (prevents infinite loop)
     if (_isCloudOp) return;
-    // Only auto-save if authenticated and ezgalaxy.storage is available
-    if (!state.auth || !state.auth.user || typeof ezgalaxy === 'undefined' || !ezgalaxy.storage) return;
+    // Only auto-save if authenticated
+    if (!state.auth || !state.auth.user) return;
     // Don't auto-save if we're on welcome AND have no meaningful data yet
     if (state.step === 'welcome' && !state.analysis && (!state.profile || state.profile.monthlyNetIncome === 0) && (state.transactions || []).length === 0) return;
     if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
@@ -698,37 +698,17 @@
   function init() {
     loadLocal();
 
-    // ── Configure mobile SDK when running as PWA ─────────────
-    if (_isPWA && typeof ezgalaxy !== 'undefined' && typeof ezgalaxy.configureMobile === 'function') {
+    // ── PWA platform detection ───────────────────────────────
+    if (_isPWA) {
       const platform = _detectPlatform();
-      const deviceUuid = _getDeviceUUID();
-      try {
-        ezgalaxy.configureMobile({
-          serverUrl: window.location.origin,
-          appKey: '', // populated at runtime by admin-issued key stored in ezgalaxy.app
-          deviceUuid,
-          extensionId: EXTENSION_ID,
-          platform
-        });
-        console.log(`[Store] Mobile SDK configured — platform: ${platform}, uuid: ${deviceUuid.slice(0, 8)}…`);
-      } catch (e) {
-        console.warn('[Store] Mobile SDK configuration failed:', e.message);
-      }
+      console.log(`[Store] PWA mode — platform: ${platform}`);
     }
-
-    // Log authorization
-    fetch('./ezgalaxy-authorization.json')
-      .then(r => r.json())
-      .then(auth => {
-        console.log('[FinVest] Authorization loaded:', auth.capabilities.map(c => `${c.name}:${c.enabled}`).join(', '));
-      })
-      .catch(() => console.warn('[FinVest] Could not load authorization file'));
 
     // ── Auto-save: subscribe to all state changes ───────────
     subscribe(() => _scheduleAutoSave());
 
     // ── Auto-load from cloud on first connect ────────────────
-    if (state.auth && state.auth.user && typeof ezgalaxy !== 'undefined' && ezgalaxy.storage) {
+    if (state.auth && state.auth.user) {
       cloudLoad()
         .then(loaded => {
           if (loaded) {

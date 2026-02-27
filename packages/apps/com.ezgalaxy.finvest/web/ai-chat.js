@@ -192,10 +192,8 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
   /* ─────────── Chat history persistence ─────────────────────── */
   async function saveHistory() {
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.storage) {
-        const toSave = chatHistory.slice(-MAX_HISTORY);
-        await ezgalaxy.storage.set(CHAT_COLLECTION, 'history', { messages: toSave });
-      }
+      const toSave = chatHistory.slice(-MAX_HISTORY);
+      await AppStorage.set(CHAT_COLLECTION, 'history', { messages: toSave });
     } catch (_) {}
     // Also LS fallback
     try {
@@ -207,12 +205,10 @@ L'utilisateur consulte actuellement la page : "${specifiedPage || currentView}"`
   async function loadHistory() {
     // Try cloud first
     try {
-      if (typeof ezgalaxy !== 'undefined' && ezgalaxy.storage) {
-        const rec = await ezgalaxy.storage.get(CHAT_COLLECTION, 'history');
-        if (rec?.data?.messages) {
-          chatHistory = rec.data.messages;
-          return;
-        }
+      const rec = await AppStorage.get(CHAT_COLLECTION, 'history');
+      if (rec?.data?.messages) {
+        chatHistory = rec.data.messages;
+        return;
       }
     } catch (_) {}
     // LS fallback
