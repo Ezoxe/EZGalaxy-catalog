@@ -1,0 +1,161 @@
+/* ═══════════════════════════════════════════
+   World Capitals — App Styles
+   ═══════════════════════════════════════════ */
+:root {
+  --wc-bg: #0a0a1a;
+  --wc-surface: #141428;
+  --wc-surface2: #1e1e3a;
+  --wc-border: #2a2a5a;
+  --wc-text: #e0e0ff;
+  --wc-text2: #8888bb;
+  --wc-accent: #6c5ce7;
+  --wc-accent2: #a29bfe;
+  --wc-success: #00d2d3;
+  --wc-danger: #ff6b6b;
+  --wc-radius: 12px;
+  --wc-shadow: 0 4px 20px rgba(0,0,0,.4);
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--wc-bg);
+  color: var(--wc-text);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+.app {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Header */
+.wc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--wc-border);
+}
+.wc-header h1 {
+  font-size: 24px;
+  color: var(--wc-accent2);
+  margin: 0;
+}
+.wc-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--wc-accent);
+  color: #fff;
+}
+
+/* Progress bar */
+.wc-progress {
+  width: 100%;
+  height: 6px;
+  background: var(--wc-surface2);
+  border-radius: 3px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.wc-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--wc-accent), var(--wc-accent2));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* Card */
+.wc-card {
+  background: var(--wc-surface);
+  border: 1px solid var(--wc-border);
+  border-radius: var(--wc-radius);
+  padding: 28px 24px;
+  box-shadow: var(--wc-shadow);
+}
+.wc-center { text-align: center; }
+.wc-sub {
+  color: var(--wc-text2);
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.wc-question {
+  margin: 20px 0;
+  font-size: 22px;
+  color: var(--wc-text);
+}
+.wc-question strong { color: var(--wc-accent2); }
+
+/* Form row */
+.wc-form {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Input */
+.wc-input {
+  padding: 10px 14px;
+  border-radius: var(--wc-radius);
+  border: 1px solid var(--wc-border);
+  background: var(--wc-surface2);
+  color: var(--wc-text);
+  font-size: 16px;
+  width: 100%;
+  max-width: 320px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.wc-input:focus { border-color: var(--wc-accent); }
+.wc-input:disabled { opacity: 0.5; }
+
+/* Button */
+.wc-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--wc-radius);
+  background: var(--wc-accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.wc-btn:hover { background: var(--wc-accent2); transform: translateY(-1px); }
+.wc-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+/* Feedback */
+.wc-feedback {
+  margin-top: 18px;
+  font-size: 18px;
+  font-weight: 600;
+  animation: wcPop 300ms ease-out;
+}
+.wc-ok { color: var(--wc-success); }
+.wc-wrong { color: var(--wc-danger); }
+
+@keyframes wcPop {
+  0% { transform: scale(0.9); opacity: 0.4; }
+  60% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Score card tweaks */
+.wc-card h2 { color: var(--wc-accent2); margin: 0 0 12px; }
+
+/* Responsive */
+@media (max-width: 500px) {
+  .app { padding: 12px; }
+  .wc-header h1 { font-size: 18px; }
+  .wc-question { font-size: 18px; }
+  .wc-form { flex-direction: column; }
+  .wc-input { max-width: 100%; }
+}

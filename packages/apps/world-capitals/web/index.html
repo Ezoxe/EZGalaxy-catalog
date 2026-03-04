@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>World Capitals</title>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World Capitals - Capitales du Monde</title>
 
   <!-- PWA -->
   <link rel="manifest" href="./manifest.json">
@@ -13,24 +13,32 @@
   <meta name="apple-mobile-web-app-title" content="World Capitals">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="World Capitals">
-    <style>
-      html, body { margin: 0; padding: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-      body { background: #0b0f19; color: #e5e7eb; }
-      .wrap { padding: 16px; }
-      .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 16px; max-width: 720px; }
-      .muted { opacity: 0.8; font-size: 12px; }
-      code { background: rgba(0,0,0,0.35); padding: 2px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="card">
-        <h1 style="margin: 0 0 8px;">World Capitals</h1>
-        <div class="muted">Jeu des capitales du monde (package standard)</div>
-        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.12); margin: 12px 0;" />
-        <p style="margin: 0 0 10px;">Si vous voyez cette page, le catalogue et l’installation de packages fonctionnent.</p>
-        <p class="muted" style="margin: 0;">Note: la version intégrée (hors package) est accessible dans EZGalaxy via <code>/world-capitals</code>.</p>
-      </div>
+
+  <!-- EZGalaxy Design System -->
+  <link rel="stylesheet" href="./ezgalaxy-base.css">
+  <link rel="stylesheet" href="./ezgalaxy-animations.css">
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="./style.css">
+
+  <!-- Error overlay (debug) -->
+  <script src="./error-overlay.js"></script>
+
+  <!-- EZGalaxy SDK -->
+  <script src="./sdk-loader.js"></script>
+
+  <!-- App Script -->
+  <script defer src="./app.js" onerror="window.__ezScriptError && window.__ezScriptError('./app.js')"></script>
+</head>
+<body>
+  <div id="app" class="app ez-fade-in">
+    <div class="loading-screen" style="text-align:center;padding:60px 20px;">
+      <div style="font-size:48px;margin-bottom:16px;">🌍</div>
+      <h1 style="margin:0 0 8px;">Capitales du Monde</h1>
+      <p class="ez-muted">Chargement…</p>
     </div>
-  </body>
+  </div>
+
+  <noscript>Cette page nécessite JavaScript pour fonctionner.</noscript>
+</body>
 </html>

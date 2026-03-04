@@ -323,6 +323,27 @@
     else el.textContent = '✅ ' + n + ' drapeaux chargés';
   }
 
+  /* ── XHR helper (ES5-compatible replacement for fetch) ── */
+  function xhrJson(method, url, headers, body, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    if (headers) {
+      for (var key in headers) {
+        if (Object.prototype.hasOwnProperty.call(headers, key)) {
+          xhr.setRequestHeader(key, headers[key]);
+        }
+      }
+    }
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      cb(xhr.status, null, xhr.responseText);
+    };
+    xhr.onerror = function () {
+      cb(0, null, '');
+    };
+    xhr.send(body ? JSON.stringify(body) : null);
+  }
+
   function loadCountries() {
     var cached = safeJsonParse(storageGet(STORAGE_COUNTRIES_CACHE));
     if (cached && cached.at && cached.items && cached.items.length) {
