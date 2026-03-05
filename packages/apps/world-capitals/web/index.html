@@ -21,23 +21,82 @@
   <!-- App Styles -->
   <link rel="stylesheet" href="./style.css">
 
-  <!-- Error overlay (debug) -->
-  <script src="./error-overlay.js"></script>
-
   <!-- EZGalaxy SDK -->
-  <script src="./sdk-loader.js"></script>
+  <script src="./api/ezgalaxy-sdk.js"></script>
 
-  <!-- App Script -->
-  <script defer src="./app.js" onerror="window.__ezScriptError && window.__ezScriptError('./app.js')"></script>
+  <script>
+    (function () {
+      function ensureOverlay() {
+        var el = document.getElementById('ez-error-overlay');
+        if (el) return el;
+        el = document.createElement('pre');
+        el.id = 'ez-error-overlay';
+        el.style.position = 'fixed';
+        el.style.left = '12px';
+        el.style.right = '12px';
+        el.style.bottom = '12px';
+        el.style.maxHeight = '50vh';
+        el.style.overflow = 'auto';
+        el.style.padding = '12px';
+        el.style.borderRadius = '10px';
+        el.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+        el.style.background = 'rgba(239, 68, 68, 0.12)';
+        el.style.color = '#fee2e2';
+        el.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        el.style.fontSize = '12px';
+        el.style.whiteSpace = 'pre-wrap';
+        el.style.zIndex = 999999;
+        el.style.display = 'none';
+        (document.body || document.documentElement).appendChild(el);
+        return el;
+      }
+
+      function showError(msg) {
+        var el = ensureOverlay();
+        el.style.display = 'block';
+        el.textContent = String(msg || 'Erreur inconnue');
+      }
+
+      window.__ezShowError = showError;
+      window.__ezScriptError = function (src) {
+        showError('Erreur de chargement du script: ' + src);
+      };
+
+      window.onerror = function (message, source, lineno, colno, error) {
+        var parts = [];
+        parts.push('Erreur JavaScript détectée');
+        if (message) parts.push('Message: ' + message);
+        if (source) parts.push('Source: ' + source);
+        if (lineno) parts.push('Ligne: ' + lineno);
+        if (colno) parts.push('Col: ' + colno);
+        if (error && error.stack) parts.push('Stack:\n' + error.stack);
+        showError(parts.join('\n'));
+        return false;
+      };
+
+      window.onunhandledrejection = function (ev) {
+        try {
+          showError('Promise rejection: ' + (ev && ev.reason ? ev.reason : ev));
+        } catch (e) {
+          showError('Promise rejection');
+        }
+      };
+    })();
+  </script>
+
+  <!-- App Script (ES5-compatible) -->
+  <script defer src="./app.js" crossorigin="anonymous" onerror="window.__ezScriptError && window.__ezScriptError('./app.js')"></script>
 </head>
 <body>
   <div id="app" class="app ez-fade-in">
-    <div class="loading-screen" style="text-align:center;padding:60px 20px;">
-      <div style="font-size:48px;margin-bottom:16px;">🌍</div>
-      <h1 style="margin:0 0 8px;">Capitales du Monde</h1>
-      <p class="ez-muted">Chargement…</p>
+    <div class="ez-wrap">
+      <div class="ez-card">
+        <h1 style="margin:0 0 8px 0">🌍 World Capitals</h1>
+        <p class="ez-muted" style="margin:0">Chargement… (si ça reste vide, une erreur JS sera affichée)</p>
+      </div>
     </div>
   </div>
+  <div id="toast-container"></div>
 
   <noscript>Cette page nécessite JavaScript pour fonctionner.</noscript>
 </body>

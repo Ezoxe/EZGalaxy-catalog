@@ -916,7 +916,6 @@ body::after {
   padding: 32px 28px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  animation: ezPop 300ms ease;
 }
 
 .quiz-question-number {
@@ -1499,17 +1498,17 @@ body::after {
 }
 
 @keyframes screenFadeOut {
-  to { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 0; }
 }
 
 @keyframes screenFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes blockSlideIn {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideInUp {
@@ -1909,9 +1908,6 @@ body::after {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   transition: all 0.25s;
-  opacity: 0;
-  transform: translateY(10px);
-  animation: blockSlideIn 0.4s ease forwards;
 }
 
 .scoreboard-row.top-3 {
@@ -1953,6 +1949,20 @@ body::after {
   font-weight: 700;
   font-size: 0.9rem;
   color: var(--neon-teal);
+  white-space: nowrap;
+}
+
+.scoreboard-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.scoreboard-detail {
+  font-size: 0.75rem;
+  color: var(--ez-muted);
   white-space: nowrap;
 }
 

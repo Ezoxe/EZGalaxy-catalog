@@ -13,8 +13,8 @@
     { min: 50,  title: 'Initié',          icon: '🌱' },
     { min: 150, title: 'Technicien',      icon: '🔧' },
     { min: 300, title: 'Expert',          icon: '🚀' },
-    { min: 500, title: 'Hacker Éthique',  icon: '🎯' },
-    { min: 750, title: 'Architecte IT',   icon: '👑' }
+    { min: 450, title: 'Hacker Éthique',  icon: '🎯' },
+    { min: 600, title: 'Architecte IT',   icon: '👑' }
   ];
 
   Data.BADGES = [

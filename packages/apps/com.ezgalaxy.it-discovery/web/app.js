@@ -895,14 +895,18 @@
     else if (pct >= 40) { resultIcon = '💪'; resultTitle = 'Pas mal, tu progresses !'; }
     else { resultIcon = '📚'; resultTitle = 'Continue d\'apprendre !'; }
 
-    // Save quiz result
+    // Save quiz result (best score only)
     const prev = State.completedQuizzes[mod.id];
     if (!prev || score > prev.score) {
       State.completedQuizzes[mod.id] = { score, total };
     }
 
-    addXP(xpEarned);
-    checkBadges();
+    // Guard: only award XP once per quiz attempt (not on re-render)
+    if (!State._quizXpAwarded) {
+      State._quizXpAwarded = true;
+      addXP(xpEarned);
+      checkBadges();
+    }
 
     // New badges earned
     const newBadgesHtml = State.newBadges.length > 0
@@ -1135,7 +1139,11 @@
             <span class="scoreboard-pseudo">' + escapeHtml(entry.pseudo) + '</span>\
             <span class="scoreboard-level">' + lvl.icon + ' ' + lvl.title + '</span>\
           </div>\
-          <div class="scoreboard-xp">⚡ ' + entry.xp + ' XP</div>\
+          <div class="scoreboard-stats">\
+            <span class="scoreboard-xp">⚡ ' + entry.xp + ' XP</span>\
+            <span class="scoreboard-detail">📖 ' + (entry.lessons || 0) + ' leçons</span>\
+            <span class="scoreboard-detail">✅ ' + (entry.quizzes || 0) + ' quiz</span>\
+          </div>\
           <div class="scoreboard-badges">🏅 ' + entry.badges + '</div>\
         </div>';
     }).join('');
@@ -1250,6 +1258,7 @@
         State.quizAnswers = [];
         State.quizAnswered = false;
         State.newBadges = [];
+        State._quizXpAwarded = false;
         State.quizTimerStart = Date.now();
         navigate('quiz');
         break;
@@ -1259,6 +1268,7 @@
         State.quizAnswers = [];
         State.quizAnswered = false;
         State.newBadges = [];
+        State._quizXpAwarded = false;
         State.quizTimerStart = Date.now();
         navigate('quiz');
         break;
@@ -1385,6 +1395,11 @@
       State.totalCorrect++;
       State.streak++;
       if (State.streak > State.maxStreak) State.maxStreak = State.streak;
+      // Award streak XP bonus every 3 correct answers in a row
+      if (State.streak > 0 && State.streak % 3 === 0) {
+        addXP(XP_STREAK);
+        toast('info', `🔥 Streak x${State.streak} ! +${XP_STREAK} XP bonus`);
+      }
       if (State.streak >= 5) checkBadges();
     } else {
       State.streak = 0;
