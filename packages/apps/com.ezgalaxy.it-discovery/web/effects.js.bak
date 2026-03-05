@@ -277,8 +277,7 @@
      ═══════════════════════════════════════════ */
   Effects.ripple = function (e) {
     if (reducedMotion) return;
-    const btn = e.target.closest('button, .module-card, [data-action]');
-    if (!btn) return;
+    const btn = e.currentTarget;
     const rect = btn.getBoundingClientRect();
     const circle = document.createElement('span');
     const diameter = Math.max(rect.width, rect.height);

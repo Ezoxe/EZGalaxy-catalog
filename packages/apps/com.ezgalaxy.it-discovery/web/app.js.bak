@@ -16,21 +16,11 @@
     return div.innerHTML;
   }
 
-  function shuffleWithSeed(arr, seed) {
-    const a = arr.slice();
-    let s = typeof seed === 'number' ? seed : 42;
-    for (let i = a.length - 1; i > 0; i--) {
-      s = (s * 9301 + 49297) % 233280;
-      const j = Math.floor((s / 233280) * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
   /* ───────── Constants ───────── */
   const STORAGE_KEY = 'it-discovery-progress';
   const USER_KEY    = 'it-discovery-user';
   const EXT_ID      = 'com.ezgalaxy.it-discovery';
+  const EXPIRY_MS   = 48 * 3600 * 1000; // 48 h in ms
 
   const XP_LESSON   = 10;
   const XP_CORRECT  = 5;
@@ -73,23 +63,7 @@
     sessionStart: Date.now(),
     // Quiz timer (invisible tiebreaker)
     quizTotalTimeMs: 0,
-    quizTimerStart: null,
-    // ─── Mini-games (Arcade) ───
-    arcadeMode: null,         // 'speedrun' | 'survival' | 'daily'
-    arcadePool: [],           // current question pool
-    arcadeIdx: 0,             // current question index in pool
-    arcadeScore: 0,           // current run score
-    arcadeLives: 3,           // survival lives remaining
-    arcadeAnswered: false,    // has the current question been answered
-    arcadeTimeLeft: 60,       // speedrun countdown (seconds)
-    arcadeTimerId: null,      // interval id for speedrun timer
-    arcadeFinished: false,    // has the current run ended
-    arcadeStreak: 0,          // current mini-game streak
-    // Persisted arcade stats
-    speedrunBest: 0,
-    survivalBest: 0,
-    dailyChallengesDone: 0,   // total daily challenges completed
-    dailyLastDate: null       // ISO date string of last daily
+    quizTimerStart: null
   };
 
   /* ───────── Data references ───────── */
@@ -199,11 +173,7 @@
       maxStreak: State.maxStreak,
       totalCorrect: State.totalCorrect,
       totalAnswered: State.totalAnswered,
-      quizTotalTimeMs: State.quizTotalTimeMs,
-      speedrunBest: State.speedrunBest,
-      survivalBest: State.survivalBest,
-      dailyChallengesDone: State.dailyChallengesDone,
-      dailyLastDate: State.dailyLastDate
+      quizTotalTimeMs: State.quizTotalTimeMs
     };
   }
 
@@ -255,9 +225,6 @@
         badges: State.badges.length,
         lessons: Object.keys(State.completedLessons).length,
         quizzes: Object.keys(State.completedQuizzes).length,
-        speedrunBest: State.speedrunBest || 0,
-        survivalBest: State.survivalBest || 0,
-        dailyChallenges: State.dailyChallengesDone || 0,
         updatedAt: new Date().toISOString()
       };
       console.log('[Leaderboard] syncToLeaderboard: writing player-' + pseudo, payload);
@@ -274,6 +241,11 @@
       if (!raw) return;
       const save = JSON.parse(raw);
       if (!save) return;
+      // Expiry 48 h based on savedAt timestamp
+      if (save.savedAt && (Date.now() - save.savedAt > EXPIRY_MS)) {
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
       State.xp              = save.xp || 0;
       State.completedLessons = save.completedLessons || {};
       State.completedQuizzes = save.completedQuizzes || {};
@@ -283,10 +255,6 @@
       State.totalCorrect     = save.totalCorrect || 0;
       State.totalAnswered    = save.totalAnswered || 0;
       State.quizTotalTimeMs  = save.quizTotalTimeMs || 0;
-      State.speedrunBest     = save.speedrunBest || 0;
-      State.survivalBest     = save.survivalBest || 0;
-      State.dailyChallengesDone = save.dailyChallengesDone || 0;
-      State.dailyLastDate    = save.dailyLastDate || null;
     } catch (e) { /* corrupted data */ }
   }
 
@@ -314,10 +282,6 @@
     State.totalCorrect = 0;
     State.totalAnswered = 0;
     State.quizTotalTimeMs = 0;
-    State.speedrunBest = 0;
-    State.survivalBest = 0;
-    State.dailyChallengesDone = 0;
-    State.dailyLastDate = null;
     localStorage.removeItem(STORAGE_KEY);
     if (State.user && State.apiAvailable) syncToAPI();
   }
@@ -505,68 +469,22 @@
     const totalLessons = Data.MODULES.reduce((s, m) => s + m.lessons.length, 0);
     const perfectQuizzes = Object.values(State.completedQuizzes).filter(q => q.score === q.total).length;
 
-    // Progress badges
     if (completedCount >= 1) awardBadge('first-step');
     if (completedCount >= 5) awardBadge('curious');
     if (completedCount >= totalLessons) awardBadge('encyclopedia');
-
-    // Quiz badges
     if (perfectQuizzes >= 1) awardBadge('quiz-master');
     if (perfectQuizzes >= 3) awardBadge('flawless');
-    if (perfectQuizzes >= 5) awardBadge('perfectionist');
-
-    // Streak badges
-    if (State.maxStreak >= 5)  awardBadge('unstoppable');
-    if (State.maxStreak >= 10) awardBadge('streak-10');
-    if (State.maxStreak >= 20) awardBadge('streak-20');
-
-    // XP badges
-    if (State.xp >= 100)  awardBadge('xp-100');
-    if (State.xp >= 500)  awardBadge('xp-500');
-    if (State.xp >= 1000) awardBadge('xp-1000');
-
-    // Tier badges
-    const unlockedTiers = new Set(Data.MODULES.filter(m => isModuleUnlocked(m)).map(m => m.tier));
-    if (unlockedTiers.has(2)) awardBadge('tier-2-unlocked');
-    if (unlockedTiers.has(3)) awardBadge('tier-3-unlocked');
-    if (unlockedTiers.has(4)) awardBadge('tier-4-unlocked');
+    if (State.maxStreak >= 5) awardBadge('unstoppable');
 
     // Module badges
-    let allModulesComplete = true;
     for (const mod of Data.MODULES) {
       const allLessons = mod.lessons.every((_, i) => State.completedLessons[mod.id + '-' + i]);
       const quizDone = State.completedQuizzes[mod.id];
       if (allLessons && quizDone) {
         const badgeId = Data.MODULE_BADGES[mod.id];
         if (badgeId) awardBadge(badgeId);
-      } else {
-        allModulesComplete = false;
       }
     }
-    if (allModulesComplete) awardBadge('completionist');
-  }
-
-  /* ═══════════════════════════════════════════
-     MODULE LOCKING (Tier-based)
-     ═══════════════════════════════════════════ */
-  function isModuleUnlocked(mod) {
-    if (!mod.requiredModules || mod.requiredModules.length === 0) return true;
-    return mod.requiredModules.every(reqId => {
-      const reqMod = Data.MODULES.find(m => m.id === reqId);
-      if (!reqMod) return true;
-      const allLessons = reqMod.lessons.every((_, i) => State.completedLessons[reqMod.id + '-' + i]);
-      const quizDone = !!State.completedQuizzes[reqMod.id];
-      return allLessons && quizDone;
-    });
-  }
-
-  function getModuleRequirementText(mod) {
-    if (!mod.requiredModules || mod.requiredModules.length === 0) return '';
-    const names = mod.requiredModules.map(id => {
-      const m = Data.MODULES.find(x => x.id === id);
-      return m ? m.icon + ' ' + m.title : id;
-    });
-    return 'Requiert : ' + names.join(', ');
   }
 
   function getModuleProgress(mod) {
@@ -600,10 +518,6 @@
      NAVIGATION
      ═══════════════════════════════════════════ */
   function navigate(screen, params) {
-    // Stop speedrun timer if leaving arcade play
-    if (State.screen === 'arcade-play' && screen !== 'arcade-play') {
-      stopArcadeTimer();
-    }
     State.screen = screen;
     if (params) {
       if (params.module !== undefined)  State.currentModule = params.module;
@@ -636,10 +550,6 @@
       case 'quiz-result': html = renderHeader() + renderQuizResult(); break;
       case 'profile':    html = renderHeader() + renderProfile(); break;
       case 'scoreboard': html = renderHeader() + renderScoreboard(); break;
-      case 'arcade':     html = renderHeader() + renderArcade(); break;
-      case 'arcade-play': html = renderHeader() + renderArcadePlay(); break;
-      case 'arcade-result': html = renderHeader() + renderArcadeResult(); break;
-      case 'trophies':  html = renderHeader() + renderTrophies(); break;
       default:           html = renderHome();
     }
 
@@ -658,9 +568,6 @@
     }
     if (State.screen === 'scoreboard') {
       setTimeout(() => { if (Effects) Effects.staggerIn('.scoreboard-row', 60); }, 50);
-    }
-    if (State.screen === 'arcade') {
-      setTimeout(() => { if (Effects) Effects.staggerIn('.arcade-mode-card', 120); }, 50);
     }
     if (State.screen === 'auth') {
       // Pseudo+PIN form input
@@ -685,7 +592,6 @@
       ? '<span class="header-user" data-action="profile" title="Profil">👤 ' + escapeHtml(State.user.pseudo) + '</span>'
       : '<span class="header-user header-login" data-action="auth" title="Connexion">🔐</span>';
     const scoreboardBtn = '<span class="header-scoreboard" data-action="scoreboard" title="Classement">🏆</span>';
-    const arcadeBtn = '<span class="header-arcade" data-action="arcade" title="Mini-Jeux">🎮</span>';
     return '\
       <div class="header">\
         <div class="header-left">\
@@ -693,7 +599,6 @@
           <span class="header-title" data-action="modules">IT Discovery</span>\
         </div>\
         <div class="header-right">\
-          ' + arcadeBtn + '\
           ' + scoreboardBtn + '\
           <div class="header-xp" data-action="profile" title="Voir le profil">\
             <span class="header-xp-icon">⚡</span>\
@@ -725,14 +630,13 @@
         <div class="home-hero-icon">💡</div>
         <h1 class="home-title">IT Discovery</h1>
         <p class="home-subtitle">
-          Explore le monde fascinant de l'informatique à travers ${Data.MODULES.length} modules interactifs,
-          des quiz, des mini-jeux et un système de progression !
+          Explore le monde fascinant de l'informatique à travers 6 modules interactifs,
+          des quiz, et un système de progression !
         </p>
         <button class="home-start-btn" data-action="modules">
           🚀 Commencer l'aventure
         </button>
         <div class="home-secondary-actions">
-          <button class="home-btn-secondary" data-action="arcade">🎮 Mini-Jeux</button>
           <button class="home-btn-secondary" data-action="scoreboard">🏆 Classement</button>
           ${State.user
             ? '<button class="home-btn-secondary" data-action="profile">👤 ' + escapeHtml(State.user.pseudo) + '</button>'
@@ -769,49 +673,21 @@
      RENDER: MODULES GRID
      ═══════════════════════════════════════════ */
   function renderModules() {
-    // Group modules by tier
-    const tiers = {};
-    Data.MODULES.forEach(mod => {
-      if (!tiers[mod.tier]) tiers[mod.tier] = [];
-      tiers[mod.tier].push(mod);
-    });
-    const tierNames = { 1: '🌱 Découverte', 2: '🔧 Intermédiaire', 3: '🚀 Avancé', 4: '👑 Expert' };
-
-    let tiersHtml = '';
-    Object.keys(tiers).sort().forEach(tier => {
-      const mods = tiers[tier];
-      const cards = mods.map(mod => {
-        const prog = getModuleProgress(mod);
-        const completedClass = prog.pct === 100 ? ' completed' : '';
-        const unlocked = isModuleUnlocked(mod);
-        const lockedClass = unlocked ? '' : ' locked';
-        const lockOverlay = unlocked ? '' :
-          `<div class="module-locked-overlay">
-            <span class="module-locked-icon">🔒</span>
-            <span class="module-locked-text">${escapeHtml(getModuleRequirementText(mod))}</span>
-          </div>`;
-
-        return `
-          <div class="module-card${completedClass}${lockedClass}" ${unlocked ? 'data-action="open-module" data-module="' + mod.id + '"' : ''}
-               style="--module-color: ${mod.color}">
-            <span class="module-card-icon">${mod.icon}</span>
-            <h3 class="module-card-title">${escapeHtml(mod.title)}</h3>
-            <p class="module-card-desc">${escapeHtml(mod.description)}</p>
-            ${unlocked ? `
-              <div class="module-progress">
-                <div class="module-progress-fill" style="width:${prog.pct}%; background: linear-gradient(90deg, ${mod.color}, ${mod.color}88)"></div>
-              </div>
-              <div class="module-progress-text">${prog.done}/${prog.total} — ${prog.pct}%</div>
-            ` : lockOverlay}
-          </div>`;
-      }).join('');
-
-      tiersHtml += `
-        <div class="tier-section">
-          <h3 class="tier-title">${tierNames[tier] || 'Tier ' + tier}</h3>
-          <div class="modules-grid">${cards}</div>
+    const cards = Data.MODULES.map(mod => {
+      const prog = getModuleProgress(mod);
+      const completedClass = prog.pct === 100 ? ' completed' : '';
+      return `
+        <div class="module-card${completedClass}" data-action="open-module" data-module="${mod.id}"
+             style="--module-color: ${mod.color}">
+          <span class="module-card-icon">${mod.icon}</span>
+          <h3 class="module-card-title">${escapeHtml(mod.title)}</h3>
+          <p class="module-card-desc">${escapeHtml(mod.description)}</p>
+          <div class="module-progress">
+            <div class="module-progress-fill" style="width:${prog.pct}%; background: linear-gradient(90deg, ${mod.color}, ${mod.color}88)"></div>
+          </div>
+          <div class="module-progress-text">${prog.done}/${prog.total} — ${prog.pct}%</div>
         </div>`;
-    });
+    }).join('');
 
     return `
       <div class="modules-page">
@@ -819,7 +695,7 @@
           <h2>🗺️ Choisis ton module</h2>
           <p>Explore les différents domaines de l'informatique à ton rythme</p>
         </div>
-        ${tiersHtml}
+        <div class="modules-grid">${cards}</div>
       </div>`;
   }
 
@@ -928,115 +804,6 @@
               </div>`
             ).join('')}</div>
           </div>`;
-
-        case 'drag-sort':
-          return `<div class="content-block content-interactive content-drag-sort">
-            <div class="interactive-title">🔀 ${escapeHtml(block.question)}</div>
-            <div class="drag-sort-hint">Clique sur un élément puis clique sur sa destination pour les échanger</div>
-            <div class="drag-sort-list" data-action-scope="drag-sort">
-              ${block.items.map((item, i) =>
-                `<div class="drag-sort-item" data-sort-idx="${i}" data-action="drag-sort-select">
-                  <span class="drag-sort-num">${i + 1}</span>
-                  <span class="drag-sort-text">${escapeHtml(item)}</span>
-                </div>`
-              ).join('')}
-            </div>
-            <button class="interactive-check-btn" data-action="drag-sort-check">✅ Vérifier l'ordre</button>
-          </div>`;
-
-        case 'drag-match':
-          return `<div class="content-block content-interactive content-drag-match">
-            <div class="interactive-title">🔗 ${escapeHtml(block.question)}</div>
-            <div class="drag-match-hint">Clique sur un terme puis sur sa définition</div>
-            <div class="drag-match-container">
-              <div class="drag-match-terms">
-                ${block.pairs.map((p, i) =>
-                  `<div class="drag-match-term" data-match-idx="${i}" data-action="drag-match-term">${escapeHtml(p.term)}</div>`
-                ).join('')}
-              </div>
-              <div class="drag-match-defs">
-                ${shuffleWithSeed(block.pairs.map((p, i) => ({ def: p.definition, idx: i })), block.question.length).map(p =>
-                  `<div class="drag-match-def" data-match-def="${p.idx}" data-action="drag-match-def">${escapeHtml(p.def)}</div>`
-                ).join('')}
-              </div>
-            </div>
-          </div>`;
-
-        case 'mini-terminal':
-          return `<div class="content-block content-interactive content-mini-terminal">
-            <div class="interactive-title">💻 ${escapeHtml(block.title)}</div>
-            <div class="mini-terminal">
-              <div class="mini-terminal-output" data-terminal-id="${btoa(block.title)}">
-                <div class="mini-terminal-line prompt">user@discovery:~$ <span class="cursor">_</span></div>
-              </div>
-              <div class="mini-terminal-input-row">
-                <span class="mini-terminal-prompt">$</span>
-                <input type="text" class="mini-terminal-input" data-action="terminal-input"
-                       data-commands='${escapeHtml(JSON.stringify(block.commands))}'
-                       placeholder="Tape une commande (essaie 'help')..." autocomplete="off">
-              </div>
-            </div>
-          </div>`;
-
-        case 'flashcard-deck':
-          return `<div class="content-block content-interactive content-flashcards">
-            <div class="interactive-title">🃏 ${escapeHtml(block.title)}</div>
-            <div class="flashcard-deck">
-              ${block.cards.map((card, i) =>
-                `<div class="flashcard" data-action="flashcard-flip">
-                  <div class="flashcard-inner">
-                    <div class="flashcard-front">${escapeHtml(card.front)}</div>
-                    <div class="flashcard-back">${escapeHtml(card.back)}</div>
-                  </div>
-                </div>`
-              ).join('')}
-            </div>
-          </div>`;
-
-        case 'true-false':
-          return `<div class="content-block content-interactive content-true-false">
-            <div class="interactive-title">✅❌ ${escapeHtml(block.title)}</div>
-            <div class="true-false-list">
-              ${block.statements.map((st, i) =>
-                `<div class="tf-statement" data-tf-answer="${st.answer}" data-tf-explanation="${escapeHtml(st.explanation)}">
-                  <div class="tf-text">${escapeHtml(st.text)}</div>
-                  <div class="tf-buttons">
-                    <button class="tf-btn tf-true" data-action="tf-answer" data-tf-val="true">Vrai</button>
-                    <button class="tf-btn tf-false" data-action="tf-answer" data-tf-val="false">Faux</button>
-                  </div>
-                  <div class="tf-feedback"></div>
-                </div>`
-              ).join('')}
-            </div>
-          </div>`;
-
-        case 'interactive-diagram':
-          return `<div class="content-block content-interactive content-interactive-diagram">
-            <div class="interactive-title">📐 ${escapeHtml(block.title)}</div>
-            <div class="interactive-diagram-container">
-              ${block.elements.map(el =>
-                `<div class="diagram-element" data-action="diagram-click" style="left:${el.x}%;top:${el.y}%">
-                  <div class="diagram-el-label">${el.label}</div>
-                  <div class="diagram-el-info">${escapeHtml(el.info)}</div>
-                </div>`
-              ).join('')}
-            </div>
-          </div>`;
-
-        case 'fill-blank':
-          return `<div class="content-block content-interactive content-fill-blank">
-            <div class="interactive-title">✏️ ${escapeHtml(block.title || 'Complète les phrases')}</div>
-            <div class="fill-blank-items">
-              ${block.sentences.map((s, i) =>
-                `<div class="fill-blank-item">
-                  <span>${escapeHtml(s.before)}</span>
-                  <input type="text" class="fill-blank-input" data-answer="${escapeHtml(s.answer)}" placeholder="..." size="${Math.max(5, s.answer.length + 2)}">
-                  <span>${escapeHtml(s.after)}</span>
-                </div>`
-              ).join('')}
-            </div>
-            <button class="interactive-check-btn" data-action="fill-blank-check">✅ Vérifier</button>
-          </div>`;
         default:
           return `<div class="content-block content-paragraph">${escapeHtml(block.text || '')}</div>`;
       }
@@ -1141,13 +908,6 @@
     let xpEarned = score * XP_CORRECT;
     if (score === total) xpEarned += XP_PERFECT;
 
-    // If retrying, only award XP for improvement over previous attempt
-    const prev = State.completedQuizzes[mod.id];
-    if (prev) {
-      const prevXp = prev.score * XP_CORRECT + (prev.score === prev.total ? XP_PERFECT : 0);
-      xpEarned = Math.max(0, xpEarned - prevXp);
-    }
-
     let resultIcon, resultTitle;
     if (pct === 100) { resultIcon = '🏆'; resultTitle = 'Parfait ! Incroyable !'; }
     else if (pct >= 80) { resultIcon = '🌟'; resultTitle = 'Excellent travail !'; }
@@ -1156,6 +916,7 @@
     else { resultIcon = '📚'; resultTitle = 'Continue d\'apprendre !'; }
 
     // Save quiz result (best score only)
+    const prev = State.completedQuizzes[mod.id];
     if (!prev || score > prev.score) {
       State.completedQuizzes[mod.id] = { score, total };
     }
@@ -1163,11 +924,7 @@
     // Guard: only award XP once per quiz attempt (not on re-render)
     if (!State._quizXpAwarded) {
       State._quizXpAwarded = true;
-      // Add this quiz's timer to cumulative total
-      State.quizTotalTimeMs += (State._quizTimerMs || 0);
-      if (xpEarned > 0) addXP(xpEarned);
-      // Check speed badge
-      if ((State._quizTimerMs || 0) < 30000 && score === total) awardBadge('speed-demon');
+      addXP(xpEarned);
       checkBadges();
     }
 
@@ -1200,327 +957,6 @@
           </div>
         </div>
       </div>`;
-  }
-
-  /* ═══════════════════════════════════════════
-     RENDER: ARCADE (Mini-Games Hub)
-     ═══════════════════════════════════════════ */
-  function shuffleArray(arr) {
-    const a = arr.slice();
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  function getTodayStr() {
-    return new Date().toISOString().slice(0, 10);
-  }
-
-  function isDailyDoneToday() {
-    return State.dailyLastDate === getTodayStr();
-  }
-
-  function renderArcade() {
-    const dailyDone = isDailyDoneToday();
-    return `
-      <div class="arcade-view">
-        <button class="btn-back" data-action="modules">← Retour aux modules</button>
-        <div class="arcade-header">
-          <div class="arcade-header-icon">🎮</div>
-          <h2 class="arcade-title">Mini-Jeux</h2>
-          <p class="arcade-subtitle">Mets tes connaissances à l'épreuve dans 3 modes de jeu !</p>
-        </div>
-
-        <div class="arcade-modes-grid">
-          <div class="arcade-mode-card speedrun" data-action="arcade-start" data-mode="speedrun">
-            <div class="arcade-mode-icon">⚡</div>
-            <h3 class="arcade-mode-title">Speedrun</h3>
-            <p class="arcade-mode-desc">Réponds à un maximum de questions en 60 secondes ! Chaque bonne réponse = 1 point.</p>
-            <div class="arcade-mode-best">
-              ${State.speedrunBest > 0 ? '🏆 Record : ' + State.speedrunBest + ' pts' : 'Aucun record'}
-            </div>
-          </div>
-
-          <div class="arcade-mode-card survival" data-action="arcade-start" data-mode="survival">
-            <div class="arcade-mode-icon">❤️</div>
-            <h3 class="arcade-mode-title">Survie</h3>
-            <p class="arcade-mode-desc">3 vies seulement ! Chaque erreur en enlève une. Combien de temps tiendras-tu ?</p>
-            <div class="arcade-mode-best">
-              ${State.survivalBest > 0 ? '🏆 Record : ' + State.survivalBest + ' pts' : 'Aucun record'}
-            </div>
-          </div>
-
-          <div class="arcade-mode-card daily ${dailyDone ? 'done' : ''}" ${dailyDone ? '' : 'data-action="arcade-start" data-mode="daily"'}>
-            <div class="arcade-mode-icon">${dailyDone ? '✅' : '📅'}</div>
-            <h3 class="arcade-mode-title">Défi du Jour</h3>
-            <p class="arcade-mode-desc">${dailyDone
-              ? 'Défi déjà complété aujourd\'hui ! Reviens demain.'
-              : '10 questions aléatoires. Un seul essai par jour !'}</p>
-            <div class="arcade-mode-best">
-              ${State.dailyChallengesDone > 0 ? '📅 Défis complétés : ' + State.dailyChallengesDone : 'Aucun défi complété'}
-            </div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function renderArcadePlay() {
-    const q = State.arcadePool[State.arcadeIdx];
-    if (!q) return renderArcadeResult();
-
-    const modeLabels = { speedrun: '⚡ Speedrun', survival: '❤️ Survie', daily: '📅 Défi du Jour' };
-
-    let statusBar = '';
-    if (State.arcadeMode === 'speedrun') {
-      statusBar = `
-        <div class="arcade-status-bar">
-          <span class="arcade-status-item">⏱️ <span id="arcade-timer">${State.arcadeTimeLeft}</span>s</span>
-          <span class="arcade-status-item">⭐ ${State.arcadeScore} pts</span>
-          <span class="arcade-status-item">🔥 ×${State.arcadeStreak}</span>
-        </div>`;
-    } else if (State.arcadeMode === 'survival') {
-      const hearts = '❤️'.repeat(State.arcadeLives) + '🖤'.repeat(3 - State.arcadeLives);
-      statusBar = `
-        <div class="arcade-status-bar">
-          <span class="arcade-status-item">${hearts}</span>
-          <span class="arcade-status-item">⭐ ${State.arcadeScore} pts</span>
-          <span class="arcade-status-item">🔥 ×${State.arcadeStreak}</span>
-        </div>`;
-    } else {
-      statusBar = `
-        <div class="arcade-status-bar">
-          <span class="arcade-status-item">📋 ${State.arcadeIdx + 1}/${State.arcadePool.length}</span>
-          <span class="arcade-status-item">⭐ ${State.arcadeScore} pts</span>
-        </div>`;
-    }
-
-    const optionsHtml = q.options.map((opt, i) => {
-      let cls = 'arcade-option';
-      if (State.arcadeAnswered) {
-        if (i === q.correct) cls += ' correct';
-        else if (State._arcadeUserAnswer === i) cls += ' wrong';
-      }
-      return `<div class="${cls}" data-action="arcade-answer" data-index="${i}">
-        <span class="arcade-option-letter">${LETTERS[i]}</span>
-        <span>${escapeHtml(opt)}</span>
-      </div>`;
-    }).join('');
-
-    let feedbackHtml = '';
-    if (State.arcadeAnswered) {
-      const isCorrect = State._arcadeUserAnswer === q.correct;
-      feedbackHtml = `
-        <div class="arcade-feedback ${isCorrect ? 'correct' : 'wrong'}">
-          ${isCorrect ? '✅ Correct !' : '❌ ' + escapeHtml(q.explanation || 'Mauvaise réponse')}
-        </div>
-        <button class="arcade-next-btn" data-action="arcade-next">
-          ${(State.arcadeMode === 'survival' && State.arcadeLives <= 0) ? '📊 Voir les résultats' :
-            (State.arcadeMode === 'daily' && State.arcadeIdx >= State.arcadePool.length - 1) ? '📊 Voir les résultats' : 'Suivante →'}
-        </button>`;
-    }
-
-    return `
-      <div class="arcade-play">
-        <div class="arcade-play-header">
-          <span class="arcade-mode-label">${modeLabels[State.arcadeMode] || 'Arcade'}</span>
-        </div>
-        ${statusBar}
-        <div class="arcade-question-card">
-          <div class="arcade-question-module">${q.moduleIcon || '💡'} ${escapeHtml(q.moduleTitle || '')}</div>
-          <h3 class="arcade-question-text">${escapeHtml(q.question)}</h3>
-          <div class="arcade-options">${optionsHtml}</div>
-          ${feedbackHtml}
-        </div>
-      </div>`;
-  }
-
-  function renderArcadeResult() {
-    const modeLabels = { speedrun: '⚡ Speedrun', survival: '❤️ Survie', daily: '📅 Défi du Jour' };
-    let resultIcon, resultTitle;
-    if (State.arcadeScore >= 15) { resultIcon = '🏆'; resultTitle = 'Légende absolue !'; }
-    else if (State.arcadeScore >= 10) { resultIcon = '🌟'; resultTitle = 'Excellent !'; }
-    else if (State.arcadeScore >= 5)  { resultIcon = '👍'; resultTitle = 'Bien joué !'; }
-    else if (State.arcadeScore >= 1)  { resultIcon = '💪'; resultTitle = 'Pas mal !'; }
-    else { resultIcon = '📚'; resultTitle = 'Entraîne-toi encore !'; }
-
-    // Calculate XP
-    let xpEarned = State.arcadeScore * XP_CORRECT;
-    if (State.arcadeMode === 'daily') xpEarned += 10; // bonus for completing daily
-
-    // Award XP only once
-    if (!State._arcadeXpAwarded) {
-      State._arcadeXpAwarded = true;
-      if (xpEarned > 0) addXP(xpEarned);
-
-      // Update best scores
-      if (State.arcadeMode === 'speedrun' && State.arcadeScore > State.speedrunBest) {
-        State.speedrunBest = State.arcadeScore;
-      }
-      if (State.arcadeMode === 'survival' && State.arcadeScore > State.survivalBest) {
-        State.survivalBest = State.arcadeScore;
-      }
-      if (State.arcadeMode === 'daily') {
-        State.dailyChallengesDone++;
-        State.dailyLastDate = getTodayStr();
-      }
-
-      // Check mini-game badges
-      State.newBadges = [];
-      if (State.speedrunBest >= 50) awardBadge('speedrun-50');
-      if (State.survivalBest >= 10) awardBadge('survivor-10');
-      if (State.dailyChallengesDone >= 3) awardBadge('daily-3');
-      if (State.dailyChallengesDone >= 7) awardBadge('daily-7');
-      checkBadges();
-      saveProgress();
-    }
-
-    const newBadgesHtml = State.newBadges.length > 0
-      ? `<div class="badges-earned">
-          ${State.newBadges.map(bId => {
-            const b = Data.BADGES.find(x => x.id === bId);
-            return b ? `<div class="badge-earned-item">
-              <span class="badge-earned-icon">${b.icon}</span>
-              <span class="badge-earned-title">${escapeHtml(b.title)}</span>
-            </div>` : '';
-          }).join('')}
-        </div>` : '';
-
-    const isNewRecord = (State.arcadeMode === 'speedrun' && State.arcadeScore >= State.speedrunBest) ||
-                        (State.arcadeMode === 'survival' && State.arcadeScore >= State.survivalBest);
-
-    return `
-      <div class="arcade-result">
-        <div class="arcade-result-card">
-          <div class="arcade-result-icon">${resultIcon}</div>
-          <h2 class="arcade-result-title">${resultTitle}</h2>
-          <div class="arcade-result-mode">${modeLabels[State.arcadeMode] || 'Arcade'}</div>
-          <div class="arcade-result-score">${State.arcadeScore} points</div>
-          ${isNewRecord ? '<div class="arcade-new-record">🎉 Nouveau record !</div>' : ''}
-          <div class="xp-gained">⚡ +${xpEarned} XP gagnés !</div>
-          ${newBadgesHtml}
-          <div style="margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-            ${State.arcadeMode !== 'daily' ? `<button class="lesson-nav-btn primary" data-action="arcade-retry">🔄 Rejouer</button>` : ''}
-            <button class="lesson-nav-btn secondary" data-action="arcade">🎮 Retour Arcade</button>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  /* ═══════════════════════════════════════════
-     ARCADE: Timer management (Speedrun)
-     ═══════════════════════════════════════════ */
-  function startSpeedrunTimer() {
-    stopArcadeTimer();
-    State.arcadeTimeLeft = 60;
-    State.arcadeTimerId = setInterval(() => {
-      State.arcadeTimeLeft--;
-      const timerEl = $id('arcade-timer');
-      if (timerEl) timerEl.textContent = State.arcadeTimeLeft;
-      if (State.arcadeTimeLeft <= 10 && timerEl) {
-        timerEl.parentElement.classList.add('urgent');
-      }
-      if (State.arcadeTimeLeft <= 0) {
-        stopArcadeTimer();
-        State.arcadeFinished = true;
-        navigate('arcade-result');
-      }
-    }, 1000);
-  }
-
-  function stopArcadeTimer() {
-    if (State.arcadeTimerId) {
-      clearInterval(State.arcadeTimerId);
-      State.arcadeTimerId = null;
-    }
-  }
-
-  function initArcadeRun(mode) {
-    stopArcadeTimer();
-    State.arcadeMode = mode;
-    State.arcadeScore = 0;
-    State.arcadeIdx = 0;
-    State.arcadeAnswered = false;
-    State.arcadeFinished = false;
-    State.arcadeStreak = 0;
-    State.arcadeLives = 3;
-    State._arcadeXpAwarded = false;
-    State._arcadeUserAnswer = null;
-    State.newBadges = [];
-
-    const allQ = Data.getAllQuizQuestions();
-    if (mode === 'daily') {
-      // Daily: use date as seed for consistent daily pool
-      const seed = parseInt(getTodayStr().replace(/-/g, ''), 10);
-      State.arcadePool = shuffleWithSeed(allQ, seed).slice(0, 10);
-    } else {
-      // Speedrun / Survival: large shuffled pool
-      State.arcadePool = shuffleArray(allQ);
-    }
-
-    if (mode === 'speedrun') {
-      startSpeedrunTimer();
-    }
-  }
-
-  function handleArcadeAnswer(answerIdx) {
-    if (State.arcadeAnswered || State.arcadeFinished) return;
-    const q = State.arcadePool[State.arcadeIdx];
-    if (!q) return;
-
-    State.arcadeAnswered = true;
-    State._arcadeUserAnswer = answerIdx;
-    State.totalAnswered++;
-
-    const isCorrect = answerIdx === q.correct;
-    if (isCorrect) {
-      State.arcadeScore++;
-      State.arcadeStreak++;
-      State.totalCorrect++;
-      // Bonus: every 5 streak in arcade = +1 bonus point
-      if (State.arcadeStreak > 0 && State.arcadeStreak % 5 === 0) {
-        State.arcadeScore++;
-        toast('info', `🔥 Streak x${State.arcadeStreak} ! +1 bonus`);
-      }
-    } else {
-      State.arcadeStreak = 0;
-      if (State.arcadeMode === 'survival') {
-        State.arcadeLives--;
-      }
-    }
-
-    render();
-  }
-
-  function arcadeNextQuestion() {
-    // Check end conditions
-    if (State.arcadeMode === 'survival' && State.arcadeLives <= 0) {
-      stopArcadeTimer();
-      navigate('arcade-result');
-      return;
-    }
-    if (State.arcadeMode === 'daily' && State.arcadeIdx >= State.arcadePool.length - 1) {
-      navigate('arcade-result');
-      return;
-    }
-
-    State.arcadeIdx++;
-    State.arcadeAnswered = false;
-    State._arcadeUserAnswer = null;
-
-    // If pool exhausted in speedrun/survival, reshuffle
-    if (State.arcadeIdx >= State.arcadePool.length) {
-      if (State.arcadeMode === 'speedrun' || State.arcadeMode === 'survival') {
-        State.arcadePool = shuffleArray(Data.getAllQuizQuestions());
-        State.arcadeIdx = 0;
-      } else {
-        navigate('arcade-result');
-        return;
-      }
-    }
-
-    render();
   }
 
   /* ═══════════════════════════════════════════
@@ -1615,106 +1051,12 @@
           </div>
         </div>
 
-        ${(State.speedrunBest > 0 || State.survivalBest > 0 || State.dailyChallengesDone > 0) ? `
-        <div class="profile-badges-title" style="margin-top:28px">🎮 Mini-Jeux</div>
-        <div class="profile-stats" style="margin-top:12px">
-          <div class="profile-stat">
-            <div class="profile-stat-value" style="color:var(--neon-amber)">${State.speedrunBest}</div>
-            <div class="profile-stat-label">⚡ Speedrun Record</div>
-          </div>
-          <div class="profile-stat">
-            <div class="profile-stat-value" style="color:var(--neon-red)">${State.survivalBest}</div>
-            <div class="profile-stat-label">❤️ Survie Record</div>
-          </div>
-          <div class="profile-stat">
-            <div class="profile-stat-value" style="color:var(--neon-blue)">${State.dailyChallengesDone}</div>
-            <div class="profile-stat-label">📅 Défis Quotidiens</div>
-          </div>
-        </div>
-        ` : ''}
-
         <div class="profile-badges-title">🏅 Badges (${State.badges.length}/${Data.BADGES.length})</div>
         <div class="profile-badges-grid">${badgesHtml}</div>
-        <div style="text-align:center;margin-top:16px;">
-          <button class="lesson-nav-btn secondary" data-action="trophies">🏆 Voir toutes les récompenses</button>
-        </div>
 
         <div class="profile-reset">
           <button class="profile-reset-btn" data-action="reset">🗑️ Réinitialiser la progression</button>
         </div>
-      </div>`;
-  }
-
-  /* ═══════════════════════════════════════════
-     RENDER: TROPHIES (Dedicated badges screen)
-     ═══════════════════════════════════════════ */
-  function renderTrophies() {
-    const earned = State.badges.length;
-    const total = Data.BADGES.length;
-    const pct = Math.round((earned / total) * 100);
-
-    // Group badges by category
-    const categories = {
-      progress:  { title: '📚 Progression', badges: [] },
-      quiz:      { title: '🎯 Quiz & Précision', badges: [] },
-      streak:    { title: '🔥 Streaks', badges: [] },
-      xp:        { title: '⚡ XP', badges: [] },
-      tiers:     { title: '🔓 Tiers', badges: [] },
-      modules:   { title: '📖 Modules', badges: [] },
-      arcade:    { title: '🎮 Mini-Jeux', badges: [] },
-      special:   { title: '⭐ Spécial', badges: [] }
-    };
-
-    Data.BADGES.forEach(b => {
-      if (['first-step', 'curious', 'encyclopedia'].includes(b.id)) categories.progress.badges.push(b);
-      else if (['quiz-master', 'flawless', 'perfectionist', 'speed-demon'].includes(b.id)) categories.quiz.badges.push(b);
-      else if (['unstoppable', 'streak-10', 'streak-20'].includes(b.id)) categories.streak.badges.push(b);
-      else if (['xp-100', 'xp-500', 'xp-1000'].includes(b.id)) categories.xp.badges.push(b);
-      else if (['tier-2-unlocked', 'tier-3-unlocked', 'tier-4-unlocked'].includes(b.id)) categories.tiers.badges.push(b);
-      else if (['speedrun-50', 'survivor-10', 'daily-3', 'daily-7'].includes(b.id)) categories.arcade.badges.push(b);
-      else if (b.id === 'completionist' || b.id === 'first-login') categories.special.badges.push(b);
-      else categories.modules.badges.push(b);
-    });
-
-    let categoriesHtml = '';
-    for (const [key, cat] of Object.entries(categories)) {
-      if (cat.badges.length === 0) continue;
-      const catEarned = cat.badges.filter(b => State.badges.includes(b.id)).length;
-      categoriesHtml += `
-        <div class="trophy-category">
-          <div class="trophy-category-header">
-            <span class="trophy-category-title">${cat.title}</span>
-            <span class="trophy-category-count">${catEarned}/${cat.badges.length}</span>
-          </div>
-          <div class="trophy-badges-grid">
-            ${cat.badges.map(b => {
-              const isEarned = State.badges.includes(b.id);
-              return `
-                <div class="trophy-badge ${isEarned ? 'earned' : 'locked'}">
-                  <div class="trophy-badge-icon">${isEarned ? b.icon : '🔒'}</div>
-                  <div class="trophy-badge-title">${escapeHtml(b.title)}</div>
-                  <div class="trophy-badge-desc">${escapeHtml(b.desc)}</div>
-                </div>`;
-            }).join('')}
-          </div>
-        </div>`;
-    }
-
-    return `
-      <div class="trophies-view">
-        <button class="btn-back" data-action="profile">← Retour au profil</button>
-
-        <div class="trophies-header">
-          <div class="trophies-header-icon">🏆</div>
-          <h2 class="trophies-title">Récompenses</h2>
-          <p class="trophies-subtitle">${earned} / ${total} badges débloqués</p>
-          <div class="trophies-progress-bar">
-            <div class="trophies-progress-fill" style="width:${pct}%"></div>
-          </div>
-          <div class="trophies-progress-text">${pct}% complété</div>
-        </div>
-
-        ${categoriesHtml}
       </div>`;
   }
 
@@ -1876,38 +1218,6 @@
     if (!app) return;
 
     app.addEventListener('click', handleClick);
-
-    // Terminal input handler (Enter key)
-    app.querySelectorAll('.mini-terminal-input').forEach(input => {
-      input.addEventListener('keydown', function(e) {
-        if (e.key !== 'Enter') return;
-        const val = input.value.trim();
-        if (!val) return;
-        input.value = '';
-        const commands = JSON.parse(input.dataset.commands || '{}');
-        const outputEl = input.closest('.mini-terminal').querySelector('.mini-terminal-output');
-        // Add command line
-        const cmdLine = document.createElement('div');
-        cmdLine.className = 'mini-terminal-line prompt';
-        cmdLine.textContent = 'user@discovery:~$ ' + val;
-        outputEl.appendChild(cmdLine);
-        // Find matching command
-        let response = null;
-        for (const [cmd, resp] of Object.entries(commands)) {
-          if (val.toLowerCase() === cmd.toLowerCase() || val.toLowerCase().startsWith(cmd.split(' ')[0].toLowerCase())) {
-            // Try exact match first
-            if (val.toLowerCase() === cmd.toLowerCase()) { response = resp; break; }
-            if (!response) response = resp;
-          }
-        }
-        if (!response) response = 'Commande non reconnue. Tape "help" pour voir les commandes disponibles.';
-        const respLine = document.createElement('div');
-        respLine.className = 'mini-terminal-line output';
-        respLine.textContent = response;
-        outputEl.appendChild(respLine);
-        outputEl.scrollTop = outputEl.scrollHeight;
-      });
-    });
   }
 
   function handleClick(e) {
@@ -1935,10 +1245,6 @@
         navigate('profile');
         break;
 
-      case 'trophies':
-        navigate('trophies');
-        break;
-
       case 'open-module':
         navigate('module', { module: target.dataset.module });
         break;
@@ -1953,6 +1259,7 @@
         break;
 
       case 'prev-lesson':
+        completeCurrentLesson();
         navigate('lesson', { lesson: State.currentLesson - 1 });
         break;
 
@@ -1972,9 +1279,6 @@
         State.quizAnswered = false;
         State.newBadges = [];
         State._quizXpAwarded = false;
-        State._quizStreakBase = State.streak;
-        State.streak = 0;
-        State._quizTimerMs = 0;
         State.quizTimerStart = Date.now();
         navigate('quiz');
         break;
@@ -1985,9 +1289,6 @@
         State.quizAnswered = false;
         State.newBadges = [];
         State._quizXpAwarded = false;
-        State._quizStreakBase = State.streak;
-        State.streak = 0;
-        State._quizTimerMs = 0;
         State.quizTimerStart = Date.now();
         navigate('quiz');
         break;
@@ -2070,128 +1371,9 @@
         navigate('home');
         break;
 
-      /* ─── Arcade (Mini-Games) handlers ─── */
-      case 'arcade':
-        stopArcadeTimer();
-        navigate('arcade');
-        break;
-
-      case 'arcade-start': {
-        const mode = target.dataset.mode;
-        if (mode === 'daily' && isDailyDoneToday()) break;
-        initArcadeRun(mode);
-        navigate('arcade-play');
-        break;
-      }
-
-      case 'arcade-answer':
-        if (State.arcadeAnswered) return;
-        handleArcadeAnswer(parseInt(target.dataset.index, 10));
-        break;
-
-      case 'arcade-next':
-        arcadeNextQuestion();
-        break;
-
-      case 'arcade-retry': {
-        const retryMode = State.arcadeMode;
-        initArcadeRun(retryMode);
-        navigate('arcade-play');
-        break;
-      }
-
       case 'reveal':
         target.closest('.reveal-option').classList.toggle('revealed');
         break;
-
-      /* ─── Interactive block handlers ─── */
-      case 'drag-sort-select': {
-        const item = target.closest('.drag-sort-item');
-        const list = item.closest('.drag-sort-list');
-        const selected = list.querySelector('.drag-sort-item.selected');
-        if (selected) {
-          // Swap contents
-          const selText = selected.querySelector('.drag-sort-text').textContent;
-          selected.querySelector('.drag-sort-text').textContent = item.querySelector('.drag-sort-text').textContent;
-          item.querySelector('.drag-sort-text').textContent = selText;
-          selected.classList.remove('selected');
-        } else {
-          list.querySelectorAll('.drag-sort-item').forEach(el => el.classList.remove('selected'));
-          item.classList.add('selected');
-        }
-        break;
-      }
-
-      case 'drag-sort-check': {
-        const block = target.closest('.content-drag-sort');
-        const items = block.querySelectorAll('.drag-sort-item');
-        items.forEach((item, i) => {
-          item.classList.remove('correct', 'wrong');
-          item.classList.add(parseInt(item.dataset.sortIdx) === i ? 'correct' : 'wrong');
-        });
-        break;
-      }
-
-      case 'drag-match-term': {
-        const container = target.closest('.drag-match-container');
-        container.querySelectorAll('.drag-match-term').forEach(el => el.classList.remove('selected'));
-        target.classList.add('selected');
-        break;
-      }
-
-      case 'drag-match-def': {
-        const container = target.closest('.drag-match-container');
-        const selectedTerm = container.querySelector('.drag-match-term.selected');
-        if (!selectedTerm) break;
-        const termIdx = selectedTerm.dataset.matchIdx;
-        const defIdx = target.dataset.matchDef;
-        const isCorrect = termIdx === defIdx;
-        if (isCorrect) {
-          selectedTerm.classList.remove('selected');
-          selectedTerm.classList.add('matched');
-          target.classList.add('matched');
-          selectedTerm.style.pointerEvents = 'none';
-          target.style.pointerEvents = 'none';
-        } else {
-          target.classList.add('wrong');
-          setTimeout(() => target.classList.remove('wrong'), 600);
-        }
-        selectedTerm.classList.remove('selected');
-        break;
-      }
-
-      case 'flashcard-flip':
-        target.closest('.flashcard').classList.toggle('flipped');
-        break;
-
-      case 'tf-answer': {
-        const stmt = target.closest('.tf-statement');
-        if (stmt.classList.contains('answered')) break;
-        stmt.classList.add('answered');
-        const correctAnswer = stmt.dataset.tfAnswer === 'true';
-        const userAnswer = target.dataset.tfVal === 'true';
-        const isCorrect = correctAnswer === userAnswer;
-        stmt.classList.add(isCorrect ? 'correct' : 'wrong');
-        const fb = stmt.querySelector('.tf-feedback');
-        fb.textContent = (isCorrect ? '✅ ' : '❌ ') + stmt.dataset.tfExplanation;
-        fb.style.display = 'block';
-        break;
-      }
-
-      case 'diagram-click':
-        target.closest('.diagram-element').classList.toggle('active');
-        break;
-
-      case 'fill-blank-check': {
-        const block = target.closest('.content-fill-blank');
-        block.querySelectorAll('.fill-blank-input').forEach(input => {
-          const correct = input.dataset.answer.toLowerCase().trim();
-          const val = input.value.toLowerCase().trim();
-          input.classList.remove('correct', 'wrong');
-          input.classList.add(val === correct ? 'correct' : 'wrong');
-        });
-        break;
-      }
     }
   }
 
@@ -2218,9 +1400,9 @@
     const q = mod.quiz[State.currentQuiz];
     if (!q) return;
 
-    // Stop quiz timer — accumulate elapsed time for this quiz only
+    // Stop quiz timer — accumulate elapsed time for tiebreaker
     if (State.quizTimerStart) {
-      State._quizTimerMs = (State._quizTimerMs || 0) + (Date.now() - State.quizTimerStart);
+      State.quizTotalTimeMs += Date.now() - State.quizTimerStart;
       State.quizTimerStart = null;
     }
 

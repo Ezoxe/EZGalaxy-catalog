@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1b2a"/>
+      <stop offset="100%" style="stop-color:#1b2838"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5a4"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="80" fill="url(#bg)"/>
+  <!-- Lightbulb body -->
+  <circle cx="256" cy="200" r="96" fill="none" stroke="url(#glow)" stroke-width="8"/>
+  <path d="M208 244 C208 296, 214 310, 214 326 L298 326 C298 310, 304 296, 304 244" fill="none" stroke="url(#glow)" stroke-width="8" stroke-linecap="round"/>
+  <!-- Filament -->
+  <path d="M234 154 L256 196 L278 154" fill="none" stroke="#f59e0b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Base lines -->
+  <line x1="220" y1="342" x2="292" y2="342" stroke="url(#glow)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="224" y1="358" x2="288" y2="358" stroke="url(#glow)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="232" y1="374" x2="280" y2="374" stroke="url(#glow)" stroke-width="6" stroke-linecap="round"/>
+  <!-- Rays -->
+  <line x1="256" y1="74" x2="256" y2="48" stroke="#0ea5a4" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <line x1="348" y1="108" x2="368" y2="88" stroke="#0ea5a4" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <line x1="164" y1="108" x2="144" y2="88" stroke="#0ea5a4" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <line x1="384" y1="200" x2="410" y2="200" stroke="#0ea5a4" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <line x1="128" y1="200" x2="102" y2="200" stroke="#0ea5a4" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <!-- IT text -->
+  <text x="256" y="450" text-anchor="middle" font-size="44" font-weight="700" font-family="system-ui, sans-serif" fill="#0ea5a4">IT Discovery</text>
+</svg>

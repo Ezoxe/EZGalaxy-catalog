@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IT Discovery</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0d1b2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="IT Discovery">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="IT Discovery">
+
+  <!-- EZGalaxy Design System -->
+  <link rel="stylesheet" href="./ezgalaxy-base.css">
+  <link rel="stylesheet" href="./ezgalaxy-animations.css">
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="./style.css">
+
+  <!-- Error overlay (debug) -->
+  <script src="./error-overlay.js"></script>
+
+  <!-- EZGalaxy SDK (loaded dynamically) -->
+  <script src="./sdk-loader.js"></script>
+
+  <!-- App scripts -->
+  <script defer src="./data.js"></script>
+  <script defer src="./effects.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+
+  <!-- Particle background -->
+  <canvas id="particles-canvas"></canvas>
+
+  <!-- Main app container -->
+  <div id="app" class="app ez-fade-in">
+    <div class="loading-screen">
+      <div class="loading-icon">💡</div>
+      <h1 class="loading-title">IT Discovery</h1>
+      <p class="loading-sub">Initialisation...</p>
+      <div class="loading-bar"><div class="loading-bar-inner"></div></div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toast-container"></div>
+
+  <noscript>
+    <div style="padding:32px;text-align:center;color:#e5e7eb;">
+      <h2>⚠️ JavaScript requis</h2>
+      <p>Cette application nécessite JavaScript pour fonctionner. Merci de l'activer dans les paramètres de votre navigateur.</p>
+    </div>
+  </noscript>
+
+</body>
+</html>
