@@ -181,11 +181,13 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(buildSaveData()));
     } catch (e) { /* quota exceeded or private mode */ }
-    if (State.user && State.apiAvailable) syncToAPI();
+    // Re-check SDK availability before cloud sync
+    if (sdkReady() && !State.apiAvailable) State.apiAvailable = true;
+    if (State.user && sdkReady()) syncToAPI();
   }
 
   function syncToAPI() {
-    if (!State.user || !State.apiAvailable) return;
+    if (!State.user || !sdkReady()) return;
     var data = { pseudo: State.user.pseudo, pin: State.user.pin };
     var sd = buildSaveData();
     for (var k in sd) data[k] = sd[k];
@@ -201,7 +203,19 @@
      ═══════════════════════════════════════════ */
 
   async function syncToLeaderboard() {
-    if (!State.user || !State.apiAvailable) return;
+    // Re-check SDK availability (may have loaded after initial check)
+    if (sdkReady() && !State.apiAvailable) {
+      State.apiAvailable = true;
+      console.log('[Leaderboard] syncToLeaderboard: SDK became available (late)');
+    }
+    if (!State.user) {
+      console.log('[Leaderboard] syncToLeaderboard: skipped — no user');
+      return;
+    }
+    if (!sdkReady()) {
+      console.log('[Leaderboard] syncToLeaderboard: skipped — SDK not loaded');
+      return;
+    }
     try {
       var pseudo = State.user.pseudo;
       var payload = {
@@ -317,10 +331,16 @@
     State.scoreboardDebug = '';
     render();
     try {
+      // Re-check SDK availability
+      if (sdkReady() && !State.apiAvailable) {
+        State.apiAvailable = true;
+        console.log('[Leaderboard] loadScoreboard: SDK became available (late)');
+      }
+
       // Sync current user first to ensure we are in the leaderboard
       await syncToLeaderboard();
 
-      if (State.apiAvailable) {
+      if (sdkReady()) {
         console.log('[Leaderboard] loadScoreboard: calling ezgalaxy.app.list...');
         var result = await ezgalaxy.app.list('leaderboard', { limit: 100 });
         console.log('[Leaderboard] loadScoreboard: raw result', JSON.stringify(result));

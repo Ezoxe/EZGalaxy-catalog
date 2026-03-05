@@ -30,6 +30,11 @@
    ═══════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; }
 
+html {
+  overflow-y: scroll;          /* always show scrollbar → no layout shift */
+  scrollbar-gutter: stable;    /* modern fallback: reserve gutter space   */
+}
+
 body {
   overflow-x: hidden;
   min-height: 100vh;

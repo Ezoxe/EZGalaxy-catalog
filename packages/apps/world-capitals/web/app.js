@@ -14,6 +14,25 @@
 
   var TIMER_DURATION_MS = 8000;
 
+  /* ── Island nations (ISO 3166-1 alpha-2, lowercase) ── */
+  var ISLAND_CODES_LIST = [
+    'ag','bb','bs','bn','ck','cu','cy','dm','do','fj','fm','gd',
+    'id','ie','is','jm','jp','ki','km','kn','lc','lk','mg','mh',
+    'mt','mu','mv','mw','nr','nz','pg','ph','pw','sb','sc','sg',
+    'st','sz','tl','to','tt','tv','vc','vu','ws','ht','tw','bh',
+    'cv','gp','mq','re','yt','nc','pf','wf','as','gu','mp','vi',
+    'tc','ky','bm','vg','ai','ms','fk','sh','ck','nu','tk','pn',
+    'cx','cc','nf','hm','gb','au'
+  ];
+  var ISLAND_CODES = {};
+  for (var _ic = 0; _ic < ISLAND_CODES_LIST.length; _ic++) {
+    ISLAND_CODES[ISLAND_CODES_LIST[_ic]] = true;
+  }
+
+  function isIsland(code) {
+    return !!ISLAND_CODES[String(code || '').toLowerCase()];
+  }
+
   var MemoryStore = {};
   var StorageState = { persistent: true, warned: false };
 
@@ -411,6 +430,7 @@
   var App = {
     pseudo: '',
     mode: null,
+    islandFilter: 'all', // 'all' | 'no-islands' | 'only-islands'
     lives: 3,
     score: 0,
     countries: [],
@@ -464,6 +484,14 @@
       + '      <div class="mode-card" data-mode="easy"><span class="mode-icon">😊</span><div class="mode-info"><h4>Facile</h4><p>3 propositions au choix</p></div></div>'
       + '      <div class="mode-card" data-mode="normal"><span class="mode-icon">🤔</span><div class="mode-info"><h4>Normal</h4><p>Écris le nom de la capitale</p></div></div>'
       + '      <div class="mode-card" data-mode="hard"><span class="mode-icon">😈</span><div class="mode-info"><h4>Difficile</h4><p>Écris la capitale en 8 secondes</p></div></div>'
+      + '    </div>'
+      + '  </div>'
+      + '  <div class="island-section">'
+      + '    <h3>🏝️ Filtre îles</h3>'
+      + '    <div class="island-cards">'
+      + '      <div class="island-card selected" data-island="all"><span class="island-icon">🌍</span><div class="island-info"><h4>Tous</h4><p>Tous les pays</p></div></div>'
+      + '      <div class="island-card" data-island="no-islands"><span class="island-icon">🏔️</span><div class="island-info"><h4>Sans îles</h4><p>Exclure les îles</p></div></div>'
+      + '      <div class="island-card" data-island="only-islands"><span class="island-icon">🏝️</span><div class="island-info"><h4>Îles uniquement</h4><p>Mode expert des îles</p></div></div>'
       + '    </div>'
       + '  </div>'
       + '  <div class="leaderboard-section">'
@@ -550,6 +578,16 @@
       };
     }
 
+    var islandCards = $all('.island-card');
+    for (i = 0; i < islandCards.length; i++) {
+      islandCards[i].onclick = function () {
+        for (var j3 = 0; j3 < islandCards.length; j3++) islandCards[j3].classList.remove('selected');
+        this.classList.add('selected');
+        App.islandFilter = this.getAttribute('data-island');
+        updateStartButton();
+      };
+    }
+
     var startBtn = $id('start-btn');
     if (startBtn) startBtn.onclick = startGame;
 
@@ -562,7 +600,31 @@
   function updateStartButton() {
     var btn = $id('start-btn');
     if (!btn) return;
-    btn.disabled = !(App.pseudo && App.mode && Countries.ready && Countries.items.length);
+    var pool = getFilteredCountries();
+    btn.disabled = !(App.pseudo && App.mode && Countries.ready && pool.length);
+    // Update count hint
+    var el = $id('countries-status');
+    if (el && Countries.ready) {
+      var total = Countries.items.length;
+      if (App.islandFilter === 'only-islands') {
+        el.textContent = '🏝️ ' + pool.length + ' îles / ' + total + ' pays';
+      } else if (App.islandFilter === 'no-islands') {
+        el.textContent = '🏔️ ' + pool.length + ' pays (sans îles) / ' + total + ' total';
+      } else {
+        el.textContent = '✅ ' + total + ' capitales chargées';
+      }
+    }
+  }
+
+  function getFilteredCountries() {
+    if (!Countries.items.length) return [];
+    if (App.islandFilter === 'only-islands') {
+      return Countries.items.filter(function (c) { return isIsland(c.code); });
+    }
+    if (App.islandFilter === 'no-islands') {
+      return Countries.items.filter(function (c) { return !isIsland(c.code); });
+    }
+    return Countries.items;
   }
 
   /* ═══════════════════════════════════════════
@@ -611,8 +673,9 @@
     $id('score-display').textContent = String(App.score);
     var hearts = $all('.heart');
     for (var i = 0; i < hearts.length; i++) {
+      if (hearts[i].classList.contains('losing')) continue; // don't override animation
       if (i >= App.lives) hearts[i].classList.add('lost');
-      else hearts[i].classList.remove('lost');
+      else { hearts[i].classList.remove('lost'); hearts[i].classList.remove('losing'); }
     }
     var modeNames = { easy: 'Facile', normal: 'Normal', hard: 'Difficile' };
     $id('mode-display').textContent = modeNames[App.mode] || 'Mode';
@@ -620,7 +683,7 @@
 
   function animateHeartLoss() {
     var hearts = $all('.heart');
-    var idx = 2 - App.lives;
+    var idx = App.lives; // after decrement: lives=2→hearts[2], lives=1→hearts[1], lives=0→hearts[0]
     if (hearts[idx]) {
       hearts[idx].classList.add('losing');
       window.setTimeout(function () {
@@ -661,7 +724,8 @@
      GAME FLOW
      ═══════════════════════════════════════════ */
   function startGame() {
-    if (!Countries.ready || !Countries.items.length) {
+    var pool = getFilteredCountries();
+    if (!Countries.ready || !pool.length) {
       toast('error', 'Pays non chargés');
       return;
     }
@@ -670,7 +734,7 @@
     App.score = 0;
     App.idx = 0;
     App.isAnswered = false;
-    App.countries = shuffle(Countries.items);
+    App.countries = shuffle(pool);
 
     showGame();
     updateHUD();
@@ -691,7 +755,7 @@
     }
 
     if (App.idx >= App.countries.length) {
-      App.countries = shuffle(Countries.items);
+      App.countries = shuffle(getFilteredCountries());
       App.idx = 0;
     }
 
