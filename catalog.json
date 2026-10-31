@@ -180,9 +180,9 @@
     {
       "id": "network-sim",
       "title": "Network Sim",
-      "function": "Simulation réseau (package standard)",
+      "function": "Simulateur réseau pédagogique : adressage IP, routage, NAT, DHCP, DNS, pare-feu, et menaces expliquées",
       "path": "packages/apps/network-sim",
-      "version": "1.1.0"
+      "version": "2.0.0"
     },
     {
       "id": "test",
