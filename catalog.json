@@ -61,9 +61,9 @@
     {
       "id": "com.ezgalaxy.it-discovery",
       "title": "IT Discovery",
-      "function": "Découvre l'informatique de manière ludique et interactive — modules, quiz, badges et gamification pour les 14 ans et +",
+      "function": "Découvre l'informatique du collège au BUT : cours en scènes animées sur 3 niveaux, quiz corrigés par le serveur, mini-jeux, classement mensuel, Hall of Fame, records, duels fantômes et espace tuteur",
       "path": "packages/apps/com.ezgalaxy.it-discovery",
-      "version": "1.0.0"
+      "version": "2.0.0"
     },
     {
       "id": "com.ezgalaxy.kanflow",

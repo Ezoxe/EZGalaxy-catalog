@@ -1,0 +1,1448 @@
+{
+ "modules": [
+  {
+   "id": "hardware",
+   "title": "C'est quoi l'informatique ?",
+   "icon": "🖥️",
+   "tier": 1,
+   "required": [],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "hardware:q0",
+     "question": "Quel composant est le \"cerveau\" de l'ordinateur ?",
+     "options": [
+      "RAM",
+      "CPU",
+      "Disque dur",
+      "Carte graphique"
+     ],
+     "correct": 1,
+     "explanation": "Le CPU (processeur) exécute toutes les instructions et fait les calculs. C'est bien le cerveau !"
+    },
+    {
+     "id": "hardware:q1",
+     "question": "Que se passe-t-il avec la RAM quand on éteint l'ordinateur ?",
+     "options": [
+      "Elle garde les données",
+      "Elle se vide",
+      "Elle se met en veille",
+      "Elle se copie sur le disque"
+     ],
+     "correct": 1,
+     "explanation": "La RAM est une mémoire volatile : elle se vide dès qu'il n'y a plus d'électricité !"
+    },
+    {
+     "id": "hardware:q2",
+     "question": "Quel OS est utilisé sur la grande majorité des serveurs Internet ?",
+     "options": [
+      "Windows",
+      "macOS",
+      "Linux",
+      "Android"
+     ],
+     "correct": 2,
+     "explanation": "Linux fait tourner la grande majorité des serveurs web dans le monde, grâce à sa stabilité et à sa gratuité."
+    },
+    {
+     "id": "hardware:q3",
+     "question": "Qu'est-ce qu'un périphérique d'entrée ?",
+     "options": [
+      "Un écran",
+      "Un haut-parleur",
+      "Un clavier",
+      "Une imprimante"
+     ],
+     "correct": 2,
+     "explanation": "Le clavier permet d'envoyer des informations à l'ordi (entrée). L'écran, lui, est un périphérique de sortie."
+    },
+    {
+     "id": "hardware:q4",
+     "question": "Que fait un SSD par rapport à un HDD classique ?",
+     "options": [
+      "Il est plus lent",
+      "Il stocke plus",
+      "Il est beaucoup plus rapide",
+      "Il consomme plus"
+     ],
+     "correct": 2,
+     "explanation": "Un SSD utilise de la mémoire flash (pas de pièces mécaniques) et est jusqu'à 100x plus rapide qu'un HDD !"
+    },
+    {
+     "id": "hardware:q5",
+     "question": "Quel est le rôle principal du système d'exploitation ?",
+     "options": [
+      "Jouer à des jeux",
+      "Gérer le matériel et les logiciels",
+      "Se connecter à Internet",
+      "Protéger contre les virus"
+     ],
+     "correct": 1,
+     "explanation": "L'OS est le chef d'orchestre qui gère le matériel, les programmes, les fichiers et toutes les ressources."
+    },
+    {
+     "id": "hardware:q6",
+     "question": "Quel raccourci ouvre directement le Gestionnaire des tâches sous Windows ?",
+     "options": [
+      "Ctrl+Alt+F4",
+      "Ctrl+Shift+Échap",
+      "Alt+Tab",
+      "Win+L"
+     ],
+     "correct": 1,
+     "explanation": "Ctrl+Shift+Échap ouvre directement le Gestionnaire des tâches (Ctrl+Alt+Suppr affiche d'abord un menu)."
+    },
+    {
+     "id": "hardware:q7",
+     "question": "Quel composant relie tous les autres entre eux ?",
+     "options": [
+      "L'alimentation",
+      "La carte mère",
+      "La carte graphique",
+      "La RAM"
+     ],
+     "correct": 1,
+     "explanation": "La carte mère est le grand circuit sur lequel se branchent processeur, mémoire, stockage et cartes d'extension."
+    }
+   ]
+  },
+  {
+   "id": "daily",
+   "title": "Le Numérique au Quotidien",
+   "icon": "📱",
+   "tier": 1,
+   "required": [],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "daily:q0",
+     "question": "Pourquoi beaucoup d'applis sont-elles gratuites ?",
+     "options": [
+      "Par générosité",
+      "Parce qu'elles vendent tes données et de la pub",
+      "Le gouvernement les finance",
+      "Elles n'ont pas de frais"
+     ],
+     "correct": 1,
+     "explanation": "La plupart des applis gratuites se financent en collectant tes données personnelles pour vendre de la publicité ciblée."
+    },
+    {
+     "id": "daily:q1",
+     "question": "Qu'est-ce qu'un deepfake ?",
+     "options": [
+      "Un jeu vidéo",
+      "Un filtre photo basique",
+      "Une vidéo/image truquée par IA",
+      "Un type de virus"
+     ],
+     "correct": 2,
+     "explanation": "Les deepfakes sont des contenus (vidéo, audio, image) générés ou modifiés par l'IA de manière très réaliste."
+    },
+    {
+     "id": "daily:q2",
+     "question": "Qu'est-ce que le RGPD ?",
+     "options": [
+      "Un réseau social",
+      "Un règlement européen sur la protection des données",
+      "Un type d'IA",
+      "Un langage de programmation"
+     ],
+     "correct": 1,
+     "explanation": "Le RGPD (Règlement Général sur la Protection des Données) est la loi européenne qui protège tes données personnelles."
+    },
+    {
+     "id": "daily:q3",
+     "question": "Combien de capteurs contient un smartphone moderne ?",
+     "options": [
+      "1-2 capteurs",
+      "3-5 capteurs",
+      "Plus de 10 capteurs",
+      "0 capteur"
+     ],
+     "correct": 2,
+     "explanation": "Un smartphone contient de nombreux capteurs : GPS, accéléromètre, gyroscope, boussole, proximité, luminosité, baromètre, et plus !"
+    },
+    {
+     "id": "daily:q4",
+     "question": "L'ordinateur d'Apollo 11 vs ton smartphone...",
+     "options": [
+      "Apollo 11 était plus puissant",
+      "Ils sont à peu près égaux",
+      "Ton smartphone est 100 000x+ plus puissant",
+      "On ne peut pas comparer"
+     ],
+     "correct": 2,
+     "explanation": "L'ordinateur d'Apollo 11 avait 74 Ko de RAM. Ton smartphone en a ~8 Go, soit environ 100 000 fois plus !"
+    },
+    {
+     "id": "daily:q5",
+     "question": "Quelle est la meilleure façon de protéger tes données sur une appli ?",
+     "options": [
+      "Accepter toutes les permissions",
+      "Vérifier et limiter les permissions demandées",
+      "Ne jamais utiliser d'applis",
+      "Changer de téléphone souvent"
+     ],
+     "correct": 1,
+     "explanation": "Vérifie toujours les permissions demandées et n'accorde que celles vraiment nécessaires au fonctionnement de l'appli."
+    },
+    {
+     "id": "daily:q6",
+     "question": "Que révèlent souvent les métadonnées d'une photo ?",
+     "options": [
+      "Rien du tout",
+      "Le lieu, la date et l'appareil",
+      "Ton mot de passe",
+      "Ton numéro de carte"
+     ],
+     "correct": 1,
+     "explanation": "Les données EXIF d'une photo contiennent souvent la date, le modèle d'appareil et la position GPS."
+    },
+    {
+     "id": "daily:q7",
+     "question": "Une vidéo choc circule et pourrait être un deepfake. Quel est le bon réflexe ?",
+     "options": [
+      "La partager vite",
+      "Vérifier la source et chercher si des médias fiables en parlent",
+      "La commenter",
+      "La télécharger"
+     ],
+     "correct": 1,
+     "explanation": "Avant de partager, on vérifie la source et on recoupe avec des médias fiables."
+    }
+   ]
+  },
+  {
+   "id": "networks",
+   "title": "Les Réseaux & Internet",
+   "icon": "🌐",
+   "tier": 2,
+   "required": [
+    "hardware"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "networks:q0",
+     "question": "Que fait le DNS ?",
+     "options": [
+      "Bloque les virus",
+      "Traduit les noms de domaine en adresses IP",
+      "Stocke les fichiers",
+      "Accélère le Wi-Fi"
+     ],
+     "correct": 1,
+     "explanation": "Le DNS est l'annuaire d'Internet : il traduit \"youtube.com\" en adresse IP compréhensible par les machines."
+    },
+    {
+     "id": "networks:q1",
+     "question": "Qu'est-ce qu'un réseau local (LAN) ?",
+     "options": [
+      "Internet",
+      "Un réseau d'appareils connectés localement",
+      "Un satellite",
+      "Un câble sous-marin"
+     ],
+     "correct": 1,
+     "explanation": "Un LAN (Local Area Network) relie les appareils d'un même lieu : maison, bureau, école..."
+    },
+    {
+     "id": "networks:q2",
+     "question": "Le Cloud, c'est concrètement...",
+     "options": [
+      "Un nuage de données flottant",
+      "Des serveurs dans des data centers",
+      "Un satellite en orbite",
+      "Un disque dur portable"
+     ],
+     "correct": 1,
+     "explanation": "Le Cloud ce sont des serveurs physiques bien réels, installés dans d'immenses data centers."
+    },
+    {
+     "id": "networks:q3",
+     "question": "Quelle bande Wi-Fi a la meilleure portée ?",
+     "options": [
+      "5 GHz",
+      "2.4 GHz",
+      "6 GHz",
+      "Bluetooth"
+     ],
+     "correct": 1,
+     "explanation": "Le 2.4 GHz porte plus loin et traverse mieux les murs, même si le 5 GHz est plus rapide."
+    },
+    {
+     "id": "networks:q4",
+     "question": "Que signifie HTTPS ?",
+     "options": [
+      "Connexion rapide",
+      "Connexion chiffrée et sécurisée",
+      "Connexion gratuite",
+      "Connexion Wi-Fi"
+     ],
+     "correct": 1,
+     "explanation": "Le S de HTTPS signifie \"Secure\" : tes données sont chiffrées pendant le transport."
+    },
+    {
+     "id": "networks:q5",
+     "question": "Comment naviguent les données sur Internet ?",
+     "options": [
+      "En un seul bloc",
+      "Découpées en paquets",
+      "Par satellite uniquement",
+      "Par Bluetooth"
+     ],
+     "correct": 1,
+     "explanation": "Les données sont découpées en paquets qui voyagent indépendamment et se recombinent à l'arrivée."
+    },
+    {
+     "id": "networks:q6",
+     "question": "Que fait un routeur ?",
+     "options": [
+      "Il stocke les sites web",
+      "Il dirige les paquets vers le bon réseau",
+      "Il traduit les noms en adresses IP",
+      "Il chiffre ton disque"
+     ],
+     "correct": 1,
+     "explanation": "Le routeur choisit par où envoyer chaque paquet pour qu'il atteigne sa destination."
+    },
+    {
+     "id": "networks:q7",
+     "question": "Quel support transmet les données sous forme de lumière ?",
+     "options": [
+      "Le câble RJ45",
+      "Le Wi-Fi",
+      "La fibre optique",
+      "Le Bluetooth"
+     ],
+     "correct": 2,
+     "explanation": "La fibre optique guide des impulsions de lumière dans un fil de verre très fin."
+    }
+   ]
+  },
+  {
+   "id": "dev",
+   "title": "Le Développement & l'IA",
+   "icon": "💻",
+   "tier": 2,
+   "required": [
+    "hardware"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "dev:q0",
+     "question": "Qu'est-ce qu'un algorithme ?",
+     "options": [
+      "Un virus informatique",
+      "Une suite d'étapes pour résoudre un problème",
+      "Un langage de programmation",
+      "Un type de processeur"
+     ],
+     "correct": 1,
+     "explanation": "Un algorithme est une série d'instructions logiques et ordonnées pour accomplir une tâche."
+    },
+    {
+     "id": "dev:q1",
+     "question": "Quels langages trouve-t-on dans presque tous les sites web ?",
+     "options": [
+      "Python",
+      "Java",
+      "HTML/CSS/JavaScript",
+      "C++"
+     ],
+     "correct": 2,
+     "explanation": "Tous les sites web utilisent HTML, CSS et JavaScript."
+    },
+    {
+     "id": "dev:q2",
+     "question": "Qui est considéré comme le/la premier(e) programmeur(se) ?",
+     "options": [
+      "Steve Jobs",
+      "Bill Gates",
+      "Ada Lovelace",
+      "Alan Turing"
+     ],
+     "correct": 2,
+     "explanation": "Ada Lovelace a écrit le premier programme informatique en 1843."
+    },
+    {
+     "id": "dev:q3",
+     "question": "Qu'est-ce que le \"frontend\" d'un site web ?",
+     "options": [
+      "La base de données",
+      "La partie visible par l'utilisateur",
+      "Le serveur",
+      "Le câble réseau"
+     ],
+     "correct": 1,
+     "explanation": "Le frontend, c'est tout ce que l'utilisateur voit et avec quoi il interagit."
+    },
+    {
+     "id": "dev:q4",
+     "question": "Comment une IA apprend-elle à reconnaître des images ?",
+     "options": [
+      "On lui donne la réponse",
+      "On la programme manuellement",
+      "On l'entraîne avec des milliers d'exemples",
+      "Elle comprend toute seule"
+     ],
+     "correct": 2,
+     "explanation": "Le Machine Learning consiste à montrer des milliers d'exemples à l'IA pour qu'elle détecte des patterns."
+    },
+    {
+     "id": "dev:q5",
+     "question": "Qu'est-ce qu'une API ?",
+     "options": [
+      "Un type de câble",
+      "Un pont entre le frontend et le backend",
+      "Un langage de programmation",
+      "Un virus"
+     ],
+     "correct": 1,
+     "explanation": "Une API permet au frontend de communiquer avec le backend pour échanger des données."
+    },
+    {
+     "id": "dev:q6",
+     "question": "À quoi sert le CSS dans une page web ?",
+     "options": [
+      "À la structure",
+      "Au style et à la mise en page",
+      "Aux calculs du serveur",
+      "À la base de données"
+     ],
+     "correct": 1,
+     "explanation": "Le CSS décrit l'apparence : couleurs, polices, espacements, mise en page."
+    },
+    {
+     "id": "dev:q7",
+     "question": "Ton programme donne un résultat faux. Que fais-tu ?",
+     "options": [
+      "Je le jette",
+      "Je le débogue : je cherche l'erreur et je la corrige",
+      "J'éteins l'ordinateur",
+      "Je change d'écran"
+     ],
+     "correct": 1,
+     "explanation": "Déboguer, c'est tester, trouver la cause de l'erreur puis la corriger."
+    }
+   ]
+  },
+  {
+   "id": "os",
+   "title": "Systèmes d'exploitation",
+   "icon": "🐧",
+   "tier": 2,
+   "required": [
+    "daily"
+   ],
+   "lessons": 4,
+   "quiz": [
+    {
+     "id": "os:q0",
+     "question": "Quel est l'ancêtre commun de Linux et macOS ?",
+     "options": [
+      "Windows",
+      "MS-DOS",
+      "Unix",
+      "Android"
+     ],
+     "correct": 2,
+     "explanation": "Unix (1969) est l'ancêtre de Linux (fork) et macOS (basé sur BSD, un descendant d'Unix)."
+    },
+    {
+     "id": "os:q1",
+     "question": "Que fait le noyau (kernel) d'un OS ?",
+     "options": [
+      "Affiche l'interface graphique",
+      "Gère le matériel et les processus",
+      "Navigue sur Internet",
+      "Joue de la musique"
+     ],
+     "correct": 1,
+     "explanation": "Le kernel est le cœur de l'OS : il gère la mémoire, les processus, le stockage et la communication avec le matériel."
+    },
+    {
+     "id": "os:q2",
+     "question": "Que fait la commande \"ls\" dans un terminal Linux ?",
+     "options": [
+      "Éteindre l'ordinateur",
+      "Lister les fichiers",
+      "Supprimer un fichier",
+      "Installer un programme"
+     ],
+     "correct": 1,
+     "explanation": "\"ls\" (list) affiche la liste des fichiers et dossiers du répertoire courant."
+    },
+    {
+     "id": "os:q3",
+     "question": "Quel OS est open source et gratuit ?",
+     "options": [
+      "Windows",
+      "macOS",
+      "Linux",
+      "iOS"
+     ],
+     "correct": 2,
+     "explanation": "Linux est entièrement open source et gratuit. Son code est modifiable par n'importe qui."
+    },
+    {
+     "id": "os:q4",
+     "question": "Pour quel usage macOS est-il particulièrement réputé ?",
+     "options": [
+      "Le gaming",
+      "La création (photo/vidéo/musique)",
+      "Les serveurs web",
+      "L'administration réseau"
+     ],
+     "correct": 1,
+     "explanation": "macOS et les Mac sont très populaires chez les créatifs grâce à des apps comme Final Cut, Logic Pro, et l'écosystème Apple."
+    },
+    {
+     "id": "os:q5",
+     "question": "Que signifie \"sudo\" ?",
+     "options": [
+      "Super Ultra Driver",
+      "Super User Do",
+      "System Upgrade",
+      "Safe Undo"
+     ],
+     "correct": 1,
+     "explanation": "\"sudo\" = Super User DO. Il exécute une commande avec les droits administrateur (root)."
+    },
+    {
+     "id": "os:q6",
+     "question": "Quel OS domine les serveurs web ?",
+     "options": [
+      "Windows (90%)",
+      "macOS (70%)",
+      "Linux",
+      "ChromeOS (80%)"
+     ],
+     "correct": 2,
+     "explanation": "Linux fait tourner environ Domine les serveurs web grâce à sa stabilité, sa sécurité et sa gratuité."
+    },
+    {
+     "id": "os:q7",
+     "question": "Combien de lignes de code contient le noyau Linux ?",
+     "options": [
+      "100 000",
+      "1 million",
+      "30+ millions",
+      "1 milliard"
+     ],
+     "correct": 2,
+     "explanation": "Le noyau Linux contient plus de 30 millions de lignes de code, contribuées par plus de 15 000 développeurs."
+    }
+   ]
+  },
+  {
+   "id": "security",
+   "title": "Cybersécurité",
+   "icon": "🔒",
+   "tier": 3,
+   "required": [
+    "networks",
+    "dev"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "security:q0",
+     "question": "Qu'est-ce que le phishing ?",
+     "options": [
+      "Un jeu de pêche en ligne",
+      "Une technique d'arnaque par faux e-mails/sites",
+      "Un logiciel antivirus",
+      "Un type de réseau Wi-Fi"
+     ],
+     "correct": 1,
+     "explanation": "Le phishing utilise de faux e-mails ou sites web pour te piéger et voler tes données personnelles."
+    },
+    {
+     "id": "security:q1",
+     "question": "Quel est le meilleur mot de passe parmi ceux-ci ?",
+     "options": [
+      "123456",
+      "MonPrénom2010",
+      "MonChatMange3Pizzas!",
+      "password"
+     ],
+     "correct": 2,
+     "explanation": "\"MonChatMange3Pizzas!\" est long, contient majuscules, minuscules, chiffre et symbole."
+    },
+    {
+     "id": "security:q2",
+     "question": "Que fait un ransomware ?",
+     "options": [
+      "Il accélère ton PC",
+      "Il bloque tes fichiers et demande une rançon",
+      "Il protège contre les virus",
+      "Il améliore le Wi-Fi"
+     ],
+     "correct": 1,
+     "explanation": "Un ransomware chiffre tous tes fichiers et demande de l'argent pour les débloquer."
+    },
+    {
+     "id": "security:q3",
+     "question": "Qu'est-ce que la double authentification (2FA) ?",
+     "options": [
+      "Deux mots de passe",
+      "Un deuxième facteur de vérification",
+      "Deux antivirus",
+      "Un double pare-feu"
+     ],
+     "correct": 1,
+     "explanation": "Le 2FA ajoute une 2e couche : en plus du mot de passe, tu dois confirmer par un code SMS, une appli ou une clé."
+    },
+    {
+     "id": "security:q4",
+     "question": "Quelle est la meilleure attitude face à un e-mail suspect ?",
+     "options": [
+      "L'ouvrir pour vérifier",
+      "Cliquer sur le lien pour voir",
+      "Le supprimer ou le signaler",
+      "Le transférer à un ami"
+     ],
+     "correct": 2,
+     "explanation": "Ne clique jamais sur les liens d'un e-mail suspect. Supprime-le ou signale-le."
+    },
+    {
+     "id": "security:q5",
+     "question": "Pourquoi les mises à jour sont-elles importantes ?",
+     "options": [
+      "Pour changer le look",
+      "Pour corriger des failles de sécurité",
+      "Pour ralentir l'ordi",
+      "Pour ajouter de la pub"
+     ],
+     "correct": 1,
+     "explanation": "Les mises à jour corrigent des failles de sécurité que les hackers pourraient exploiter."
+    },
+    {
+     "id": "security:q6",
+     "question": "Le cadenas HTTPS dans l'URL garantit...",
+     "options": [
+      "Que le site est légitime",
+      "Que la connexion est chiffrée",
+      "Que le site est gratuit",
+      "Que le site est rapide"
+     ],
+     "correct": 1,
+     "explanation": "HTTPS signifie que la connexion est chiffrée, mais un site de phishing peut aussi utiliser HTTPS."
+    },
+    {
+     "id": "security:q7",
+     "question": "Quel est le principal intérêt d'un gestionnaire de mots de passe ?",
+     "options": [
+      "Il rend Internet plus rapide",
+      "Il permet d'avoir un mot de passe différent et solide pour chaque site",
+      "Il supprime les virus",
+      "Il remplace la double authentification"
+     ],
+     "correct": 1,
+     "explanation": "Il crée et retient pour toi un mot de passe unique et solide par site : tu n'as plus qu'un seul mot de passe principal à retenir."
+    }
+   ]
+  },
+  {
+   "id": "enterprise",
+   "title": "L'informatique en entreprise",
+   "icon": "🏢",
+   "tier": 3,
+   "required": [
+    "networks",
+    "os"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "enterprise:q0",
+     "question": "Pourquoi une usine a-t-elle besoin d'un service IT ?",
+     "options": [
+      "Pour vendre des ordinateurs",
+      "Pour gérer les systèmes et le réseau",
+      "Pour faire de la pub",
+      "Elle n'en a pas besoin"
+     ],
+     "correct": 1,
+     "explanation": "Toute entreprise dépend de l'informatique : e-mails, fichiers, logiciels métier, réseau, sécurité..."
+    },
+    {
+     "id": "enterprise:q1",
+     "question": "Qu'est-ce qu'un ticket informatique ?",
+     "options": [
+      "Un billet de concert",
+      "Une demande d'aide enregistrée",
+      "Un code promo",
+      "Un virus"
+     ],
+     "correct": 1,
+     "explanation": "Un ticket est une demande formelle créée dans un outil spécialisé pour signaler un problème IT."
+    },
+    {
+     "id": "enterprise:q2",
+     "question": "Quel niveau de support gère les problèmes les plus complexes ?",
+     "options": [
+      "Niveau 1",
+      "Niveau 2",
+      "Niveau 3",
+      "Niveau 0"
+     ],
+     "correct": 2,
+     "explanation": "Le Niveau 3 regroupe les experts qui traitent les problèmes les plus critiques et complexes."
+    },
+    {
+     "id": "enterprise:q3",
+     "question": "Que fait un DevOps ?",
+     "options": [
+      "Il répare les imprimantes",
+      "Il automatise les déploiements",
+      "Il crée des designs",
+      "Il vend des logiciels"
+     ],
+     "correct": 1,
+     "explanation": "Le DevOps automatise les tests, les déploiements et la gestion de l'infrastructure."
+    },
+    {
+     "id": "enterprise:q4",
+     "question": "Quel métier protège l'entreprise contre les cyberattaques ?",
+     "options": [
+      "Développeur",
+      "Data analyst",
+      "Support",
+      "Ingénieur cybersécurité"
+     ],
+     "correct": 3,
+     "explanation": "L'ingénieur cybersécurité est spécialisé dans la protection des systèmes et la détection des menaces."
+    },
+    {
+     "id": "enterprise:q5",
+     "question": "Qu'est-ce qu'un SLA ?",
+     "options": [
+      "Un langage",
+      "Un calendrier",
+      "Un contrat de niveaux de service",
+      "Un logiciel"
+     ],
+     "correct": 2,
+     "explanation": "Le SLA définit les engagements de délais et de qualité pour résoudre les problèmes IT."
+    },
+    {
+     "id": "enterprise:q6",
+     "question": "Que doit contenir un bon ticket ?",
+     "options": [
+      "Juste « ça marche pas »",
+      "Une description claire, les étapes pour reproduire le problème et une capture d'écran",
+      "Le mot de passe de l'utilisateur",
+      "Rien, le technicien devine"
+     ],
+     "correct": 1,
+     "explanation": "Plus le ticket est précis, plus le technicien peut résoudre le problème rapidement. On ne donne jamais son mot de passe !"
+    },
+    {
+     "id": "enterprise:q7",
+     "question": "Quel niveau de support répond en premier aux utilisateurs ?",
+     "options": [
+      "Le niveau 1 (helpdesk)",
+      "Le niveau 2",
+      "Le niveau 3",
+      "La direction"
+     ],
+     "correct": 0,
+     "explanation": "Le helpdesk (niveau 1) reçoit les demandes, les trie et règle les cas simples."
+    }
+   ]
+  },
+  {
+   "id": "databases",
+   "title": "Bases de données & Big Data",
+   "icon": "🗄️",
+   "tier": 3,
+   "required": [
+    "dev",
+    "os"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "databases:q0",
+     "question": "Qu'est-ce qu'une base de données ?",
+     "options": [
+      "Un dossier sur le bureau",
+      "Un système organisé pour stocker et retrouver des données",
+      "Un câble réseau",
+      "Un type de virus"
+     ],
+     "correct": 1,
+     "explanation": "Une BDD est un système structuré pour gérer efficacement de grandes quantités de données."
+    },
+    {
+     "id": "databases:q1",
+     "question": "Que fait la commande SQL \"SELECT\" ?",
+     "options": [
+      "Supprimer des données",
+      "Lire/récupérer des données",
+      "Modifier des données",
+      "Créer une table"
+     ],
+     "correct": 1,
+     "explanation": "SELECT permet de lire et récupérer des données depuis une ou plusieurs tables."
+    },
+    {
+     "id": "databases:q2",
+     "question": "Qu'est-ce que MongoDB ?",
+     "options": [
+      "Un langage de programmation",
+      "Une base de données NoSQL (documents)",
+      "Un système d'exploitation",
+      "Un réseau social"
+     ],
+     "correct": 1,
+     "explanation": "MongoDB est une BDD NoSQL qui stocke les données sous forme de documents JSON flexibles."
+    },
+    {
+     "id": "databases:q3",
+     "question": "Que signifie les \"3 V\" du Big Data ?",
+     "options": [
+      "Virus, VPN, Virtual",
+      "Volume, Vélocité, Variété",
+      "Vue, Voix, Vidéo",
+      "Version, Valeur, Vérité"
+     ],
+     "correct": 1,
+     "explanation": "Les 3 V caractérisent le Big Data : Volume (quantité), Vélocité (vitesse), Variété (types de données)."
+    },
+    {
+     "id": "databases:q4",
+     "question": "Pour quoi Redis est-il principalement utilisé ?",
+     "options": [
+      "Stocker des vidéos",
+      "Cache ultra-rapide en mémoire",
+      "Envoyer des e-mails",
+      "Créer des sites web"
+     ],
+     "correct": 1,
+     "explanation": "Redis est une BDD clé-valeur en mémoire, utilisée pour le cache et les sessions (très rapide)."
+    },
+    {
+     "id": "databases:q5",
+     "question": "Qu'est-ce qu'une clé primaire dans une table ?",
+     "options": [
+      "Un mot de passe",
+      "Un identifiant unique par ligne",
+      "Le nom de la table",
+      "Un index de recherche"
+     ],
+     "correct": 1,
+     "explanation": "La clé primaire est un identifiant unique qui distingue chaque enregistrement (ligne) dans une table."
+    },
+    {
+     "id": "databases:q6",
+     "question": "Quel mot SQL sert à filtrer les lignes ?",
+     "options": [
+      "ORDER BY",
+      "WHERE",
+      "INSERT",
+      "DROP"
+     ],
+     "correct": 1,
+     "explanation": "WHERE ne garde que les lignes qui respectent une condition."
+    },
+    {
+     "id": "databases:q7",
+     "question": "À quoi sert un index dans une base de données ?",
+     "options": [
+      "À accélérer les recherches",
+      "À supprimer les doublons",
+      "À chiffrer les données",
+      "À dessiner des graphiques"
+     ],
+     "correct": 0,
+     "explanation": "Comme l'index d'un livre, il permet de trouver une valeur sans tout relire."
+    }
+   ]
+  },
+  {
+   "id": "scripting",
+   "title": "Automatisation & Scripting",
+   "icon": "⚙️",
+   "tier": 3,
+   "required": [
+    "dev",
+    "os"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "scripting:q0",
+     "question": "Quel est le principal avantage de l'automatisation ?",
+     "options": [
+      "Rendre les choses plus complexes",
+      "Éliminer les tâches répétitives",
+      "Ralentir les processus",
+      "Augmenter le budget"
+     ],
+     "correct": 1,
+     "explanation": "L'automatisation élimine les tâches répétitives et libère du temps pour le travail créatif."
+    },
+    {
+     "id": "scripting:q1",
+     "question": "Que fait le \"pipe\" (|) dans un terminal ?",
+     "options": [
+      "Supprime un fichier",
+      "Envoie la sortie d'une commande dans une autre",
+      "Crée un dossier",
+      "Se connecte à Internet"
+     ],
+     "correct": 1,
+     "explanation": "Le pipe enchaîne les commandes : la sortie de la première devient l'entrée de la suivante."
+    },
+    {
+     "id": "scripting:q2",
+     "question": "Qu'est-ce que le cron ?",
+     "options": [
+      "Un virus",
+      "Un planificateur de tâches automatiques",
+      "Un langage de programmation",
+      "Un type de réseau"
+     ],
+     "correct": 1,
+     "explanation": "Cron planifie l'exécution automatique de scripts à des horaires précis (chaque jour, semaine...)."
+    },
+    {
+     "id": "scripting:q3",
+     "question": "Quel langage est le plus populaire pour l'automatisation ?",
+     "options": [
+      "C++",
+      "Python",
+      "HTML",
+      "SQL"
+     ],
+     "correct": 1,
+     "explanation": "Python est le roi de l'automatisation grâce à sa simplicité et ses milliers de bibliothèques."
+    },
+    {
+     "id": "scripting:q4",
+     "question": "Que signifie CI/CD ?",
+     "options": [
+      "Code Internet / Code Digital",
+      "Continuous Integration / Continuous Deployment",
+      "Computer Intelligence / Central Data",
+      "Crypto Internet / Cloud Data"
+     ],
+     "correct": 1,
+     "explanation": "CI/CD = Intégration Continue / Déploiement Continu. C'est l'automatisation du cycle de vie du code."
+    },
+    {
+     "id": "scripting:q5",
+     "question": "La règle des 3 en automatisation dit...",
+     "options": [
+      "Utiliser 3 langages",
+      "Si tu fais une tâche 3+ fois, automatise-la",
+      "Écrire 3 lignes de code max",
+      "Tester 3 fois avant de lancer"
+     ],
+     "correct": 1,
+     "explanation": "Si tu répètes une tâche plus de 3 fois, le temps de création du script sera rentabilisé."
+    },
+    {
+     "id": "scripting:q6",
+     "question": "Que fait la redirection « > » dans un terminal ?",
+     "options": [
+      "Elle supprime un fichier",
+      "Elle envoie la sortie d'une commande dans un fichier",
+      "Elle redémarre l'ordinateur",
+      "Elle ouvre un site web"
+     ],
+     "correct": 1,
+     "explanation": "« commande > fichier.txt » écrit le résultat dans le fichier (« >> » l'ajoute à la fin)."
+    },
+    {
+     "id": "scripting:q7",
+     "question": "Dans un pipeline CI/CD, que se passe-t-il juste après l'envoi du code ?",
+     "options": [
+      "Le code part directement en production",
+      "Le serveur d'intégration lance les tests automatiques",
+      "Le serveur s'éteint",
+      "Rien"
+     ],
+     "correct": 1,
+     "explanation": "L'intégration continue vérifie d'abord le code avec les tests, avant toute livraison."
+    }
+   ]
+  },
+  {
+   "id": "cloud",
+   "title": "Cloud & DevOps",
+   "icon": "☁️",
+   "tier": 4,
+   "required": [
+    "security",
+    "scripting"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "cloud:q0",
+     "question": "Qu'est-ce que le IaaS ?",
+     "options": [
+      "Un réseau social",
+      "De l'infrastructure louée en cloud",
+      "Un langage de programmation",
+      "Un type de virus"
+     ],
+     "correct": 1,
+     "explanation": "IaaS (Infrastructure as a Service) = louer des serveurs virtuels en cloud (AWS EC2, Azure VM)."
+    },
+    {
+     "id": "cloud:q1",
+     "question": "Qu'est-ce qu'un conteneur Docker ?",
+     "options": [
+      "Un fichier zip",
+      "Une boîte isolée contenant une appli et ses dépendances",
+      "Un type de serveur",
+      "Un câble réseau"
+     ],
+     "correct": 1,
+     "explanation": "Un conteneur Docker encapsule une application avec tout ce dont elle a besoin, pour fonctionner partout pareil."
+    },
+    {
+     "id": "cloud:q2",
+     "question": "Quel est le plus grand fournisseur cloud ?",
+     "options": [
+      "Google Cloud",
+      "Azure",
+      "AWS (Amazon)",
+      "Oracle"
+     ],
+     "correct": 2,
+     "explanation": "AWS (Amazon Web Services) domine le marché cloud avec environ 33% de part de marché."
+    },
+    {
+     "id": "cloud:q3",
+     "question": "Que fait Kubernetes ?",
+     "options": [
+      "Stocke des fichiers",
+      "Orchestre des milliers de conteneurs",
+      "Crée des sites web",
+      "Protège contre les virus"
+     ],
+     "correct": 1,
+     "explanation": "Kubernetes gère automatiquement le déploiement, la mise à l'échelle et la santé de milliers de conteneurs."
+    },
+    {
+     "id": "cloud:q4",
+     "question": "L'IaC (Infrastructure as Code) permet de...",
+     "options": [
+      "Coder des sites web",
+      "Gérer l'infrastructure avec du code",
+      "Remplacer les développeurs",
+      "Jouer à des jeux"
+     ],
+     "correct": 1,
+     "explanation": "L'IaC permet de définir, versionner et reproduire toute l'infrastructure avec du code."
+    },
+    {
+     "id": "cloud:q5",
+     "question": "Qu'est-ce que le SaaS ?",
+     "options": [
+      "Un serveur virtuel",
+      "Un logiciel utilisable en ligne",
+      "Un câble réseau",
+      "Un type de processeur"
+     ],
+     "correct": 1,
+     "explanation": "SaaS (Software as a Service) = logiciel accessible en ligne sans installation (Gmail, Slack, Office 365)."
+    },
+    {
+     "id": "cloud:q6",
+     "question": "Quel est l'intérêt principal d'un conteneur Docker ?",
+     "options": [
+      "Il fonctionne partout de la même façon",
+      "Il remplace Internet",
+      "Il rend le Wi-Fi plus rapide",
+      "Il sert de clavier"
+     ],
+     "correct": 0,
+     "explanation": "Le conteneur embarque l'application et tout ce dont elle a besoin : elle tourne pareil partout."
+    },
+    {
+     "id": "cloud:q7",
+     "question": "Que permet l'auto-scaling ?",
+     "options": [
+      "Ajuster automatiquement le nombre de serveurs selon la charge",
+      "Agrandir l'écran",
+      "Compresser les photos",
+      "Changer de mot de passe"
+     ],
+     "correct": 0,
+     "explanation": "Quand le trafic augmente, des serveurs sont ajoutés automatiquement, puis retirés quand il baisse."
+    }
+   ]
+  },
+  {
+   "id": "ai",
+   "title": "Intelligence Artificielle avancée",
+   "icon": "🤖",
+   "tier": 4,
+   "required": [
+    "databases",
+    "enterprise"
+   ],
+   "lessons": 3,
+   "quiz": [
+    {
+     "id": "ai:q0",
+     "question": "Quelle est la différence entre ML et Deep Learning ?",
+     "options": [
+      "Aucune",
+      "Le DL utilise des réseaux de neurones profonds",
+      "Le ML est plus récent",
+      "Le DL est plus simple"
+     ],
+     "correct": 1,
+     "explanation": "Le Deep Learning est un sous-ensemble du ML qui utilise des réseaux de neurones à plusieurs couches (profondes)."
+    },
+    {
+     "id": "ai:q1",
+     "question": "Que signifie le \"T\" de GPT ?",
+     "options": [
+      "Technology",
+      "Transformer",
+      "Translation",
+      "Training"
+     ],
+     "correct": 1,
+     "explanation": "GPT = Generative Pre-trained Transformer. Le Transformer est l'architecture de réseau de neurones inventée par Google."
+    },
+    {
+     "id": "ai:q2",
+     "question": "Qu'est-ce qu'une \"hallucination\" d'un LLM ?",
+     "options": [
+      "Un bug d'affichage",
+      "Quand il invente des infos fausses",
+      "Un problème de mémoire",
+      "Une mise à jour"
+     ],
+     "correct": 1,
+     "explanation": "Les LLMs peuvent générer des informations fausses mais présentées avec assurance — c'est une \"hallucination\"."
+    },
+    {
+     "id": "ai:q3",
+     "question": "Pourquoi l'IA de recrutement d'Amazon était-elle biaisée ?",
+     "options": [
+      "Bug technique",
+      "Données d'entraînement biaisées (recrutement masculin)",
+      "Piratage",
+      "Manque de puissance"
+     ],
+     "correct": 1,
+     "explanation": "Entraînée sur 10 ans de recrutement majoritairement masculin, l'IA a appris à pénaliser les profils féminins."
+    },
+    {
+     "id": "ai:q4",
+     "question": "Combien a coûté l'entraînement de GPT-4 ?",
+     "options": [
+      "1 000 $",
+      "100 000 $",
+      "~100 millions $",
+      "100 milliards $"
+     ],
+     "correct": 2,
+     "explanation": "L'entraînement de GPT-4 a coûté environ 100 millions de dollars en calcul GPU et énergie."
+    },
+    {
+     "id": "ai:q5",
+     "question": "Quel type de ML apprend par essai/erreur ?",
+     "options": [
+      "Supervisé",
+      "Non supervisé",
+      "Reinforcement Learning",
+      "Deep Learning"
+     ],
+     "correct": 2,
+     "explanation": "Le Reinforcement Learning apprend par essai-erreur avec des récompenses/punitions (comme un jeu)."
+    },
+    {
+     "id": "ai:q6",
+     "question": "Qu'est-ce qu'un prompt ?",
+     "options": [
+      "Une panne de serveur",
+      "L'instruction ou la question donnée à une IA",
+      "Un type de processeur",
+      "Un virus"
+     ],
+     "correct": 1,
+     "explanation": "Le prompt est le texte qu'on donne au modèle : plus il est précis, meilleure est la réponse."
+    },
+    {
+     "id": "ai:q7",
+     "question": "Comment l'AI Act européen classe-t-il les IA ?",
+     "options": [
+      "Par couleur",
+      "Par niveau de risque",
+      "Par prix",
+      "Par langue"
+     ],
+     "correct": 1,
+     "explanation": "Quatre niveaux : risque minimal, limité, élevé et inacceptable (interdit)."
+    }
+   ]
+  }
+ ],
+ "scenes": {
+  "hw-components": {
+   "module": "hardware",
+   "lesson": 0,
+   "correct": 1,
+   "explanation": "La RAM est la mémoire de travail : beaucoup plus rapide que le SSD, mais elle se vide quand on éteint."
+  },
+  "hw-os-conductor": {
+   "module": "hardware",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "C'est l'ordonnanceur de l'OS qui distribue le temps du processeur à tour de rôle."
+  },
+  "hw-io": {
+   "module": "hardware",
+   "lesson": 2,
+   "correct": 0,
+   "explanation": "Il envoie ta voix vers l'ordinateur : c'est une entrée."
+  },
+  "daily-phone-sensors": {
+   "module": "daily",
+   "lesson": 0,
+   "correct": 1,
+   "explanation": "Le NFC fonctionne à quelques centimètres seulement : parfait pour un paiement volontaire et sécurisé."
+  },
+  "daily-reco": {
+   "module": "daily",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "Ce que tu regardes (et combien de temps) est le meilleur indice pour l'algorithme."
+  },
+  "daily-data-trail": {
+   "module": "daily",
+   "lesson": 2,
+   "correct": 0,
+   "explanation": "Le RGPD te donne notamment le droit d'accès, de rectification et d'effacement de tes données."
+  },
+  "net-lan-wan": {
+   "module": "networks",
+   "lesson": 0,
+   "correct": 0,
+   "explanation": "La box est un routeur : elle fait le lien entre ton réseau local et celui de ton opérateur."
+  },
+  "net-web-journey": {
+   "module": "networks",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "Le DNS est l'annuaire d'Internet : il associe les noms de domaine aux adresses IP."
+  },
+  "net-wifi-cloud": {
+   "module": "networks",
+   "lesson": 2,
+   "correct": 1,
+   "explanation": "Le Cloud désigne des serveurs bien réels, installés dans des data centers et accessibles par Internet."
+  },
+  "dev-algorithm": {
+   "module": "dev",
+   "lesson": 0,
+   "correct": 0,
+   "explanation": "Un algorithme est une suite finie d'instructions qui mène à la solution."
+  },
+  "dev-frontend-backend": {
+   "module": "dev",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "Le backend stocke les données (comptes, messages, likes) dans une base de données."
+  },
+  "dev-ml-training": {
+   "module": "dev",
+   "lesson": 2,
+   "correct": 1,
+   "explanation": "L'apprentissage supervisé repose sur des milliers d'exemples accompagnés de la bonne réponse."
+  },
+  "os-timeline": {
+   "module": "os",
+   "lesson": 0,
+   "correct": 1,
+   "explanation": "Unix a posé les bases que reprennent macOS (qui en descend) et Linux (qui s'en inspire)."
+  },
+  "os-layers": {
+   "module": "os",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "Les applications demandent au noyau grâce aux appels système ; seul le noyau parle au matériel."
+  },
+  "os-terminal": {
+   "module": "os",
+   "lesson": 2,
+   "correct": 1,
+   "explanation": "« mkdir » (make directory) crée un dossier ; « ls » liste, « rm » supprime."
+  },
+  "os-compare": {
+   "module": "os",
+   "lesson": 3,
+   "correct": 2,
+   "explanation": "Linux, gratuit, libre et robuste, est le système le plus utilisé sur les serveurs."
+  },
+  "sec-phishing": {
+   "module": "security",
+   "lesson": 0,
+   "correct": 1,
+   "explanation": "On ne se connecte jamais depuis un lien reçu : on passe par le site ou l'appli officielle."
+  },
+  "sec-passwords": {
+   "module": "security",
+   "lesson": 1,
+   "correct": 2,
+   "explanation": "Une phrase de passe longue et inattendue résiste bien mieux qu'un mot court ou prévisible."
+  },
+  "sec-update-shield": {
+   "module": "security",
+   "lesson": 2,
+   "correct": 1,
+   "explanation": "Les mises à jour de sécurité referment des failles que des attaquants connaissent déjà."
+  },
+  "ent-it-service": {
+   "module": "enterprise",
+   "lesson": 0,
+   "correct": 1,
+   "explanation": "Sans informatique qui fonctionne, la plupart des services de l'entreprise s'arrêtent."
+  },
+  "ent-ticket-flow": {
+   "module": "enterprise",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "Le ticket est transmis (escaladé) à un niveau plus spécialisé, avec le diagnostic déjà fait."
+  },
+  "ent-jobs-project": {
+   "module": "enterprise",
+   "lesson": 2,
+   "correct": 0,
+   "explanation": "Le pentester réalise des tests d'intrusion autorisés pour trouver les failles avant les attaquants."
+  },
+  "db-table": {
+   "module": "databases",
+   "lesson": 0,
+   "correct": 0,
+   "explanation": "La clé primaire distingue chaque ligne : elle est unique et jamais vide."
+  },
+  "db-sql-query": {
+   "module": "databases",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "SELECT lit les données demandées, sans rien modifier."
+  },
+  "db-bigdata": {
+   "module": "databases",
+   "lesson": 2,
+   "correct": 1,
+   "explanation": "Le traitement distribué découpe le travail entre de nombreux serveurs qui calculent en même temps."
+  },
+  "script-why": {
+   "module": "scripting",
+   "lesson": 0,
+   "correct": 1,
+   "explanation": "Plus une tâche est répétée, plus le temps passé à l'automatiser est vite rentabilisé."
+  },
+  "script-pipe": {
+   "module": "scripting",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "Le pipe relie deux commandes : ce que la première affiche devient ce que lit la seconde."
+  },
+  "script-cicd": {
+   "module": "scripting",
+   "lesson": 2,
+   "correct": 1,
+   "explanation": "Un test qui échoue arrête la chaîne : le code défectueux ne part pas en production."
+  },
+  "cloud-models": {
+   "module": "cloud",
+   "lesson": 0,
+   "correct": 2,
+   "explanation": "Gmail est un logiciel utilisé directement en ligne : c'est du SaaS."
+  },
+  "cloud-containers": {
+   "module": "cloud",
+   "lesson": 1,
+   "correct": 0,
+   "explanation": "Le conteneur embarque l'appli et ses dépendances : elle se comporte de la même façon sur toutes les machines."
+  },
+  "cloud-iac": {
+   "module": "cloud",
+   "lesson": 2,
+   "correct": 0,
+   "explanation": "Décrite dans du code, l'infrastructure peut être recréée à l'identique, versionnée et relue."
+  },
+  "ai-neural-net": {
+   "module": "ai",
+   "lesson": 0,
+   "correct": 0,
+   "explanation": "Le « deep » de Deep Learning désigne le grand nombre de couches cachées."
+  },
+  "ai-llm-next-token": {
+   "module": "ai",
+   "lesson": 1,
+   "correct": 1,
+   "explanation": "Un LLM génère son texte token après token, en choisissant à chaque fois une suite probable."
+  },
+  "ai-bias": {
+   "module": "ai",
+   "lesson": 2,
+   "correct": 0,
+   "explanation": "Une IA reproduit les déséquilibres de ses données d'entraînement : il faut les vérifier et les corriger."
+  }
+ },
+ "badges": [
+  "first-login",
+  "first-step",
+  "curious",
+  "encyclopedia",
+  "quiz-master",
+  "flawless",
+  "perfectionist",
+  "speed-demon",
+  "unstoppable",
+  "streak-10",
+  "streak-20",
+  "xp-100",
+  "xp-500",
+  "xp-1000",
+  "tier-2-unlocked",
+  "tier-3-unlocked",
+  "tier-4-unlocked",
+  "completionist",
+  "speedrun-25",
+  "survivor-10",
+  "daily-3",
+  "daily-7",
+  "hardware-hero",
+  "digital-native",
+  "network-ninja",
+  "code-wizard",
+  "os-master",
+  "cyber-guardian",
+  "it-pro",
+  "data-master",
+  "script-master",
+  "cloud-master",
+  "ai-master"
+ ],
+ "moduleBadges": {
+  "hardware": "hardware-hero",
+  "daily": "digital-native",
+  "networks": "network-ninja",
+  "dev": "code-wizard",
+  "os": "os-master",
+  "security": "cyber-guardian",
+  "enterprise": "it-pro",
+  "databases": "data-master",
+  "scripting": "script-master",
+  "cloud": "cloud-master",
+  "ai": "ai-master"
+ }
+}

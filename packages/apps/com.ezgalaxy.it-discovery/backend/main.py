@@ -1,4 +1,4 @@
-"""EZGalaxy FastAPI Backend — Storage API + React SPA serving."""
+"""IT Discovery backend: game API (/api/v2), legacy storage API and static app serving."""
 import os, json, sqlite3, logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,7 +6,13 @@ from contextlib import contextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-app = FastAPI(title="EZGalaxy App")
+import admin
+import auth
+import db as game_db
+import game
+import leaderboard
+
+app = FastAPI(title="IT Discovery")
 DB_PATH = os.environ.get("DB_PATH", "/app/data/database.sqlite")
 STATIC_DIR = os.path.realpath(os.environ.get("STATIC_DIR", "/app/static"))
 MAX_KEY_LENGTH = 256
@@ -42,6 +48,11 @@ def init_db():
         raise
 
 init_db()
+# Runs after init_db() so the legacy-account import can read the old storage table.
+game_db.migrate()
+
+for module in (auth, game, leaderboard, admin):
+    app.include_router(module.router)
 
 def _validate_key(key: str, label: str = "key"):
     """Validate collection/key length and characters."""
@@ -270,6 +281,8 @@ def serve_sdk():
 # Serve React build — with path traversal protection
 @app.get("/{full_path:path}")
 def serve_spa(full_path: str):
+    if full_path.startswith("api/"):
+        return JSONResponse(content={"detail": {"code": "not_found", "message": "Route inconnue."}}, status_code=404)
     if not os.path.isdir(STATIC_DIR):
         return JSONResponse(content={"error": "static dir not found"}, status_code=404)
     file_path = os.path.realpath(os.path.join(STATIC_DIR, full_path))

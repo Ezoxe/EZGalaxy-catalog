@@ -22,7 +22,7 @@
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    const colors = ['#0ea5a4', '#3b82f6', '#8b5cf6', '#ec4899', '#22c55e'];
+    const colors = ['#38BDF8', '#A78BFA', '#FBBF24', '#34D399'];
     const particles = [];
     const CONNECT_DIST = 120;
     const COUNT = Math.min(80, Math.floor(window.innerWidth / 16));
@@ -121,7 +121,7 @@
     container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;overflow:hidden;';
     document.body.appendChild(container);
 
-    const colors = ['#0ea5a4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#22c55e', '#ef4444', '#fff'];
+    const colors = ['#38BDF8', '#A78BFA', '#FBBF24', '#34D399', '#F472B6', '#E8EEF8'];
     const pieces = [];
     const COUNT = 100;
     const cx = originX || window.innerWidth / 2;
@@ -172,6 +172,8 @@
       }
     }
     requestAnimationFrame(animate);
+    // rAF pauses in background tabs: never leave frozen confetti on screen.
+    setTimeout(() => container.remove(), 4000);
   };
 
   /* ═══════════════════════════════════════════

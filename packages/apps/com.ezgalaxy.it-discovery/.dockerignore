@@ -10,3 +10,6 @@ frontend/
 .vscode/
 .idea/
 screenshots/
+backend/tests/
+content/
+tools/
