@@ -228,7 +228,8 @@ function createFromTemplate(templateId){
   const tplInfo=Tpl.all[templateId];
   currentProject={name:tplInfo?.name||'Mon Jeu',scenes:{},variables:result.variables||{},prefabs:result.prefabs||{},settings:{width:800,height:600,fps:60}};
   for(const s of result.scenes){currentProject.scenes[s.id]=s}
-  // Register prefabs in editor context
+  // Prefabs (spawned during play: bullets, obstacles…)
+  editor.prefabs=result.prefabs||{};
   editor.loadScene(result.scenes[0]);
   refreshSceneList();
   setStatus(currentProject.name+' — chargé');

@@ -193,7 +193,13 @@ class SceneEditor{
 
   loadScene(scene){
     this.scene=scene;this.selectedObject=null;this.gizmo.target=null;
-    this.camera.x=scene.width/2;this.camera.y=scene.height/2;
+    // Match the camera to the real canvas, then frame the player (or the level start).
+    const cw=this.canvas.width||800,ch=this.canvas.height||500;
+    this.camera.w=cw;this.camera.h=ch;this.camera.hw=cw/2;this.camera.hh=ch/2;
+    const player=(scene.objects||[]).find(o=>(o.tags||[]).includes('player'));
+    const fx=player?player.x:Math.min(scene.width/2,cw/2),fy=player?player.y:scene.height/2;
+    this.camera.x=Math.max(cw/2,Math.min(Math.max(cw/2,(scene.width||cw)-cw/2),fx));
+    this.camera.y=Math.max(ch/2,Math.min(Math.max(ch/2,(scene.height||ch)-ch/2),fy));
     this.commands.clear();
   }
 
@@ -212,6 +218,7 @@ class SceneEditor{
     this._testEngine=new E2D.Engine2D(this._testCanvas);
     // Deep clone scene
     const cloneScene=this._cloneScene(this.scene);
+    for(const [name,factory] of Object.entries(this.prefabs||{}))this._testEngine.registerPrefab(name,factory);
     this._testEngine.addScene(cloneScene);
     this._testEngine.loadScene(cloneScene.id);
     this._testEngine.start();
@@ -226,6 +233,7 @@ class SceneEditor{
     const s=new E2D.Scene(src.id,src.name);
     s.bgColor=src.bgColor;s.width=src.width;s.height=src.height;
     s.gravity={...src.gravity};s.lightingEnabled=src.lightingEnabled;s.ambientLight=src.ambientLight;
+    s.variables={...(src.variables||{})};
     if(src.tilemap)s.tilemap=JSON.parse(JSON.stringify(src.tilemap));
     for(const obj of src.objects){
       const c=new E2D.GameObject2D(obj.id,obj.x,obj.y);
@@ -240,13 +248,7 @@ class SceneEditor{
         c.scriptRunner=sr;
       }
       // Create physics body
-      if(obj.tags.includes('solid')||obj.tags.includes('player')||obj.tags.includes('enemy')){
-        if(window.Physics){
-          const body=new window.Physics.Body(c.x,c.y,c.width,c.height);
-          if(obj.tags.includes('solid')){body.isStatic=true}
-          body.gameObject=c;c.body=body;
-        }
-      }
+      E2D.attachBody(c);
       s.addObject(c);
     }
     return s;
@@ -420,9 +422,9 @@ class SceneEditor{
       if(obj.rotation)ctx.rotate(obj.rotation);
 
       const spriteId=obj.spriteId;
-      if(spriteId&&window.Sprites){
-        const img=window.Sprites.renderSprite(spriteId,obj.width,obj.height);
-        if(img)ctx.drawImage(img,-obj.width/2,-obj.height/2,obj.width,obj.height);
+      const img=spriteId&&window.Sprites?window.Sprites.renderSprite(spriteId,obj.width,obj.height):null;
+      if(img){
+        ctx.drawImage(img,-obj.width/2,-obj.height/2,obj.width,obj.height);
       }else{
         // Placeholder rect
         ctx.fillStyle='rgba(14,165,164,0.3)';ctx.strokeStyle='#0ea5a4';ctx.lineWidth=1;
@@ -430,9 +432,13 @@ class SceneEditor{
         ctx.strokeRect(-obj.width/2,-obj.height/2,obj.width,obj.height);
       }
 
-      // ID label
-      ctx.fillStyle='rgba(255,255,255,0.6)';ctx.font='9px sans-serif';ctx.textAlign='center';
-      ctx.fillText(obj.id,-0,-obj.height/2-4);
+      // ID label: only for the selected object (labels on every tile hid the level)
+      if(obj===this.selectedObject){
+        ctx.font='600 11px system-ui, sans-serif';ctx.textAlign='center';
+        const tw=ctx.measureText(obj.id).width+10;
+        ctx.fillStyle='rgba(14,165,164,0.9)';ctx.fillRect(-tw/2,-obj.height/2-20,tw,16);
+        ctx.fillStyle='#fff';ctx.fillText(obj.id,0,-obj.height/2-8);
+      }
       ctx.restore();
     }
 

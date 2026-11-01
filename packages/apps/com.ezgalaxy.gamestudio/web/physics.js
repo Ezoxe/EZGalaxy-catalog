@@ -42,8 +42,9 @@ function aabbVsAabb(a,b){
   const dx=a.cx-b.cx,dy=a.cy-b.cy;
   const ox=(a.w+b.w)/2-Math.abs(dx),oy=(a.h+b.h)/2-Math.abs(dy);
   if(ox<=0||oy<=0)return null;
-  if(ox<oy)return{normal:new Vec2(dx>0?1:-1,0),depth:ox};
-  return{normal:new Vec2(0,dy>0?1:-1),depth:oy};
+  // Normal points from a towards b, like circleVsCircle and aabbVsCircle.
+  if(ox<oy)return{normal:new Vec2(dx>0?-1:1,0),depth:ox};
+  return{normal:new Vec2(0,dy>0?-1:1),depth:oy};
 }
 
 function circleVsCircle(a,b){
@@ -83,7 +84,9 @@ function raycastAABB(ox,oy,dx,dy,box,maxDist=Infinity){
 
 /* ── Rigid Body ── */
 class Body{
-  constructor(opts={}){
+  // Body(opts) or Body(x, y, w, h) with x/y = top-left corner.
+  constructor(opts={},y,w,h){
+    if(typeof opts==='number')opts={x:opts,y,w,h};
     this.id=opts.id||('body_'+(Body._nextId++));
     this.x=opts.x||0;this.y=opts.y||0;
     this.w=opts.w||32;this.h=opts.h||32;
@@ -106,6 +109,10 @@ class Body{
     this.onTrigger=opts.onTrigger||null;
   }
   get aabb(){return new AABB(this.x,this.y,this.w,this.h)}
+  // Game objects are positioned by their centre.
+  get position(){return{x:this.x+this.w/2,y:this.y+this.h/2}}
+  setCenter(cx,cy){this.x=cx-this.w/2;this.y=cy-this.h/2}
+  makeStatic(){this.isStatic=true;this.invMass=0;this.useGravity=false;this.vx=0;this.vy=0}
   get circle(){return new Circle(this.x+this.w/2,this.y+this.h/2,this.radius)}
   applyForce(fx,fy){if(!this.isStatic){this.vx+=fx*this.invMass;this.vy+=fy*this.invMass}}
   applyImpulse(ix,iy){if(!this.isStatic){this.vx+=ix;this.vy+=iy}}
@@ -122,7 +129,10 @@ class PhysicsWorld{
     this.triggerPairs=[];
   }
 
-  addBody(body){this.bodies.push(body);return body}
+  addBody(body){if(!this.bodies.includes(body))this.bodies.push(body);return body}
+  step(dt){this.update(dt)}
+  getCollisionPairs(){return this.collisionPairs}
+  getTriggerPairs(){return this.triggerPairs}
   removeBody(body){const i=this.bodies.indexOf(body);if(i>=0)this.bodies.splice(i,1)}
   clear(){this.bodies=[];this.collisionPairs=[];this.triggerPairs=[]}
 
@@ -130,11 +140,17 @@ class PhysicsWorld{
     const subDt=dt/this.iterations;
     for(let iter=0;iter<this.iterations;iter++){
       // Apply gravity
+      const topDown=this.gravity.x===0&&this.gravity.y===0;
+      const brake=Math.pow(0.02,subDt);
       for(const b of this.bodies){
-        if(b.useGravity&&!b.isStatic){
+        if(b.isStatic)continue;
+        if(b.useGravity){
           b.vx+=this.gravity.x*subDt;
           b.vy+=this.gravity.y*subDt;
         }
+        // Without gravity (top-down, space) bodies coast to a stop; on the ground they stop sliding.
+        if(topDown){b.vx*=brake;b.vy*=brake}
+        else if(b.grounded){b.vx*=brake}
       }
       // Move bodies
       for(const b of this.bodies){
@@ -240,6 +256,6 @@ class PhysicsWorld{
   }
 }
 
-window.Physics={Vec2,AABB,Circle,Body,World:PhysicsWorld,
+window.Physics={Vec2,AABB,Circle,Body,World:PhysicsWorld,PhysicsWorld,
   aabbVsAabb,circleVsCircle,aabbVsCircle,raycastAABB};
 })();
