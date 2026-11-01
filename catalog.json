@@ -7,196 +7,196 @@
       "title": "Code Game",
       "function": "Mini jeu de code (package standard)",
       "path": "packages/apps/code-game",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.budget",
       "title": "Budget Graphique",
       "function": "Gestion de budget ultra graphique (SPA) avec export chiffré et sauvegarde cloud optionnelle via Community Data API",
       "path": "packages/apps/com.ezgalaxy.budget",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.chroma",
       "title": "ChromaLab",
       "function": "Générateur de palettes de couleurs avec harmonies, contraste WCAG et export multi-formats",
       "path": "packages/apps/com.ezgalaxy.chroma",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.example",
       "title": "Exemple",
       "function": "Page de démonstration pour dépôts custom",
       "path": "packages/apps/com.ezgalaxy.example",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.finvest",
       "title": "FinVest — Analyse Financière",
       "function": "Outil complet d'analyse financière : questionnaire profil investisseur, score de santé financière, allocation portefeuille, projections Monte Carlo, planification retraite, gestion de dettes, conseils personnalisés. Sauvegarde via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.finvest",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.flaggame",
       "title": "Flag Game",
       "function": "Jeu de drapeaux en mode survie : devine le pays à partir de son drapeau. 3 modes (facile, normal, difficile), 3 vies, classement en ligne via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.flaggame",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.gamestudio",
       "title": "Game Studio — Créateur de Jeux",
       "function": "Créateur de mini-jeux vidéo ultra complet : éditeur visuel de scènes, moteurs 2D et 3D, physique, IA, éclairage, scripting visuel, 200+ sprites, 40+ modèles 3D, 60+ sons, 40+ tuiles, particules, 6 templates (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner). Sauvegarde via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.gamestudio",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.habits",
       "title": "Habit Forge",
       "function": "Suivi d'habitudes quotidiennes avec heatmap, séries et statistiques de progression",
       "path": "packages/apps/com.ezgalaxy.habits",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.it-discovery",
       "title": "IT Discovery",
       "function": "Découvre l'informatique du collège au BUT : cours en scènes animées sur 3 niveaux, quiz corrigés par le serveur, mini-jeux, classement mensuel, Hall of Fame, records, duels fantômes et espace tuteur",
       "path": "packages/apps/com.ezgalaxy.it-discovery",
-      "version": "2.0.0"
+      "version": "2.1.0"
     },
     {
       "id": "com.ezgalaxy.kanflow",
       "title": "KanFlow",
       "function": "Tableau Kanban avec drag & drop, multi-tableaux, tags colorés et dates d'échéance",
       "path": "packages/apps/com.ezgalaxy.kanflow",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.markdown",
       "title": "MarkDown Studio",
       "function": "Éditeur Markdown split-view avec aperçu temps réel, barre d'outils et gestion multi-documents",
       "path": "packages/apps/com.ezgalaxy.markdown",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.moodtracker",
       "title": "MoodTracker",
       "function": "Suivez votre humeur quotidienne avec calendrier, tendances et insights",
       "path": "packages/apps/com.ezgalaxy.moodtracker",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.neurocards",
       "title": "NeuroCards",
       "function": "Flashcards avec répétition espacée SM-2, import JSON et suivi de progression",
       "path": "packages/apps/com.ezgalaxy.neurocards",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.osint",
       "title": "OSINT Suite",
       "function": "OSINT : recherche universelle + résumé global + analyse + sauvegardes via Community Data API. Mode conforme par défaut, mode agressif réservé aux admins via proxy.",
       "path": "packages/apps/com.ezgalaxy.osint",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.pentest-lab",
       "title": "EzPentest Lab",
       "function": "Plateforme d'entraînement au pentest : 9 flags cachés dans un site de recettes (La Cuisine d'Ez). 3 niveaux de difficulté, documentation avec indices et fausses pistes, solutions chiffrées AES-GCM. Sauvegarde cloud via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.pentest-lab",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.pollmaker",
       "title": "PollMaker",
       "function": "Créez et partagez des sondages interactifs avec résultats en temps réel",
       "path": "packages/apps/com.ezgalaxy.pollmaker",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.pomodoro",
       "title": "Pomodoro Pro",
       "function": "Minuteur Pomodoro avec statistiques de sessions, graphiques et personnalisation complète",
       "path": "packages/apps/com.ezgalaxy.pomodoro",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.projecthub",
       "title": "Project Hub - AI Dashboard",
       "function": "Dashboard de gestion de projet futuriste avec Kanban intelligent, Gantt HD avec dépendances, matrice de charge équipe, moteur prédictif IA (Time-Traveler), analyseur de risques, score de sentiment, métriques financières. Sauvegarde via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.projecthub",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.sopor",
       "title": "Sopor: Le Sommeil de l'Architecte",
       "function": "MMO RPG offline en pixel art néon-organique : monde continu, NPC complets, quêtes de stabilité communautaires simulées, Essence Chromatique (monnaie=énergie), piliers de région, 15+ armes, sauvegardes par pseudo, musique procédurale évolutive.",
       "path": "packages/apps/com.ezgalaxy.sopor",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.soundscape",
       "title": "SoundScape",
       "function": "Mixeur de sons ambiants pour la concentration, la relaxation et le sommeil",
       "path": "packages/apps/com.ezgalaxy.soundscape",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.terminal",
       "title": "Terminal Customizer",
       "function": "Générateur de fichiers de personnalisation pour terminaux (Kitty, Alacritty, WezTerm, Windows Terminal). Éditeur de couleurs graphique, preview live, import/export, thèmes prédéfinis, presets via Community Data API.",
       "path": "packages/apps/com.ezgalaxy.terminal",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.typeracer",
       "title": "TypeRacer",
       "function": "Testez et améliorez votre vitesse de frappe avec des textes en français",
       "path": "packages/apps/com.ezgalaxy.typeracer",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.unitswift",
       "title": "UnitSwift",
       "function": "Convertisseur d'unités multi-catégories rapide et intuitif",
       "path": "packages/apps/com.ezgalaxy.unitswift",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "com.ezgalaxy.vaultgen",
       "title": "VaultGen",
       "function": "Générateur de mots de passe sécurisés avec Web Crypto API, passphrases et évaluation de force",
       "path": "packages/apps/com.ezgalaxy.vaultgen",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "kappy-studio",
       "title": "Kappy Studio",
       "function": "Éditeur / studio KAPPY (package standard)",
       "path": "packages/apps/kappy-studio",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "network-sim",
       "title": "Network Sim",
       "function": "Simulateur réseau pédagogique : adressage IP, routage, NAT, DHCP, DNS, pare-feu, et menaces expliquées",
       "path": "packages/apps/network-sim",
-      "version": "2.0.0"
+      "version": "2.1.0"
     },
     {
       "id": "test",
       "title": "TEST",
       "function": "test",
       "path": "packages/apps/test",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "id": "world-capitals",
       "title": "World Capitals",
       "function": "Jeu des capitales du monde (package standard)",
       "path": "packages/apps/world-capitals",
-      "version": "1.0.0"
+      "version": "1.1.0"
     }
   ]
 }

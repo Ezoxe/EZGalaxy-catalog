@@ -3,7 +3,7 @@
   "id": "network-sim",
   "title": "Network Sim",
   "function": "Simulateur réseau pédagogique : adressage IP, routage, NAT, DHCP, DNS, pare-feu, et menaces expliquées",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

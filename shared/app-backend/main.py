@@ -1,0 +1,314 @@
+"""EZGalaxy FastAPI Backend — Storage API + SPA serving.
+
+Canonical copy: shared/app-backend/main.py. Apps built on this template get it
+through `python tools/sync_backend.py`; do not edit an app's copy by hand.
+"""
+import os, json, sqlite3, logging
+from datetime import datetime, timezone
+from pathlib import Path
+from contextlib import contextmanager
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import FileResponse, JSONResponse, Response
+
+DB_PATH = os.environ.get("DB_PATH", "/app/data/database.sqlite")
+STATIC_DIR = os.path.realpath(os.environ.get("STATIC_DIR", "/app/static"))
+VERSION_FILE = Path(__file__).with_name("VERSION")
+APP_VERSION = VERSION_FILE.read_text(encoding="utf-8").strip() if VERSION_FILE.is_file() else "dev"
+MAX_KEY_LENGTH = 256
+MAX_COLLECTION_LENGTH = 128
+MAX_BODY_SIZE = 1_048_576  # 1 MB
+
+app = FastAPI(title="EZGalaxy App", version=APP_VERSION)
+logger = logging.getLogger("ezgalaxy")
+
+@contextmanager
+def get_db():
+    """Context manager for safe DB connection handling."""
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+def init_db():
+    try:
+        with get_db() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("""CREATE TABLE IF NOT EXISTS storage (
+                scope TEXT NOT NULL DEFAULT 'private', collection TEXT NOT NULL,
+                record_key TEXT NOT NULL, data TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (scope, collection, record_key))""")
+            conn.commit()
+    except Exception as e:
+        logger.error("Failed to initialize database: %s", e)
+        raise
+
+init_db()
+
+def _validate_key(key: str, label: str = "key"):
+    """Validate collection/key length and characters."""
+    max_len = MAX_COLLECTION_LENGTH if label == "collection" else MAX_KEY_LENGTH
+    if not key or len(key) > max_len:
+        raise HTTPException(400, f'{label} must be 1-{max_len} characters')
+    if '\x00' in key:
+        raise HTTPException(400, f'{label} must not contain null bytes')
+
+def _safe_json_loads(data_str: str, fallback=None):
+    """Safely parse JSON, returning fallback on error."""
+    try:
+        return json.loads(data_str)
+    except (json.JSONDecodeError, TypeError):
+        return fallback
+
+def _escape_like(s: str) -> str:
+    """Escape LIKE metacharacters for SQLite."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+@app.get("/health")
+def health():
+    try:
+        with get_db() as conn:
+            conn.execute("SELECT 1").fetchone()
+    except sqlite3.Error as e:
+        logger.error("Health check: database unavailable: %s", e)
+        return JSONResponse({"status": "error", "error": "database unavailable", "version": APP_VERSION}, status_code=503)
+    return {"status": "ok", "version": APP_VERSION, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+@app.get("/api/version")
+def version():
+    return {"version": APP_VERSION}
+
+# Private storage
+@app.get("/api/app-storage/{collection}")
+def list_records(collection: str, request: Request):
+    _validate_key(collection, "collection")
+    return _list("private", collection, request)
+
+@app.get("/api/app-storage/{collection}/{key}")
+def get_record(collection: str, key: str):
+    _validate_key(collection, "collection")
+    _validate_key(key)
+    return _get("private", collection, key)
+
+@app.put("/api/app-storage/{collection}/{key}")
+async def set_record(collection: str, key: str, request: Request):
+    _validate_key(collection, "collection")
+    _validate_key(key)
+    body = await _parse_body(request)
+    return _set("private", collection, key, body)
+
+@app.delete("/api/app-storage/{collection}/{key}")
+def delete_record(collection: str, key: str):
+    _validate_key(collection, "collection")
+    _validate_key(key)
+    return _delete("private", collection, key)
+
+# Shared storage
+@app.get("/api/app-storage/@app/{collection}")
+def list_shared(collection: str, request: Request):
+    _validate_key(collection, "collection")
+    return _list("shared", collection, request)
+
+@app.get("/api/app-storage/@app/{collection}/{key}")
+def get_shared(collection: str, key: str):
+    _validate_key(collection, "collection")
+    _validate_key(key)
+    return _get("shared", collection, key)
+
+@app.put("/api/app-storage/@app/{collection}/{key}")
+async def set_shared(collection: str, key: str, request: Request):
+    _validate_key(collection, "collection")
+    _validate_key(key)
+    body = await _parse_body(request)
+    return _set("shared", collection, key, body)
+
+@app.delete("/api/app-storage/@app/{collection}/{key}")
+def delete_shared(collection: str, key: str):
+    _validate_key(collection, "collection")
+    _validate_key(key)
+    return _delete("shared", collection, key)
+
+def _check_length(request: Request):
+    try:
+        size = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        raise HTTPException(400, "Invalid Content-Length header")
+    if size > MAX_BODY_SIZE:
+        raise HTTPException(413, f"Request body too large (max {MAX_BODY_SIZE} bytes)")
+
+async def _parse_body(request: Request):
+    """Parse JSON body with size limit and type validation."""
+    _check_length(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Request body must be a JSON object")
+    return body
+
+# Simple getData/setData
+@app.get("/api/app-data/{scope}/{key}")
+def get_simple(scope: str, key: str):
+    _validate_key(key)
+    s = "shared" if scope == "app" else "private"
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT data FROM storage WHERE scope=? AND collection='_default' AND record_key=?",
+                (s, key)
+            ).fetchone()
+    except sqlite3.Error as e:
+        logger.error("DB error in get_simple: %s", e)
+        raise HTTPException(500, "Database error")
+    return JSONResponse(content=_safe_json_loads(row["data"]) if row else None)
+
+@app.put("/api/app-data/{scope}/{key}")
+async def set_simple(scope: str, key: str, request: Request):
+    _validate_key(key)
+    _check_length(request)
+    s = "shared" if scope == "app" else "private"
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    if isinstance(body, dict):
+        data_str = json.dumps(body.get("data", body))
+    else:
+        data_str = json.dumps(body)
+    if len(data_str) > MAX_BODY_SIZE:
+        raise HTTPException(413, "Data too large")
+    try:
+        with get_db() as conn:
+            conn.execute(
+                """INSERT INTO storage (scope,collection,record_key,data,created_at,updated_at)
+                VALUES(?,'_default',?,?,datetime('now'),datetime('now'))
+                ON CONFLICT(scope,collection,record_key)
+                DO UPDATE SET data=excluded.data,updated_at=datetime('now')""",
+                (s, key, data_str)
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        logger.error("DB error in set_simple: %s", e)
+        raise HTTPException(500, "Database error")
+    return {"ok": True}
+
+def _list(scope, collection, request):
+    try:
+        limit = min(max(int(request.query_params.get("limit", 50)), 1), 200)
+    except (ValueError, TypeError):
+        limit = 50
+    try:
+        offset = max(int(request.query_params.get("offset", 0)), 0)
+    except (ValueError, TypeError):
+        offset = 0
+    prefix = request.query_params.get("prefix")
+    sort_by = "updated_at" if request.query_params.get("sort_by") == "updated_at" else "record_key"
+    sort_order = "DESC" if request.query_params.get("sort_order") == "desc" else "ASC"
+    try:
+        with get_db() as conn:
+            params = [scope, collection]
+            where = "WHERE scope=? AND collection=?"
+            if prefix:
+                where += " AND record_key LIKE ? ESCAPE '\\'"
+                params.append(_escape_like(prefix) + "%")
+            total = conn.execute(f"SELECT COUNT(*) as c FROM storage {where}", params).fetchone()["c"]
+            rows = conn.execute(
+                f"SELECT record_key,data,created_at,updated_at FROM storage {where} ORDER BY {sort_by} {sort_order} LIMIT ? OFFSET ?",
+                params + [limit, offset]
+            ).fetchall()
+    except sqlite3.Error as e:
+        logger.error("DB error in _list: %s", e)
+        raise HTTPException(500, "Database error")
+    items = [{
+        "record_key": r["record_key"], "data": _safe_json_loads(r["data"], {}),
+        "created_at": r["created_at"], "updated_at": r["updated_at"]
+    } for r in rows]
+    return {"collection": collection, "total": total, "offset": offset, "limit": limit, "items": items}
+
+def _get(scope, collection, key):
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT record_key,data,created_at,updated_at FROM storage WHERE scope=? AND collection=? AND record_key=?",
+                (scope, collection, key)
+            ).fetchone()
+    except sqlite3.Error as e:
+        logger.error("DB error in _get: %s", e)
+        raise HTTPException(500, "Database error")
+    if not row:
+        return JSONResponse(content=None)
+    return {
+        "collection": collection, "record_key": row["record_key"],
+        "data": _safe_json_loads(row["data"], {}),
+        "created_at": row["created_at"], "updated_at": row["updated_at"]
+    }
+
+def _set(scope, collection, key, body):
+    data = body.get("data")
+    if data is None:
+        raise HTTPException(400, 'Missing "data" field')
+    data_str = json.dumps(data)
+    if len(data_str) > MAX_BODY_SIZE:
+        raise HTTPException(413, "Data too large")
+    try:
+        with get_db() as conn:
+            conn.execute(
+                """INSERT INTO storage (scope,collection,record_key,data,created_at,updated_at)
+                VALUES(?,?,?,?,datetime('now'),datetime('now'))
+                ON CONFLICT(scope,collection,record_key)
+                DO UPDATE SET data=excluded.data,updated_at=datetime('now')""",
+                (scope, collection, key, data_str)
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        logger.error("DB error in _set: %s", e)
+        raise HTTPException(500, "Database error")
+    return {"ok": True, "record_key": key}
+
+def _delete(scope, collection, key):
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "DELETE FROM storage WHERE scope=? AND collection=? AND record_key=?",
+                (scope, collection, key)
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        logger.error("DB error in _delete: %s", e)
+        raise HTTPException(500, "Database error")
+    return {"ok": True}
+
+# SDK shim. Behind EZGalaxy the app is served under /p/<slug>/, so every call is prefixed
+# with the folder the SDK was loaded from (or the /p/<slug> part of the page URL).
+SDK_JS = """(function(){'use strict';var B=(document.currentScript&&document.currentScript.src||'').replace(/\\/api\\/ezgalaxy-sdk\\.js.*/,'');if(!B){var m=location.pathname.match(/^\\/p\\/[^\\/]+/);B=m?m[0]:'';}function bq(o){if(!o)return'';const p=new URLSearchParams();if(o.limit)p.set('limit',o.limit);if(o.offset)p.set('offset',o.offset);if(o.prefix)p.set('prefix',o.prefix);if(o.sort_by)p.set('sort_by',o.sort_by);if(o.sort_order)p.set('sort_order',o.sort_order);const s=p.toString();return s?'?'+s:'';}async function ag(u){const r=await fetch(u);if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ap(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:d})});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ad(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}function ns(pfx){return{async get(c,k){return ag(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async set(c,k,d){return ap(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k),d);},async delete(c,k){return ad(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async list(c,o){return ag(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+bq(o));},async getData(k){const s=pfx==='@app/'?'app':'private';return ag(B+'/api/app-data/'+s+'/'+encodeURIComponent(k));},async setData(k,v){const s=pfx==='@app/'?'app':'private';return ap(B+'/api/app-data/'+s+'/'+encodeURIComponent(k),v);}};}window.ezgalaxy={storage:ns(''),app:ns('@app/'),isInsideEZGalaxy:true,version:'__VERSION__',async ready(){return{status:'ok',mode:'docker'};},configureMobile(){}};window.dispatchEvent(new CustomEvent('ezgalaxy-ready',{detail:window.ezgalaxy}));})();""".replace("__VERSION__", APP_VERSION)
+
+@app.get("/api/ezgalaxy-sdk.js")
+def serve_sdk():
+    return Response(content=SDK_JS, media_type="application/javascript", headers={"Cache-Control": "no-cache"})
+
+# HTML is always revalidated so a new version shows up on the next visit;
+# other assets may be cached briefly and are revalidated through their ETag.
+def _static(path: str):
+    cache = "no-cache" if path.endswith(".html") else "public, max-age=300"
+    return FileResponse(path, headers={"Cache-Control": cache})
+
+# Serve the web app — with path traversal protection
+@app.get("/{full_path:path}")
+def serve_spa(full_path: str):
+    if not os.path.isdir(STATIC_DIR):
+        return JSONResponse(content={"error": "static dir not found"}, status_code=404)
+    file_path = os.path.realpath(os.path.join(STATIC_DIR, full_path))
+    # Path traversal protection: resolved path must be under STATIC_DIR
+    if not file_path.startswith(STATIC_DIR + os.sep) and file_path != STATIC_DIR:
+        raise HTTPException(403, "Forbidden")
+    if full_path and os.path.isfile(file_path):
+        return _static(file_path)
+    index = os.path.join(STATIC_DIR, "index.html")
+    if os.path.isfile(index):
+        return _static(index)
+    return JSONResponse(content={"error": "not found"}, status_code=404)

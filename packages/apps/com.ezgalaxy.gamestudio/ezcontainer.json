@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.gamestudio",
   "title": "Game Studio — Créateur de Jeux",
   "function": "Créateur de mini-jeux vidéo ultra complet : éditeur visuel de scènes, moteurs 2D et 3D, physique, IA, éclairage, scripting visuel, 200+ sprites, 40+ modèles 3D, 60+ sons, 40+ tuiles, particules, 6 templates (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner). Sauvegarde via Community Data API.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

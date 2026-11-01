@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.kanflow",
   "title": "KanFlow",
   "function": "Tableau Kanban avec drag & drop, multi-tableaux, tags colorés et dates d'échéance",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

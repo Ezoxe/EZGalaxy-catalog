@@ -3,7 +3,7 @@
   "id": "code-game",
   "title": "Code Game",
   "function": "Mini jeu de code (package standard)",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

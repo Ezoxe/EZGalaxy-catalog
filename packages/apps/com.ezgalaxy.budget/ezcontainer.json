@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.budget",
   "title": "Budget Graphique",
   "function": "Gestion de budget ultra graphique (SPA) avec export chiffré et sauvegarde cloud optionnelle via Community Data API",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

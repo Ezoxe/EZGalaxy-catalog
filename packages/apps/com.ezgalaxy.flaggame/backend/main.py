@@ -1,4 +1,8 @@
-"""EZGalaxy FastAPI Backend — Storage API + React SPA serving."""
+"""EZGalaxy FastAPI Backend — Storage API + SPA serving.
+
+Canonical copy: shared/app-backend/main.py. Apps built on this template get it
+through `python tools/sync_backend.py`; do not edit an app's copy by hand.
+"""
 import os, json, sqlite3, logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,13 +10,15 @@ from contextlib import contextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-app = FastAPI(title="EZGalaxy App")
 DB_PATH = os.environ.get("DB_PATH", "/app/data/database.sqlite")
 STATIC_DIR = os.path.realpath(os.environ.get("STATIC_DIR", "/app/static"))
+VERSION_FILE = Path(__file__).with_name("VERSION")
+APP_VERSION = VERSION_FILE.read_text(encoding="utf-8").strip() if VERSION_FILE.is_file() else "dev"
 MAX_KEY_LENGTH = 256
 MAX_COLLECTION_LENGTH = 128
 MAX_BODY_SIZE = 1_048_576  # 1 MB
 
+app = FastAPI(title="EZGalaxy App", version=APP_VERSION)
 logger = logging.getLogger("ezgalaxy")
 
 @contextmanager
@@ -21,7 +27,6 @@ def get_db():
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
     try:
         yield conn
     finally:
@@ -30,6 +35,7 @@ def get_db():
 def init_db():
     try:
         with get_db() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("""CREATE TABLE IF NOT EXISTS storage (
                 scope TEXT NOT NULL DEFAULT 'private', collection TEXT NOT NULL,
                 record_key TEXT NOT NULL, data TEXT NOT NULL DEFAULT '{}',
@@ -64,7 +70,17 @@ def _escape_like(s: str) -> str:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+    try:
+        with get_db() as conn:
+            conn.execute("SELECT 1").fetchone()
+    except sqlite3.Error as e:
+        logger.error("Health check: database unavailable: %s", e)
+        return JSONResponse({"status": "error", "error": "database unavailable", "version": APP_VERSION}, status_code=503)
+    return {"status": "ok", "version": APP_VERSION, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+@app.get("/api/version")
+def version():
+    return {"version": APP_VERSION}
 
 # Private storage
 @app.get("/api/app-storage/{collection}")
@@ -116,11 +132,17 @@ def delete_shared(collection: str, key: str):
     _validate_key(key)
     return _delete("shared", collection, key)
 
+def _check_length(request: Request):
+    try:
+        size = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        raise HTTPException(400, "Invalid Content-Length header")
+    if size > MAX_BODY_SIZE:
+        raise HTTPException(413, f"Request body too large (max {MAX_BODY_SIZE} bytes)")
+
 async def _parse_body(request: Request):
     """Parse JSON body with size limit and type validation."""
-    content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_BODY_SIZE:
-        raise HTTPException(413, f"Request body too large (max {MAX_BODY_SIZE} bytes)")
+    _check_length(request)
     try:
         body = await request.json()
     except Exception:
@@ -148,6 +170,7 @@ def get_simple(scope: str, key: str):
 @app.put("/api/app-data/{scope}/{key}")
 async def set_simple(scope: str, key: str, request: Request):
     _validate_key(key)
+    _check_length(request)
     s = "shared" if scope == "app" else "private"
     try:
         body = await request.json()
@@ -176,7 +199,7 @@ async def set_simple(scope: str, key: str, request: Request):
 
 def _list(scope, collection, request):
     try:
-        limit = min(int(request.query_params.get("limit", 50)), 200)
+        limit = min(max(int(request.query_params.get("limit", 50)), 1), 200)
     except (ValueError, TypeError):
         limit = 50
     try:
@@ -260,14 +283,21 @@ def _delete(scope, collection, key):
         raise HTTPException(500, "Database error")
     return {"ok": True}
 
-# SDK shim
-SDK_JS = """(function(){'use strict';var B=(document.currentScript&&document.currentScript.src||'').replace(/\\/api\\/ezgalaxy-sdk\\.js.*/,'');function bq(o){if(!o)return'';const p=new URLSearchParams();if(o.limit)p.set('limit',o.limit);if(o.offset)p.set('offset',o.offset);if(o.prefix)p.set('prefix',o.prefix);if(o.sort_by)p.set('sort_by',o.sort_by);if(o.sort_order)p.set('sort_order',o.sort_order);const s=p.toString();return s?'?'+s:'';}async function ag(u){const r=await fetch(u);if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ap(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:d})});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ad(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}function ns(pfx){return{async get(c,k){return ag(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async set(c,k,d){return ap(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k),d);},async delete(c,k){return ad(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async list(c,o){return ag(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+bq(o));},async getData(k){const s=pfx==='@app/'?'app':'private';return ag(B+'/api/app-data/'+s+'/'+encodeURIComponent(k));},async setData(k,v){const s=pfx==='@app/'?'app':'private';return ap(B+'/api/app-data/'+s+'/'+encodeURIComponent(k),v);}};}window.ezgalaxy={storage:ns(''),app:ns('@app/'),isInsideEZGalaxy:true,async ready(){return{status:'ok',mode:'docker'};},configureMobile(){}};window.dispatchEvent(new CustomEvent('ezgalaxy-ready',{detail:window.ezgalaxy}));})();"""
+# SDK shim. Behind EZGalaxy the app is served under /p/<slug>/, so every call is prefixed
+# with the folder the SDK was loaded from (or the /p/<slug> part of the page URL).
+SDK_JS = """(function(){'use strict';var B=(document.currentScript&&document.currentScript.src||'').replace(/\\/api\\/ezgalaxy-sdk\\.js.*/,'');if(!B){var m=location.pathname.match(/^\\/p\\/[^\\/]+/);B=m?m[0]:'';}function bq(o){if(!o)return'';const p=new URLSearchParams();if(o.limit)p.set('limit',o.limit);if(o.offset)p.set('offset',o.offset);if(o.prefix)p.set('prefix',o.prefix);if(o.sort_by)p.set('sort_by',o.sort_by);if(o.sort_order)p.set('sort_order',o.sort_order);const s=p.toString();return s?'?'+s:'';}async function ag(u){const r=await fetch(u);if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ap(u,d){const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:d})});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}async function ad(u){const r=await fetch(u,{method:'DELETE'});if(!r.ok)throw new Error('API error: '+r.status);return r.json();}function ns(pfx){return{async get(c,k){return ag(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async set(c,k,d){return ap(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k),d);},async delete(c,k){return ad(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+'/'+encodeURIComponent(k));},async list(c,o){return ag(B+'/api/app-storage/'+pfx+encodeURIComponent(c)+bq(o));},async getData(k){const s=pfx==='@app/'?'app':'private';return ag(B+'/api/app-data/'+s+'/'+encodeURIComponent(k));},async setData(k,v){const s=pfx==='@app/'?'app':'private';return ap(B+'/api/app-data/'+s+'/'+encodeURIComponent(k),v);}};}window.ezgalaxy={storage:ns(''),app:ns('@app/'),isInsideEZGalaxy:true,version:'__VERSION__',async ready(){return{status:'ok',mode:'docker'};},configureMobile(){}};window.dispatchEvent(new CustomEvent('ezgalaxy-ready',{detail:window.ezgalaxy}));})();""".replace("__VERSION__", APP_VERSION)
 
 @app.get("/api/ezgalaxy-sdk.js")
 def serve_sdk():
-    return Response(content=SDK_JS, media_type="application/javascript")
+    return Response(content=SDK_JS, media_type="application/javascript", headers={"Cache-Control": "no-cache"})
 
-# Serve React build — with path traversal protection
+# HTML is always revalidated so a new version shows up on the next visit;
+# other assets may be cached briefly and are revalidated through their ETag.
+def _static(path: str):
+    cache = "no-cache" if path.endswith(".html") else "public, max-age=300"
+    return FileResponse(path, headers={"Cache-Control": cache})
+
+# Serve the web app — with path traversal protection
 @app.get("/{full_path:path}")
 def serve_spa(full_path: str):
     if not os.path.isdir(STATIC_DIR):
@@ -277,8 +307,8 @@ def serve_spa(full_path: str):
     if not file_path.startswith(STATIC_DIR + os.sep) and file_path != STATIC_DIR:
         raise HTTPException(403, "Forbidden")
     if full_path and os.path.isfile(file_path):
-        return FileResponse(file_path)
+        return _static(file_path)
     index = os.path.join(STATIC_DIR, "index.html")
     if os.path.isfile(index):
-        return FileResponse(index)
+        return _static(index)
     return JSONResponse(content={"error": "not found"}, status_code=404)

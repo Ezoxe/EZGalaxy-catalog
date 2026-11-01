@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.habits",
   "title": "Habit Forge",
   "function": "Suivi d'habitudes quotidiennes avec heatmap, séries et statistiques de progression",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

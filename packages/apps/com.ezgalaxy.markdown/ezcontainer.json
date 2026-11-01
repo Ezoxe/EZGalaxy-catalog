@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.markdown",
   "title": "MarkDown Studio",
   "function": "Éditeur Markdown split-view avec aperçu temps réel, barre d'outils et gestion multi-documents",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

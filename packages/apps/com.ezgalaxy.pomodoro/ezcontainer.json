@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.pomodoro",
   "title": "Pomodoro Pro",
   "function": "Minuteur Pomodoro avec statistiques de sessions, graphiques et personnalisation complète",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

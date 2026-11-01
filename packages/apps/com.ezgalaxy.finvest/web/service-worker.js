@@ -61,7 +61,7 @@ self.addEventListener('fetch', event => {
 
   // API calls, SDK, auth, external APIs → always network (never cache data)
   if (
-    url.pathname.startsWith('/api/') ||
+    url.pathname.includes('/api/') ||
     url.hostname !== self.location.hostname ||
     event.request.method !== 'GET'
   ) {

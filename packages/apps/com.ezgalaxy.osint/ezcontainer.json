@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.osint",
   "title": "OSINT Suite",
   "function": "OSINT : recherche universelle + résumé global + analyse + sauvegardes via Community Data API. Mode conforme par défaut, mode agressif réservé aux admins via proxy.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

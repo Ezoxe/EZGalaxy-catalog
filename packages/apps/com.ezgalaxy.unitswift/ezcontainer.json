@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.unitswift",
   "title": "UnitSwift",
   "function": "Convertisseur d'unités multi-catégories rapide et intuitif",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

@@ -123,8 +123,21 @@ Configuration dans EZGalaxy :
 | Action | Ce qui se passe |
 |--------|----------------|
 | **Installer** | Clone le repo → Build l'image Docker → Démarre le container → Configure Nginx → Health check |
-| **Mettre à jour** | Stop le container → Rebuild l'image → Redémarre → Vérifie la santé |
+| **Mettre à jour** | Construit la nouvelle image pendant que l'ancienne tourne → Remplace le container → Vérifie la santé → Revient à la version précédente si elle ne répond pas |
 | **Désinstaller** | Stop le container → Supprime l'image → Supprime la config Nginx → Nettoie les données |
+
+### Publier une nouvelle version
+
+EZGalaxy vérifie les mises à jour toutes les heures (et à l'ouverture du catalogue dans l'admin). Une app installée est signalée dès qu'un fichier de son dossier change sur la branche du catalogue ; l'admin voit la version et la liste des commits concernés.
+
+```bash
+python tools/catalog_tool.py bump com.ezgalaxy.habits   # 1.1.0 -> 1.2.0, met à jour catalog.json et backend/VERSION
+python tools/catalog_tool.py validate                   # manifestes, ports, Dockerfile, versions
+pip install -r tools/requirements-test.txt
+python tools/smoke_test.py habits                       # démarre le backend et teste santé, page, stockage
+```
+
+Les apps construites sur le backend commun reçoivent ses corrections avec `python tools/catalog_tool.py sync` (copie de `shared/app-backend/main.py`, dépendances, fichiers `VERSION`). La CI (`.github/workflows/validate.yml`) refuse une pull request qui modifie une app sans changer sa version, et construit chaque image Docker jusqu'à son health check.
 
 ## 7) Persistance des données
 

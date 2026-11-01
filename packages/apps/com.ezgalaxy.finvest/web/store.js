@@ -318,7 +318,7 @@
     // Block auto-save during login+cloudLoad sequence to prevent overwriting cloud data
     _isCloudOp = true;
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -343,7 +343,7 @@
   async function register(name, email, password) {
     _isCloudOp = true;
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch('api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({ name, email, password })

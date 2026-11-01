@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.terminal",
   "title": "Terminal Customizer",
   "function": "Générateur de fichiers de personnalisation pour terminaux (Kitty, Alacritty, WezTerm, Windows Terminal). Éditeur de couleurs graphique, preview live, import/export, thèmes prédéfinis, presets via Community Data API.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

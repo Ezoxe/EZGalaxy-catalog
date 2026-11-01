@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.example",
   "title": "Exemple",
   "function": "Page de démonstration pour dépôts custom",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.pollmaker",
   "title": "PollMaker",
   "function": "Créez et partagez des sondages interactifs avec résultats en temps réel",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

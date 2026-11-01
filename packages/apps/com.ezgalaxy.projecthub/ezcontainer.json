@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.projecthub",
   "title": "Project Hub - AI Dashboard",
   "function": "Dashboard de gestion de projet futuriste avec Kanban intelligent, Gantt HD avec dépendances, matrice de charge équipe, moteur prédictif IA (Time-Traveler), analyseur de risques, score de sentiment, métriques financières. Sauvegarde via Community Data API.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {
