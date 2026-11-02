@@ -41,7 +41,7 @@ function getAllAssets(){
   const all=[];
   if(window.Sprites){window.Sprites.getSpriteList().forEach(s=>all.push({type:'sprite',id:s.id,name:s.name,category:s.category,tags:s.tags||[]}))}
   if(window.Models3D){window.Models3D.getList().forEach(m=>all.push({type:'model3d',id:m.id,name:m.name,category:m.category,tags:m.tags||[]}))}
-  if(window.Audio){window.Audio.getList().forEach(s=>all.push({type:'sound',id:s.id,name:s.name,category:s.category,tags:s.tags||[]}))}
+  if(window.GameAudio){window.GameAudio.getList().forEach(s=>all.push({type:'sound',id:s.id,name:s.name,category:s.category,tags:s.tags||[]}))}
   if(window.Tiles){window.Tiles.getList().forEach(t=>all.push({type:'tile',id:t.id,name:t.name,category:t.category,tags:[]}))}
   if(window.Particles){window.Particles.getList().forEach(p=>all.push({type:'particle',id:p.id,name:p.name,category:p.category,tags:[]}))}
   if(window.Animations){window.Animations.getList().forEach(a=>all.push({type:'animation',id:a.id,name:a.name,category:a.category,tags:[]}))}
@@ -89,7 +89,7 @@ function createBrowserPanel(onSelect){
         grid.querySelectorAll('.asset-card').forEach(c=>c.classList.remove('selected'));
         card.classList.add('selected');
         if(onSelect)onSelect(asset);
-        if(asset.type==='sound')window.Audio?.play(asset.id);
+        if(asset.type==='sound')window.GameAudio?.play(asset.id);
       };
       card.draggable=true;
       card.ondragstart=(e)=>{e.dataTransfer.setData('application/json',JSON.stringify(asset));e.dataTransfer.effectAllowed='copy'};

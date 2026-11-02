@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "id": "com.ezgalaxy.gamestudio",
   "title": "Game Studio — Créateur de Jeux",
-  "function": "Créateur de mini-jeux vidéo ultra complet : éditeur visuel de scènes, moteurs 2D et 3D, physique, IA, éclairage, scripting visuel, 200+ sprites, 40+ modèles 3D, 60+ sons, 40+ tuiles, particules, 6 templates (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner). Sauvegarde via Community Data API.",
-  "version": "1.1.0",
+  "function": "Créateur de mini-jeux vidéo : éditeur visuel de scènes, moteur 2D avec physique, scripts visuels, IA, particules, 120 sprites, 50 sons et 14 modèles de jeu jouables (Platformer, RPG, Space Shooter, Tower Defense, Puzzle, Endless Runner, Course aux nuages, Chasse au trésor, Arène, Grotte de glace, Météores, Château hanté, Labyrinthe, Verger).",
+  "version": "2.0.0",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

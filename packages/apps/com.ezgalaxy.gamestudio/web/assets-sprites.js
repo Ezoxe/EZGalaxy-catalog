@@ -1093,25 +1093,100 @@ sprites.platformMetal={draw:(c,x,y,s,o)=>drawPlatform(c,x,y,s,{...o,type:'metal'
 sprites.platformCloud={draw:(c,x,y,s,o)=>drawPlatform(c,x,y,s,{...o,type:'cloud'}),category:'terrain',name:'Plateforme nuage',tags:['plateforme','traversable']};
 
 /* ══════════════════════════════════
+   TERRAIN BLOCKS: fill their whole box (ground, walls, platforms)
+   ══════════════════════════════════ */
+const BLOCKS={
+  grass:{base:'#7a4f2a',top:'#4caf50',topH:0.28,dot:'rgba(0,0,0,0.12)',edge:'#2e7d32'},
+  dirt:{base:'#8d5a32',top:'#a06a3c',topH:0,dot:'rgba(0,0,0,0.15)',edge:'#5d3a1e'},
+  stone:{base:'#7b8088',top:'#9aa0a8',topH:0.18,dot:'rgba(0,0,0,0.18)',edge:'#555a62',bricks:true},
+  wood:{base:'#a0703c',top:'#c08a50',topH:0.16,dot:'rgba(0,0,0,0.14)',edge:'#6b4520',planks:true},
+  ice:{base:'#9fd8ec',top:'#e6f7ff',topH:0.22,dot:'rgba(255,255,255,0.35)',edge:'#5fb3d0'},
+  metal:{base:'#6f7c8a',top:'#9aa8b6',topH:0.14,dot:'rgba(0,0,0,0.2)',edge:'#46515c',rivets:true},
+  cloud:{base:'rgba(255,255,255,0.82)',top:'#ffffff',topH:0,dot:'rgba(200,215,235,0.6)',edge:'rgba(170,190,215,0.9)',round:true}
+};
+function drawBlock(c,w,h,type){
+  const b=BLOCKS[type]||BLOCKS.stone;
+  const r=b.round?Math.min(w,h)/2:Math.min(4,w/6,h/3);
+  roundRect(c,0,0,w,h,r,b.base);
+  c.save();c.beginPath();c.rect(0,0,w,h);c.clip();
+  if(b.topH)rect(c,0,0,w,Math.max(3,h*b.topH),b.top);
+  if(b.bricks){const bh=Math.max(6,h/2);for(let y=0,row=0;y<h;y+=bh,row++){rect(c,0,y,w,1,b.dot);for(let x=(row%2)*bh;x<w;x+=bh*2)rect(c,x,y,1,bh,b.dot)}}
+  if(b.planks){const pw=Math.max(10,w/4);for(let x=pw;x<w;x+=pw)rect(c,x,0,1.5,h,b.dot)}
+  if(b.rivets){for(let x=6;x<w;x+=Math.max(14,w/5))circle(c,x,h/2,1.6,b.dot)}
+  if(!b.bricks&&!b.planks&&!b.rivets){const n=Math.max(2,Math.round((w*h)/700));for(let i=0;i<n;i++)circle(c,(i*53+7)%Math.max(1,w),h*0.4+((i*29)%Math.max(1,Math.round(h*0.5))),1.4,b.dot)}
+  c.restore();
+  c.strokeStyle=b.edge;c.lineWidth=1.5;c.beginPath();
+  if(c.roundRect)c.roundRect(0.75,0.75,w-1.5,h-1.5,r);else c.rect(0.75,0.75,w-1.5,h-1.5);
+  c.stroke();
+}
+['stone','wood','ice','metal','cloud'].forEach(t=>{
+  const id='platform'+t[0].toUpperCase()+t.slice(1);
+  if(sprites[id])sprites[id].fill=(c,w,h)=>drawBlock(c,w,h,t);
+});
+sprites.platformGrass={draw:(c,x,y,s)=>{c.save();c.translate(x-s*0.4,y-s*0.15);drawBlock(c,s*0.8,s*0.3,'grass');c.restore()},fill:(c,w,h)=>drawBlock(c,w,h,'grass'),category:'terrain',name:'Sol herbe',tags:['plateforme','sol']};
+sprites.dirt={draw:(c,x,y,s)=>{c.save();c.translate(x-s*0.4,y-s*0.4);drawBlock(c,s*0.8,s*0.8,'dirt');c.restore()},fill:(c,w,h)=>drawBlock(c,w,h,'dirt'),category:'terrain',name:'Chemin de terre',tags:['sol','chemin']};
+sprites.gemYellow={draw:(c,x,y,s,o)=>drawGem(c,x,y,s,{...o,color:'#ffd23f'}),category:'items',name:'Gemme jaune',tags:['collectible','trésor']};
+
+// Ids used by older projects and templates.
+const ALIASES={platform_grass:'platformGrass',platform_stone:'platformStone',platform_wood:'platformWood',tree1:'treeOak',tree2:'treePine',star:'starDecor',gem_blue:'gemBlue',gem_green:'gemGreen',gem_red:'gemRed',gem_yellow:'gemYellow',gem_purple:'gemPurple'};
+function resolveId(id){return sprites[id]?id:(ALIASES[id]||id)}
+
+/* ══════════════════════════════════
    UTILITY: Cached sprite rendering
+   renderSprite(id, width, height?, options?) — also accepts (id, size, options)
    ══════════════════════════════════ */
 const spriteCache=new Map();
 
-function renderSprite(spriteId,size,options={}){
-  const key=spriteId+'_'+size+'_'+JSON.stringify(options);
-  if(spriteCache.has(key))return spriteCache.get(key);
-  const s=sprites[spriteId];if(!s)return null;
-  const cvs=document.createElement('canvas');cvs.width=size;cvs.height=size;
+// Many drawings only use a small part of their box (a coin is 20 % wide).
+// Measure once where each sprite actually paints, in units of its size.
+const boundsCache=new Map();
+function measure(id){
+  if(boundsCache.has(id))return boundsCache.get(id);
+  const S=160,cvs=document.createElement('canvas');cvs.width=S*2;cvs.height=S*2;
   const ctx=cvs.getContext('2d');
-  s.draw(ctx,size/2,size/2,size,options);
+  let b={x0:-0.5,y0:-0.5,x1:0.5,y1:0.5};
+  try{
+    sprites[id].draw(ctx,S,S,S,{});
+    const d=ctx.getImageData(0,0,S*2,S*2).data;
+    let minX=S*2,minY=S*2,maxX=-1,maxY=-1;
+    for(let y=0;y<S*2;y+=2)for(let x=0;x<S*2;x+=2){
+      if(d[(y*S*2+x)*4+3]>16){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y}
+    }
+    if(maxX>=0)b={x0:(minX-S)/S,y0:(minY-S)/S,x1:(maxX+2-S)/S,y1:(maxY+2-S)/S};
+  }catch(e){/* keep the default box */}
+  boundsCache.set(id,b);
+  return b;
+}
+
+function renderSprite(spriteId,width,height,options){
+  if(height&&typeof height==='object'){options=height;height=undefined}
+  options=options||{};
+  const w=Math.max(1,Math.round(width||32)),h=Math.max(1,Math.round(height||width||32));
+  const id=resolveId(spriteId);
+  const s=sprites[id];if(!s)return null;
+  const key=id+'_'+w+'x'+h+'_'+JSON.stringify(options);
+  if(spriteCache.has(key))return spriteCache.get(key);
+  const cvs=document.createElement('canvas');cvs.width=w;cvs.height=h;
+  const ctx=cvs.getContext('2d');
+  if(s.fill)s.fill(ctx,w,h,options);
+  else{
+    // Scale the painted area to fill the box (keeping proportions), centred.
+    const b=measure(id);
+    const bw=Math.max(0.05,b.x1-b.x0),bh=Math.max(0.05,b.y1-b.y0);
+    const size=Math.min(w*0.96/bw,h*0.96/bh);
+    s.draw(ctx,w/2-(b.x0+b.x1)/2*size,h/2-(b.y0+b.y1)/2*size,size,options);
+  }
+  if(spriteCache.size>600)spriteCache.clear();
   spriteCache.set(key,cvs);
   return cvs;
 }
 
 function renderSpriteToCtx(ctx,spriteId,x,y,size,options={}){
-  const s=sprites[spriteId];if(!s)return;
+  const s=sprites[resolveId(spriteId)];if(!s)return;
   s.draw(ctx,x,y,size,options);
 }
+
+function hasSprite(id){return !!sprites[resolveId(id)]}
 
 function getSpriteList(){return Object.entries(sprites).map(([id,s])=>({id,name:s.name,category:s.category,tags:s.tags||[],variants:s.variants}))}
 
@@ -1122,5 +1197,5 @@ function getCategories(){
   return[...cats].map(c=>({id:c,name:{characters:'Personnages',enemies:'Ennemis',npcs:'PNJ',environment:'Environnement',items:'Objets',ui:'Interface',vehicles:'Véhicules',projectiles:'Projectiles',effects:'Effets',terrain:'Terrain'}[c]||c}));
 }
 
-window.Sprites={sprites,renderSprite,renderSpriteToCtx,getSpriteList,getSpritesByCategory,getCategories};
+window.Sprites={sprites,renderSprite,renderSpriteToCtx,hasSprite,resolveId,getSpriteList,getSpritesByCategory,getCategories};
 })();

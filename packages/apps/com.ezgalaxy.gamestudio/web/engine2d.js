@@ -11,9 +11,19 @@ class Input{
     this.keys={};this.keysJustDown={};this.keysJustUp={};
     this.mouse={x:0,y:0,worldX:0,worldY:0,down:false,clicked:false,rightClicked:false,button:0};
     this.touches=[];this._canvas=canvas;
-    this._onKey=this._onKey.bind(this);this._onMouse=this._onMouse.bind(this);this._onTouch=this._onTouch.bind(this);
-    window.addEventListener('keydown',e=>{if(!e.repeat){this.keysJustDown[e.code]=true}this.keys[e.code]=true;e.preventDefault()});
-    window.addEventListener('keyup',e=>{this.keysJustUp[e.code]=true;this.keys[e.code]=false});
+    const typing=e=>{const t=e.target;return t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)};
+    const GAME_KEYS=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
+    this._keyDown=e=>{
+      if(typing(e))return;
+      if(!e.repeat)this.keysJustDown[e.code]=true;
+      this.keys[e.code]=true;
+      if(GAME_KEYS.includes(e.code))e.preventDefault();
+    };
+    this._keyUp=e=>{this.keysJustUp[e.code]=true;this.keys[e.code]=false};
+    this._blur=()=>{this.keys={}};
+    window.addEventListener('keydown',this._keyDown);
+    window.addEventListener('keyup',this._keyUp);
+    window.addEventListener('blur',this._blur);
     canvas.addEventListener('mousedown',e=>{this.mouse.down=true;this.mouse.clicked=true;this.mouse.button=e.button;if(e.button===2)this.mouse.rightClicked=true;this._updateMousePos(e)});
     canvas.addEventListener('mouseup',e=>{this.mouse.down=false});
     canvas.addEventListener('mousemove',e=>this._updateMousePos(e));
@@ -22,9 +32,11 @@ class Input{
     canvas.addEventListener('touchend',e=>{this.touches=Array.from(e.touches).map(t=>this._touchPos(t));if(!e.touches.length)this.mouse.down=false});
     canvas.addEventListener('touchmove',e=>{e.preventDefault();this.touches=Array.from(e.touches).map(t=>this._touchPos(t));if(e.touches[0])this._updateTouchPos(e.touches[0])},{passive:false});
   }
-  _onKey(){}
-  _onMouse(){}
-  _onTouch(){}
+  destroy(){
+    window.removeEventListener('keydown',this._keyDown);
+    window.removeEventListener('keyup',this._keyUp);
+    window.removeEventListener('blur',this._blur);
+  }
   _updateMousePos(e){const r=this._canvas.getBoundingClientRect();this.mouse.x=e.clientX-r.left;this.mouse.y=e.clientY-r.top}
   _updateTouchPos(t){const r=this._canvas.getBoundingClientRect();this.mouse.x=t.clientX-r.left;this.mouse.y=t.clientY-r.top}
   _touchPos(t){const r=this._canvas.getBoundingClientRect();return{x:t.clientX-r.left,y:t.clientY-r.top,id:t.identifier}}
@@ -192,8 +204,8 @@ class Engine2D{
     // Init physics world
     if(window.Physics){
       this._physicsWorld=new window.Physics.PhysicsWorld();
-      this._physicsWorld.gravity.x=s.gravity?.x||0;
-      this._physicsWorld.gravity.y=s.gravity?.y||600;
+      this._physicsWorld.gravity.x=s.gravity?.x??0;
+      this._physicsWorld.gravity.y=s.gravity?.y??600;
       // Register bodies
       for(const obj of s.objects){
         if(obj.body){this._physicsWorld.addBody(obj.body);obj.body.gameObject=obj}
@@ -208,6 +220,15 @@ class Engine2D{
     // Fire scene start scripts
     this._fireScripts('onSceneStart',{});
     this._fireScripts('onStart',{});
+    // Camera: follow the player unless a script chose a target, stay inside the level.
+    if(!this.camera.target){
+      const player=s.objects.find(o=>o.alive&&(o.tags||[]).includes('player'));
+      if(player){this.camera.follow(player);this.camera.x=player.x;this.camera.y=player.y}
+      else{this.camera.x=(s.width||this.width)/2;this.camera.y=(s.height||this.height)/2}
+    }
+    if(s.width&&s.height){
+      this.camera.bounds={minX:0,minY:0,maxX:Math.max(s.width,this.width),maxY:Math.max(s.height,this.height)};
+    }
     if(this.onSceneStart)this.onSceneStart(s);
   }
   switchScene(id){this.loadScene(id)}
@@ -217,6 +238,7 @@ class Engine2D{
   spawn(prefabName,x,y){
     const factory=this.prefabs[prefabName];if(!factory)return null;
     const obj=factory(x,y);if(!obj)return null;
+    if(!obj.body)attachBody(obj);
     if(this.scene){
       this.scene.addObject(obj);
       if(obj.body&&this._physicsWorld){this._physicsWorld.addBody(obj.body);obj.body.gameObject=obj}
@@ -232,10 +254,15 @@ class Engine2D{
   findByTag(tag){return this.scene?.findByTag(tag)}
   findAllByTag(tag){return this.scene?.findAllByTag(tag)||[]}
 
-  emitParticles(presetId,x,y){
-    if(!window.Particles)return;
-    const e=window.Particles.createEmitter(presetId,x,y);
-    if(e)this._particleEmitters.push(e);
+  // opts.burst: one-shot puff; otherwise a continuous emitter (opts.duration in s, default 1).
+  emitParticles(presetId,x,y,opts={}){
+    if(!window.Particles||!window.Particles.presets[presetId])return null;
+    const o={...opts};
+    if(o.burst&&o.duration===undefined)o.duration=0.01;
+    if(o.duration===undefined&&!window.Particles.presets[presetId].burst)o.duration=1;
+    const e=new window.Particles.Emitter(x,y,presetId,o);
+    if(this._particleEmitters.length>40)this._particleEmitters.shift();
+    this._particleEmitters.push(e);
     return e;
   }
   sendMessage(msg,tag){this._pendingMessages.push({msg,tag})}
@@ -245,7 +272,7 @@ class Engine2D{
     if(this.running)return;this.running=true;this._lastTime=performance.now();
     const loop=(now)=>{
       this._raf=requestAnimationFrame(loop);
-      if(this.paused)return;
+      if(this.paused){if(this.gameOver||this.victory)this._render();return}
       let elapsed=(now-this._lastTime)/1000;
       this._lastTime=now;
       if(elapsed>0.25)elapsed=0.25; // clamp spiral of death
@@ -259,7 +286,7 @@ class Engine2D{
     };
     this._raf=requestAnimationFrame(loop);
   }
-  stop(){this.running=false;cancelAnimationFrame(this._raf)}
+  stop(){this.running=false;cancelAnimationFrame(this._raf);if(this.input&&this.input.destroy)this.input.destroy()}
   pause(){this.paused=true}
   resume(){this.paused=false;this._lastTime=performance.now()}
 
@@ -291,25 +318,60 @@ class Engine2D{
     for(const obj of objs){
       if(!obj.alive)continue;
       obj.animator.update(dt);
-      // Sync physics body → position
-      if(obj.body){obj.x=obj.body.position.x;obj.y=obj.body.position.y}
+      // A script moved the object directly: carry the move over to its body.
+      if(obj.body&&obj._px!==undefined&&(obj.x!==obj._px||obj.y!==obj._py))obj.body.setCenter(obj.x,obj.y);
     }
 
     // Physics
     if(this._physicsWorld){
       this._physicsWorld.step(dt);
-      // Collision scripts
-      for(const pair of this._physicsWorld.getCollisionPairs?.()||[]){
+      // Sync physics body → position (bodies are top-left, objects are centred)
+      for(const obj of objs){
+        if(!obj.body||!obj.alive)continue;
+        const p=obj.body.position;
+        obj.x=p.x;obj.y=p.y;obj._px=obj.x;obj._py=obj.y;
+      }
+      // Collision scripts (solid hits and trigger overlaps)
+      const pairs=(this._physicsWorld.getCollisionPairs?.()||[]).concat(this._physicsWorld.getTriggerPairs?.()||[]);
+      for(const pair of pairs){
         const a=pair.a?.gameObject,b=pair.b?.gameObject;
-        if(a?.scriptRunner){a.scriptRunner.processTrigger('onCollision',a,dt,this,{otherTags:b?.tags||[]})}
-        if(b?.scriptRunner){b.scriptRunner.processTrigger('onCollision',b,dt,this,{otherTags:a?.tags||[]})}
+        if(!a||!b||!a.alive||!b.alive)continue;
+        for(const trig of ['onCollision','onTriggerEnter']){
+          if(a.scriptRunner)a.scriptRunner.processTrigger(trig,a,dt,this,{otherTags:b.tags||[],other:b});
+          if(b.scriptRunner)b.scriptRunner.processTrigger(trig,b,dt,this,{otherTags:a.tags||[],other:a});
+        }
+        // Collectibles vanish once the player picks them up.
+        for(const [p,item] of [[a,b],[b,a]]){
+          if((p.tags||[]).includes('player')&&(item.tags||[]).includes('collectible')&&item.alive){
+            item.alive=false;item.destroyed=true;
+            this.emitParticles('sparkles',item.x,item.y,{burst:14});
+          }
+        }
       }
     }
+
+    // Health events: onDamage when HP drops, onHPZero when it reaches 0.
+    for(const obj of objs){
+      if(!obj.alive||!obj.scriptRunner||typeof obj.hp!=='number')continue;
+      const prev=obj._lastHp;
+      obj._lastHp=obj.hp;
+      if(prev===undefined||obj.hp>=prev)continue;
+      obj.scriptRunner.processTrigger('onDamage',obj,dt,this,{amount:prev-obj.hp});
+      if(obj.hp<=0&&prev>0)obj.scriptRunner.processTrigger('onHPZero',obj,dt,this,{});
+    }
+    // Variable changes
+    const vars=this.scene.variables||{};
+    this._lastVars=this._lastVars||{...vars};
+    for(const k in vars){
+      if(vars[k]!==this._lastVars[k]){this._lastVars[k]=vars[k];this._fireScripts('onVariableChange',{varName:k})}
+    }
+    // Out of lives: the game stops on a game-over screen.
+    if(typeof vars.lives==='number'&&vars.lives<=0&&!this.gameOver){this.gameOver=true;this.paused=true}
 
     // Particles
     for(let i=this._particleEmitters.length-1;i>=0;i--){
       this._particleEmitters[i].update(dt);
-      if(this._particleEmitters[i].dead)this._particleEmitters.splice(i,1);
+      if(!this._particleEmitters[i].alive)this._particleEmitters.splice(i,1);
     }
 
     // Lighting day/night
@@ -365,9 +427,12 @@ class Engine2D{
 
       // Sprite
       const spriteId=obj.animator.getFrame()||obj.spriteId;
-      if(spriteId&&window.Sprites){
-        const img=window.Sprites.renderSprite(spriteId,obj.width,obj.height);
-        if(img)ctx.drawImage(img,-obj.width/2,-obj.height/2,obj.width,obj.height);
+      const img=spriteId&&window.Sprites?window.Sprites.renderSprite(spriteId,obj.width,obj.height):null;
+      if(img){
+        ctx.drawImage(img,-obj.width/2,-obj.height/2,obj.width,obj.height);
+      }else if(obj.color){
+        ctx.fillStyle=obj.color;
+        ctx.fillRect(-obj.width/2,-obj.height/2,obj.width,obj.height);
       }
 
       // Debug bounds
@@ -409,7 +474,50 @@ class Engine2D{
     }
 
     // HUD layer (post-camera)
+    if(this.showHud!==false)this._drawHud(ctx);
     if(this.onRender)this.onRender(ctx);
+  }
+
+  // Score, lives and other script variables, player health, controls reminder.
+  _drawHud(ctx){
+    const vars={...(this.scene.variables||{})};
+    for(const obj of this.scene.objects){
+      const v=obj.scriptRunner&&obj.scriptRunner.variables;
+      if(v)for(const k in v){if(typeof v[k]==='number'||typeof v[k]==='string')vars[k]=v[k]}
+    }
+    const labels={score:'Score',lives:'Vies',coins:'Pièces',level:'Niveau',wave:'Vague',gold:'Or',time:'Temps'};
+    const entries=Object.entries(vars).slice(0,5);
+    const player=this.scene.objects.find(o=>o.alive&&(o.tags||[]).includes('player'));
+    ctx.save();
+    ctx.font='600 14px system-ui, sans-serif';ctx.textBaseline='middle';
+    let y=14;
+    if(entries.length||player){
+      const h=12+entries.length*22+(player&&player.maxHp?22:0);
+      ctx.fillStyle='rgba(8,12,24,0.62)';
+      if(ctx.roundRect){ctx.beginPath();ctx.roundRect(10,10,190,h,10);ctx.fill()}else ctx.fillRect(10,10,190,h);
+      y=28;
+      for(const [k,v] of entries){
+        ctx.fillStyle='#9fb0d0';ctx.textAlign='left';ctx.fillText(labels[k]||k,22,y);
+        ctx.fillStyle='#fff';ctx.textAlign='right';ctx.fillText(String(v),188,y);
+        y+=22;
+      }
+      if(player&&player.maxHp){
+        const ratio=Math.max(0,Math.min(1,(player.hp||0)/player.maxHp));
+        ctx.fillStyle='rgba(255,255,255,0.12)';ctx.fillRect(22,y-5,166,10);
+        ctx.fillStyle=ratio>0.5?'#34d399':ratio>0.25?'#fbbf24':'#f87171';ctx.fillRect(22,y-5,166*ratio,10);
+      }
+    }
+    if(this.gameOver||this.victory){
+      ctx.fillStyle='rgba(5,8,18,0.72)';ctx.fillRect(0,0,this.width,this.height);
+      ctx.textAlign='center';ctx.fillStyle=this.victory?'#34d399':'#f87171';
+      ctx.font='800 40px system-ui, sans-serif';ctx.fillText(this.victory?'Victoire !':'Partie terminée',this.width/2,this.height/2-14);
+      ctx.fillStyle='#cbd5e1';ctx.font='15px system-ui, sans-serif';
+      ctx.fillText("Échap pour revenir à l'éditeur",this.width/2,this.height/2+24);
+    }
+    ctx.textAlign='center';ctx.font='12px system-ui, sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.55)';
+    ctx.fillText(this.hint||'Flèches : bouger · Espace : sauter · Échap : quitter le test',this.width/2,this.height-14);
+    ctx.restore();
   }
 
   /* ─── Resize ─── */
@@ -442,5 +550,21 @@ class Engine2D{
   }
 }
 
-window.Engine2D={Engine2D,Input,Camera,TilemapRenderer,SpriteAnimator,GameObject2D,Scene};
+/* Give an object the physics body its tags call for:
+   solid = static wall/ground, player/enemy = moving body,
+   collectible/obstacle/hazard/goal/projectile = trigger (overlap fires onCollision). */
+function attachBody(obj){
+  if(!window.Physics||obj.body)return obj.body||null;
+  const t=obj.tags||[];
+  const solid=t.includes('solid');
+  const moving=t.includes('player')||t.includes('enemy');
+  const trigger=!solid&&!moving&&['collectible','obstacle','hazard','goal','portal','projectile','bullet'].some(x=>t.includes(x));
+  if(!solid&&!moving&&!trigger)return null;
+  const body=new window.Physics.Body({x:obj.x-obj.width/2,y:obj.y-obj.height/2,w:obj.width,h:obj.height,static:solid||trigger,trigger,friction:0.4});
+  if(t.includes('flying'))body.useGravity=false;
+  body.gameObject=obj;obj.body=body;
+  return body;
+}
+
+window.Engine2D={Engine2D,Input,Camera,TilemapRenderer,SpriteAnimator,GameObject2D,Scene,attachBody};
 })();

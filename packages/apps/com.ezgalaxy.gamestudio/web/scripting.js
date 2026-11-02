@@ -55,7 +55,8 @@ const actionDefs={
   moveToward:{name:'Déplacer vers',category:'mouvement',params:[{id:'tag',name:'Tag cible',type:'string'},{id:'speed',name:'Vitesse',type:'number',default:100}],
     fn:(ctx,p)=>{const t=ctx.findByTag(p.tag);if(!t)return;const dx=t.x-ctx.owner.x,dy=t.y-ctx.owner.y,d=Math.sqrt(dx*dx+dy*dy);if(d>1){ctx.owner.x+=dx/d*p.speed*ctx.dt;ctx.owner.y+=dy/d*p.speed*ctx.dt}}},
   setVelocity:{name:'Définir vélocité',category:'mouvement',params:[{id:'vx',name:'VX',type:'number',default:0},{id:'vy',name:'VY',type:'number',default:0}],
-    fn:(ctx,p)=>{if(ctx.owner.body){ctx.owner.body.vx=p.vx;ctx.owner.body.vy=p.vy}}},
+    // An empty value keeps the current speed on that axis (e.g. walk without killing a jump).
+    fn:(ctx,p)=>{const b=ctx.owner.body;if(!b)return;const n=v=>v!==null&&v!==''&&v!==undefined&&!Number.isNaN(Number(v));if(n(p.vx))b.vx=Number(p.vx);if(n(p.vy))b.vy=Number(p.vy)}},
   addForce:{name:'Ajouter force',category:'mouvement',params:[{id:'fx',name:'FX',type:'number',default:0},{id:'fy',name:'FY',type:'number',default:-300}],
     fn:(ctx,p)=>{if(ctx.owner.body)ctx.owner.body.applyImpulse(p.fx*ctx.dt,p.fy*ctx.dt)}},
   jump:{name:'Sauter',category:'mouvement',params:[{id:'force',name:'Force',type:'number',default:-350}],
@@ -65,10 +66,12 @@ const actionDefs={
   setHP:{name:'Définir HP',category:'combat',params:[{id:'value',name:'HP',type:'number',default:100}],
     fn:(ctx,p)=>{ctx.owner.hp=p.value}},
   damage:{name:'Infliger dégâts',category:'combat',params:[{id:'value',name:'Dégâts',type:'number',default:10}],
-    fn:(ctx,p)=>{ctx.owner.hp=Math.max(0,(ctx.owner.hp||100)-p.value)}},
+    // Short invulnerability after a hit, otherwise touching an enemy empties the bar in one second.
+    fn:(ctx,p)=>{const o=ctx.owner,now=performance.now();if(o._hurtUntil&&now<o._hurtUntil)return;o._hurtUntil=now+800;o.hp=Math.max(0,(o.hp??100)-(Number(p.value)||0))}},
   heal:{name:'Soigner',category:'combat',params:[{id:'value',name:'Soin',type:'number',default:20}],
     fn:(ctx,p)=>{ctx.owner.hp=Math.min(ctx.owner.maxHp||100,(ctx.owner.hp||0)+p.value)}},
   destroy:{name:'Détruire',category:'objet',params:[],fn:(ctx)=>{ctx.owner.alive=false;ctx.owner.destroyed=true}},
+  destroyOther:{name:'Détruire l\'objet touché',category:'objet',params:[],fn:(ctx)=>{if(ctx.other){ctx.other.alive=false;ctx.other.destroyed=true}}},
   spawn:{name:'Créer objet',category:'objet',params:[{id:'prefab',name:'Prefab',type:'string'},{id:'ox',name:'Offset X',type:'number',default:0},{id:'oy',name:'Offset Y',type:'number',default:0}],
     fn:(ctx,p)=>{if(ctx.spawn)ctx.spawn(p.prefab,ctx.owner.x+p.ox,ctx.owner.y+p.oy)}},
   setVariable:{name:'Définir variable',category:'données',params:[{id:'varName',name:'Variable',type:'variable'},{id:'value',name:'Valeur',type:'any'}],
@@ -76,7 +79,7 @@ const actionDefs={
   addToVariable:{name:'Ajouter à variable',category:'données',params:[{id:'varName',name:'Variable',type:'variable'},{id:'value',name:'Valeur',type:'number',default:1}],
     fn:(ctx,p)=>{ctx.setVariable(p.varName,(ctx.getVariable(p.varName)||0)+p.value)}},
   playSound:{name:'Jouer son',category:'média',params:[{id:'soundId',name:'Son',type:'sound'}],
-    fn:(ctx,p)=>{window.Audio?.play(p.soundId)}},
+    fn:(ctx,p)=>{window.GameAudio?.play(p.soundId)}},
   playAnimation:{name:'Jouer animation',category:'média',params:[{id:'animId',name:'Animation',type:'animation'}],
     fn:(ctx,p)=>{ctx.owner.currentAnim=p.animId}},
   emitParticles:{name:'Émettre particules',category:'média',params:[{id:'presetId',name:'Preset',type:'particle'}],
@@ -90,6 +93,7 @@ const actionDefs={
   flipX:{name:'Retourner X',category:'apparence',params:[],fn:(ctx)=>{ctx.owner.facingRight=!ctx.owner.facingRight}},
   sendMessage:{name:'Envoyer message',category:'communication',params:[{id:'message',name:'Message',type:'string'},{id:'tag',name:'Tag cible',type:'string'}],
     fn:(ctx,p)=>{if(ctx.sendMessage)ctx.sendMessage(p.message,p.tag)}},
+  win:{name:'Gagner la partie',category:'jeu',params:[],fn:(ctx)=>{if(ctx.engine){ctx.engine.victory=true;ctx.engine.paused=true}}},
   switchScene:{name:'Changer scène',category:'jeu',params:[{id:'sceneId',name:'Scène',type:'scene'}],
     fn:(ctx,p)=>{if(ctx.switchScene)ctx.switchScene(p.sceneId)}},
   cameraFollow:{name:'Caméra suit',category:'caméra',params:[],fn:(ctx)=>{if(ctx.cameraFollow)ctx.cameraFollow(ctx.owner)}},
@@ -120,9 +124,10 @@ class ScriptRunner{
 
   createContext(owner,dt,engine){
     return{
-      owner,dt,
-      getVariable:(name)=>this.variables[name],
-      setVariable:(name,val)=>{this.variables[name]=val},
+      owner,dt,engine,
+      // Scene-wide variables (score, lives…) are shared by every object; others are per object.
+      getVariable:(name)=>{const sv=engine?.scene?.variables;return sv&&name in sv?sv[name]:this.variables[name]},
+      setVariable:(name,val)=>{const sv=engine?.scene?.variables;if(sv&&name in sv)sv[name]=val;else this.variables[name]=val},
       findByTag:(tag)=>engine?.findByTag?.(tag),
       spawn:(prefab,x,y)=>engine?.spawn?.(prefab,x,y),
       emitParticles:(id,x,y)=>engine?.emitParticles?.(id,x,y),
@@ -136,6 +141,8 @@ class ScriptRunner{
 
   processTrigger(triggerType,owner,dt,engine,eventData={}){
     const ctx=this.createContext(owner,dt,engine);
+    ctx.event=eventData;
+    ctx.other=eventData.other||null;
     for(const block of this.blocks){
       if(!block.enabled||block.trigger.type!==triggerType)continue;
       // Check trigger params match
@@ -145,6 +152,9 @@ class ScriptRunner{
       }
       if(triggerType==='onCollision'||triggerType==='onTriggerEnter'){
         if(tp.tag&&!eventData.otherTags?.includes(tp.tag))continue;
+      }
+      if(triggerType==='onVariableChange'){
+        if(tp.varName&&eventData.varName!==tp.varName)continue;
       }
       if(triggerType==='onMessage'){
         if(tp.message&&eventData.message!==tp.message)continue;

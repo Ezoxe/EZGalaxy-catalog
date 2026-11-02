@@ -124,5 +124,5 @@ function getCategories(){const s=new Set();for(const v of Object.values(sounds))
 function play(id){const s=sounds[id];if(s)s.play()}
 function resume(){if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume()}
 
-window.Audio={sounds,play,getList,getByCategory,getCategories,resume,ctx:()=>ctx()};
+window.GameAudio={sounds,play,getList,getByCategory,getCategories,resume,ctx:()=>ctx()};
 })();
