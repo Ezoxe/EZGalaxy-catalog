@@ -218,6 +218,7 @@
           <span class="scene-count" aria-hidden="true"></span>
         </div>
         <div class="scene-stage"></div>
+        <p class="scene-swipe" aria-hidden="true">Fais glisser la scène pour tout voir</p>
         <div class="scene-progress" role="group" aria-label="Étapes de la scène"></div>
         <div class="scene-caption" aria-live="polite">
           <span class="scene-step-title"></span>
@@ -390,7 +391,7 @@
         return;
       }
       box.innerHTML = `
-        <div class="scene-quiz-head">Mini-défi · +5 XP au premier essai</div>
+        <div class="scene-quiz-head">Mini-défi${this.opts.guest ? '' : ' · +5 XP si tu réussis du premier coup'}</div>
         <p class="scene-quiz-q">${esc(q.question)}</p>
         <div class="scene-quiz-options">${q.options.map((o, i) =>
           `<button type="button" class="scene-quiz-opt" data-sc="quiz" data-i="${i}">${esc(o)}</button>`).join('')}</div>

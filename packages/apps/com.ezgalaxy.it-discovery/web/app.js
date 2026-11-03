@@ -31,8 +31,8 @@
     if (ms == null) return '—';
     const s = Math.round(ms / 100) / 10;
     if (s < 60) return s.toFixed(1).replace('.', ',') + ' s';
-    const m = Math.floor(s / 60);
-    return m + ' min ' + String(Math.round(s % 60)).padStart(2, '0');
+    const total = Math.round(s);
+    return Math.floor(total / 60) + ' min ' + String(total % 60).padStart(2, '0');
   };
   const fmtDate = (iso) => {
     if (!iso) return '—';
@@ -83,6 +83,8 @@
     try { if (value == null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
   }
 
+  const newPinChange = () => ({ pin: '', error: '', loading: false, step: 'current', current: '', first: '' });
+
   /* ───────── State ───────── */
   const State = {
     screen: 'loading',
@@ -97,7 +99,7 @@
     board: { tab: 'season', loading: false, season: null, hall: null, records: null, error: '' },
     ghosts: {},
     auth: { mode: 'login', pseudo: '', pin: '', error: '', triesLeft: null, lockedUntil: 0, loading: false },
-    pinChange: { pin: '', error: '', loading: false, step: 'current', current: '' },
+    pinChange: newPinChange(),
     admin: { code: '', error: '', loading: false, overview: null, lockedUntil: 0 },
     seenScenes: new Set(),
     sceneCtrls: [],
@@ -198,11 +200,23 @@
     }
   }
 
+  function onSessionLost() {
+    if (!State.user) return;
+    Api.setToken(null);
+    Api.clearQueue();
+    State.user = null;
+    State.progress = null;
+    State.ghosts = {};
+    if (State.run) State.run.finished = true;
+    toast('error', 'Ta session a expiré : reconnecte-toi pour continuer.');
+    navigate('auth');
+  }
+
   async function afterLogin(result, isNew) {
     Api.setToken(result.token);
     State.user = result.player;
     let imported = null;
-    if (isNew && (State.guest.lessons || []).length) {
+    if (!result.player.guestImported && (State.guest.lessons || []).length) {
       try { imported = await Api.importGuest(State.guest.lessons); } catch (e) { imported = null; }
     }
     // Guest progress stays on this device only until an account takes it over.
@@ -223,6 +237,8 @@
     State.progress = null;
     State.ghosts = {};
     State.board.season = null;
+    State.seenScenes = new Set();
+    State.pinChange = newPinChange();
     State.guest = { lessons: [], quizBest: {} };
     saveGuest();
     toast('info', 'Tu es déconnecté. La progression de cet appareil a été effacée.');
@@ -247,8 +263,11 @@
     }, 4000);
   }
 
+  let closeOpenDialog = null;
+
   function dialog(opts) {
     return new Promise((resolve) => {
+      const opener = document.activeElement;
       const overlay = document.createElement('div');
       overlay.className = 'dialog-overlay';
       const field = opts.input
@@ -262,17 +281,31 @@
           ${opts.html || ''}
           ${field}
           <div class="dialog-actions">
-            ${opts.cancel === false ? '' : '<button type="button" class="btn btn-ghost dialog-cancel">Annuler</button>'}
+            ${opts.cancel === false ? '' : '<button type="button" class="btn btn-ghost dialog-cancel">' + escapeHtml(opts.cancelLabel || 'Annuler') + '</button>'}
             <button type="button" class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'} dialog-confirm">${escapeHtml(opts.confirmLabel || 'Confirmer')}</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
       const input = overlay.querySelector('#dialog-input');
       const confirm = overlay.querySelector('.dialog-confirm');
-      const close = (value) => { overlay.remove(); document.removeEventListener('keydown', onKey, true); resolve(value); };
+      const close = (value) => {
+        overlay.remove();
+        document.removeEventListener('keydown', onKey, true);
+        closeOpenDialog = null;
+        if (opener && opener.isConnected) opener.focus({ preventScroll: true });
+        resolve(value);
+      };
+      closeOpenDialog = () => close(null);
       const onKey = (e) => {
         if (e.key === 'Escape') { e.stopPropagation(); close(null); }
         if (e.key === 'Enter' && input && document.activeElement === input) { e.stopPropagation(); close(input.value); }
+        if (e.key === 'Tab') {
+          const items = $$('button, input', overlay);
+          const first = items[0];
+          const last = items[items.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
       };
       document.addEventListener('keydown', onKey, true);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
@@ -280,6 +313,7 @@
       if (cancel) cancel.addEventListener('click', () => close(null));
       confirm.addEventListener('click', () => close(input ? input.value : true));
       (input || confirm).focus();
+      if (input) input.select();
     });
   }
 
@@ -291,17 +325,103 @@
     State.timers = [];
   }
 
-  function navigate(screen, params) {
-    if (State.screen === 'run' && screen !== 'run' && screen !== 'run-result' && State.run && !State.run.finished) abandonRun();
-    State.screen = screen;
+  /* The address bar follows the screen, so Back and refresh keep the player's place. */
+  const TITLES = {
+    home: '', auth: 'Connexion', 'pin-change': 'Code PIN', modules: 'Cours', module: 'Cours', lesson: 'Cours',
+    run: 'Partie', 'run-result': 'Résultat', arcade: 'Mini-jeux', leaderboard: 'Classement', profile: 'Profil',
+    trophies: 'Badges', tutor: 'Espace tuteur',
+  };
+  const PATHS = {
+    home: '/', auth: '/connexion', modules: '/cours', arcade: '/mini-jeux', leaderboard: '/classement',
+    profile: '/profil', trophies: '/badges', tutor: '/tuteur', 'pin-change': '/code-pin', run: '/partie', 'run-result': '/partie',
+  };
+  const SCREENS = Object.fromEntries(Object.entries(PATHS).filter(([s]) => !s.startsWith('run')).map(([s, p]) => [p, s]));
+
+  function screenPath(screen) {
+    if (screen === 'module') return '/cours/' + State.module;
+    if (screen === 'lesson') return '/cours/' + State.module + '/' + (State.lesson + 1);
+    return PATHS[screen] || '/';
+  }
+
+  function syncUrl(screen, replace) {
+    const hash = '#' + screenPath(screen);
+    if (location.hash === hash) return;
+    history[replace ? 'replaceState' : 'pushState'](null, '', hash);
+  }
+
+  function routeFromHash() {
+    const path = location.hash.replace(/^#/, '') || '/';
+    const parts = path.split('/').filter(Boolean);
+    if (parts[0] === 'cours' && parts[1]) {
+      const mod = Data.MODULES.find((m) => m.id === parts[1]);
+      if (!mod) return { screen: 'modules' };
+      if (!P().unlocked.has(mod.id)) { toast('info', requirementText(mod)); return { screen: 'modules' }; }
+      const index = parseInt(parts[2], 10) - 1;
+      if (mod.lessons[index]) return { screen: 'lesson', params: { module: mod.id, lesson: index } };
+      return { screen: 'module', params: { module: mod.id } };
+    }
+    if (parts[0] === 'partie') return { screen: 'arcade' };
+    return { screen: SCREENS[path] || 'home' };
+  }
+
+  function normalizeScreen(screen) {
+    if (State.user && State.user.mustChangePin) return 'pin-change';
+    if (screen === 'auth' && State.user) return 'modules';
+    if (screen === 'pin-change' && !State.user) return 'home';
+    return screen;
+  }
+
+  const runActive = () => !!(State.run && !State.run.finished && State.screen === 'run');
+
+  function quitMessage(r) {
+    if (r.kind === 'daily') return 'Tu n\'as qu\'un essai par jour : les questions sans réponse seront perdues et tu ne pourras pas recommencer.';
+    if (isFixedRun(r.kind)) return 'La partie s\'arrête ici : les questions sans réponse comptent comme fausses.';
+    return State.user ? 'La partie s\'arrête ici et ton score actuel est enregistré.' : 'La partie s\'arrête ici.';
+  }
+
+  async function askQuitRun() {
+    const ok = await dialog({ title: 'Quitter la partie ?', message: quitMessage(State.run), confirmLabel: 'Quitter', cancelLabel: 'Continuer la partie', danger: State.run.kind === 'daily' });
+    if (ok) finishRun();
+  }
+
+  function handlePopState() {
+    if (closeOpenDialog) closeOpenDialog();
+    if (runActive()) {
+      history.pushState(null, '', '#/partie');
+      askQuitRun();
+      return;
+    }
+    const route = routeFromHash();
+    navigate(route.screen, route.params, { history: 'none' });
+  }
+
+  function navigate(screen, params, opts) {
+    const target = normalizeScreen(screen);
+    if (State.screen === 'run' && target !== 'run' && target !== 'run-result' && State.run && !State.run.finished) abandonRun();
+    if (closeOpenDialog) closeOpenDialog();
+    State.screen = target;
     if (params) {
       if (params.module !== undefined) State.module = params.module;
       if (params.lesson !== undefined) State.lesson = params.lesson;
     }
+    const mode = (opts && opts.history) || (target === 'run-result' ? 'replace' : 'push');
+    if (mode !== 'none') syncUrl(target, mode === 'replace' || target !== screen);
+    if (target === 'leaderboard') loadBoard();
+    if (target === 'tutor') loadTutor();
+    if (target === 'module' && State.user && State.ghosts[State.module] === undefined) loadGhost(State.module);
     const app = $id('app');
-    const done = () => { render(); window.scrollTo(0, 0); };
+    const done = () => { render(); window.scrollTo(0, 0); focusScreen(); };
     if (Effects && app) Effects.transition(app, done);
     else done();
+  }
+
+  /* Keyboard and screen-reader users land on the new page, not on the top of the document. */
+  function focusScreen() {
+    if ($('[data-autofocus]')) return;
+    const heading = $('main h1');
+    if (!heading) return;
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
   }
 
   function render() {
@@ -317,7 +437,11 @@
       leaderboard: renderLeaderboard, profile: renderProfile, trophies: renderTrophies, tutor: renderTutor,
     };
     const fn = screens[State.screen] || renderHome;
-    const bare = ['loading', 'home', 'auth', 'pin-change'].includes(State.screen);
+    // A run is played without navigation: one wrong click must not end it.
+    const bare = ['loading', 'home', 'auth', 'pin-change', 'run'].includes(State.screen);
+    const title = TITLES[State.screen];
+    document.title = title ? title + ' · IT Discovery' : 'IT Discovery';
+    document.body.classList.toggle('calm', ['lesson', 'run'].includes(State.screen));
     app.innerHTML = (bare ? '' : renderHeader()) + `<main class="screen screen-${State.screen}" id="main">${fn()}</main>` + (bare ? '' : renderFooter());
     afterRender();
   }
@@ -329,7 +453,9 @@
     if (State.screen === 'auth' || State.screen === 'tutor') startLockTimer();
     if (State.screen === 'leaderboard') startSeasonCountdown();
     const focusable = $('[data-autofocus]');
-    if (focusable) focusable.focus({ preventScroll: true });
+    // No automatic focus on a text field on touch screens: it would open the keyboard over the page.
+    const touch = focusable && focusable.tagName === 'INPUT' && window.matchMedia('(hover: none)').matches;
+    if (focusable && !touch) focusable.focus({ preventScroll: true });
   }
 
   /* ═══════════════════════════════════════════
@@ -339,18 +465,20 @@
     const p = P();
     const lvl = levelFor(p.xp);
     const nav = [['modules', 'map', 'Cours'], ['arcade', 'play', 'Mini-jeux'], ['leaderboard', 'trophy', 'Classement']];
+    const section = { module: 'modules', lesson: 'modules', 'run-result': 'arcade' }[State.screen] || State.screen;
+    const onProfile = section === 'profile' || section === 'trophies';
     return `
       <header class="topbar">
         <button type="button" class="brand" data-action="home" aria-label="Accueil IT Discovery">
           <span class="brand-mark">${ic('bulb', 20)}</span><span class="brand-name">IT Discovery</span>
         </button>
         <nav class="topnav" aria-label="Navigation principale">
-          ${nav.map(([s, i, l]) => `<button type="button" class="topnav-btn${State.screen === s ? ' on' : ''}" data-action="go" data-screen="${s}">${ic(i)}<span>${l}</span></button>`).join('')}
+          ${nav.map(([s, i, l]) => `<button type="button" class="topnav-btn${section === s ? ' on' : ''}" ${section === s ? 'aria-current="page"' : ''} data-action="go" data-screen="${s}">${ic(i)}<span>${l}</span></button>`).join('')}
         </nav>
         <div class="topbar-right">
-          <button type="button" class="xp-pill" data-action="go" data-screen="profile" title="Voir ton profil">
+          <button type="button" class="xp-pill${onProfile ? ' on' : ''}" data-action="go" data-screen="profile" title="Voir ton profil" ${onProfile ? 'aria-current="page"' : ''}>
             <span class="xp-level">${lvl.icon} ${escapeHtml(lvl.title)}</span>
-            <span class="xp-value">${fmtInt(p.xp)} XP</span>
+            <span class="xp-value" id="header-xp">${fmtInt(p.xp)} XP</span>
             <span class="xp-bar"><span style="width:${lvl.pct}%"></span></span>
           </button>
           ${State.user
@@ -358,8 +486,24 @@
             : `<button type="button" class="user-btn login" data-action="auth">${ic('lock')}<span>Connexion</span></button>`}
         </div>
       </header>
-      ${State.offline ? '<div class="offline-banner" role="status">Serveur injoignable : tes actions ne sont pas enregistrées pour l\'instant.</div>' : ''}
+      <div id="offline-slot">${offlineBanner()}</div>
       ${!State.user ? '<div class="guest-banner">Mode invité : ta progression reste sur cet appareil et ne compte pas au classement. <button type="button" class="link-btn" data-action="auth">Créer un compte</button></div>' : ''}`;
+  }
+
+  function offlineBanner() {
+    return State.offline ? '<div class="offline-banner" role="status">Serveur injoignable : tes actions ne sont pas enregistrées pour l\'instant.</div>' : '';
+  }
+
+  /* Banner and XP are patched in place: a full render would restart the lesson on screen. */
+  function setOffline(value) {
+    State.offline = value;
+    const slot = $id('offline-slot');
+    if (slot) slot.innerHTML = offlineBanner();
+  }
+
+  function refreshHeaderXp() {
+    const el = $id('header-xp');
+    if (el) el.textContent = fmtInt(P().xp) + ' XP';
   }
 
   function renderFooter() {
@@ -533,7 +677,7 @@
       case 'steps':
         return `<div class="content-block content-steps"><div class="steps-title">${t(block.title)}</div><ol class="steps-flow">${block.steps.map((s, i) => `<li class="step-item" style="animation-delay:${i * 0.12}s"><span class="step-number">${i + 1}</span><span class="step-text">${t(s)}</span></li>`).join('')}</ol></div>`;
       case 'interactive-reveal':
-        return `<div class="content-block content-interactive"><div class="interactive-title">${t(block.question)}</div><div class="reveal-options">${block.options.map((o) => `<button type="button" class="reveal-option" data-action="reveal"><span class="reveal-question">${t(o.text)}</span><span class="reveal-answer">${t(o.revealed)}</span></button>`).join('')}</div></div>`;
+        return `<div class="content-block content-interactive"><div class="interactive-title">${t(block.question)}</div><div class="reveal-options">${block.options.map((o) => `<button type="button" class="reveal-option" data-action="reveal" aria-expanded="false"><span class="reveal-question">${t(o.text)}</span><span class="reveal-answer">${t(o.revealed)}</span></button>`).join('')}</div></div>`;
       case 'drag-sort': {
         const order = shuffleWithSeed(block.items.map((item, i) => ({ item, i })), block.question.length + bi);
         return `<div class="content-block content-interactive content-drag-sort"><div class="interactive-title">${t(block.question)}</div>
@@ -546,7 +690,8 @@
         return `<div class="content-block content-interactive content-drag-match"><div class="interactive-title">${t(block.question)}</div>
           <p class="interactive-hint">Clique sur un terme, puis sur sa définition.</p>
           <div class="drag-match-container"><div class="drag-match-terms">${block.pairs.map((p) => `<button type="button" class="drag-match-term" data-action="drag-match-term" data-def="${t(p.definition)}">${t(p.term)}</button>`).join('')}</div>
-          <div class="drag-match-defs">${defs.map((d) => `<button type="button" class="drag-match-def" data-action="drag-match-def" data-def="${t(d)}">${t(d)}</button>`).join('')}</div></div></div>`;
+          <div class="drag-match-defs">${defs.map((d) => `<button type="button" class="drag-match-def" data-action="drag-match-def" data-def="${t(d)}">${t(d)}</button>`).join('')}</div></div>
+          <p class="interactive-feedback" aria-live="polite"></p></div>`;
       }
       case 'mini-terminal':
         return `<div class="content-block content-interactive content-mini-terminal"><div class="interactive-title">${t(block.title)}</div>
@@ -554,11 +699,11 @@
           <div class="mini-terminal-input-row"><span class="mini-terminal-prompt">$</span>
           <input type="text" class="mini-terminal-input" data-block="${bi}" aria-label="Commande" placeholder="help" autocomplete="off" spellcheck="false"></div></div></div>`;
       case 'flashcard-deck':
-        return `<div class="content-block content-interactive content-flashcards"><div class="interactive-title">${t(block.title)}</div><div class="flashcard-deck">${block.cards.map((c) => `<button type="button" class="flashcard" data-action="flashcard-flip" aria-label="Retourner la carte ${t(c.front)}"><span class="flashcard-inner"><span class="flashcard-front">${t(c.front)}</span><span class="flashcard-back">${t(c.back)}</span></span></button>`).join('')}</div></div>`;
+        return `<div class="content-block content-interactive content-flashcards"><div class="interactive-title">${t(block.title)}</div><div class="flashcard-deck">${block.cards.map((c) => `<button type="button" class="flashcard" data-action="flashcard-flip" aria-pressed="false"><span class="flashcard-inner"><span class="flashcard-front">${t(c.front)}</span><span class="flashcard-back">${t(c.back)}</span></span></button>`).join('')}</div></div>`;
       case 'true-false':
         return `<div class="content-block content-interactive content-true-false"><div class="interactive-title">${t(block.title)}</div><div class="true-false-list">${block.statements.map((s) => `<div class="tf-statement" data-tf-answer="${s.answer}" data-tf-explanation="${t(s.explanation)}"><div class="tf-text">${t(s.text)}</div><div class="tf-buttons"><button type="button" class="tf-btn tf-true" data-action="tf-answer" data-tf-val="true">Vrai</button><button type="button" class="tf-btn tf-false" data-action="tf-answer" data-tf-val="false">Faux</button></div><div class="tf-feedback" aria-live="polite"></div></div>`).join('')}</div></div>`;
       case 'interactive-diagram':
-        return `<div class="content-block content-interactive content-interactive-diagram"><div class="interactive-title">${t(block.title)}</div><div class="interactive-diagram-container">${block.elements.map((e) => `<button type="button" class="diagram-element" data-action="diagram-click" style="left:${e.x}%;top:${e.y}%"><span class="diagram-el-label">${t(e.label)}</span><span class="diagram-el-info">${t(e.info)}</span></button>`).join('')}</div></div>`;
+        return `<div class="content-block content-interactive content-interactive-diagram"><div class="interactive-title">${t(block.title)}</div><div class="interactive-diagram-container">${block.elements.map((e) => `<button type="button" class="diagram-element" data-action="diagram-click" data-info="${t(e.info)}" aria-pressed="false" style="left:${e.x}%;top:${e.y}%"><span class="diagram-el-label">${t(e.label)}</span></button>`).join('')}</div><p class="diagram-info" aria-live="polite">Clique sur un élément du schéma pour voir son rôle.</p></div>`;
       default:
         return block.text ? `<p class="content-block content-paragraph">${t(block.text)}</p>` : '';
     }
@@ -595,9 +740,9 @@
         <div class="lesson-nav">
           ${State.lesson > 0 ? `<button type="button" class="btn btn-ghost" data-action="prev-lesson">${ic('prev')} Leçon précédente</button>` : '<span></span>'}
           <div class="lesson-finish">
-            ${ready ? '' : '<span class="lesson-hint">Regarde chaque scène jusqu\'à la dernière étape pour terminer la leçon.</span>'}
+            ${ready ? '' : '<span class="lesson-hint">Va jusqu\'à la dernière étape de chaque scène pour continuer.</span>'}
             <button type="button" class="btn btn-primary" data-action="finish-lesson" ${ready ? '' : 'disabled'} id="finish-lesson">
-              ${isLast ? 'Terminer le module' : 'Leçon suivante'} ${ic('next')}
+              ${isLast ? 'Terminer et passer au quiz' : 'Leçon suivante'} ${ic('next')}
             </button>
           </div>
         </div>
@@ -614,6 +759,7 @@
       const ctrl = Scenes.mount(el, scene, {
         level: State.prefs.level,
         answered: p.scenes.has(scene.id),
+        guest: !State.user,
         onComplete: (id) => {
           State.seenScenes.add(id);
           const btn = $id('finish-lesson');
@@ -625,11 +771,12 @@
         },
         onQuiz: async (id, choice) => {
           const res = await Api.sceneQuiz(id, choice);
-          if (res.xpGained && State.progress) {
+          if (res.firstTry && State.progress) {
             State.progress.xp += res.xpGained;
             State.progress.seasonXp += res.xpGained;
             State.progress.scenes = State.progress.scenes.concat(id);
             announceBadges(res.newBadges);
+            refreshHeaderXp();
           }
           return res;
         },
@@ -650,8 +797,15 @@
         applyProgress(res.progress, res.newBadges);
         if (res.xpGained) toast('success', `+${res.xpGained} XP · leçon terminée !`);
       } catch (err) {
-        if (err.code === 'network') toast('info', 'Pas de connexion : la leçon sera enregistrée dès le retour du réseau.');
-        else { toast('error', err.message); if (btn) btn.disabled = false; return; }
+        if (err.code === 'network') {
+          toast('info', 'Pas de connexion : la leçon sera enregistrée dès le retour du réseau.');
+          setOffline(true);
+          if (State.progress && !State.progress.lessons.includes(ref)) State.progress.lessons = State.progress.lessons.concat(ref);
+        } else {
+          if (err.code !== 'auth_required') toast('error', err.message);
+          if (btn) btn.disabled = false;
+          return;
+        }
       }
     } else if (!State.guest.lessons.includes(ref)) {
       State.guest.lessons.push(ref);
@@ -659,7 +813,7 @@
       toast('success', `Leçon terminée ! (+${XP_LESSON} XP en mode invité)`);
     }
     if (State.lesson < mod.lessons.length - 1) navigate('lesson', { lesson: State.lesson + 1 });
-    else { navigate('module', { module: mod.id }); loadGhost(mod.id); }
+    else navigate('module', { module: mod.id });
   }
 
   /* ═══════════════════════════════════════════
@@ -677,9 +831,11 @@
         score: 0, streak: 0, lives: res.lives, durationMs: res.durationMs, ghost: res.ghost,
         startedAt: performance.now(), finished: false, busy: false, summary: null,
       };
+      // The server spends the daily try when the run starts, even if the tab is closed afterwards.
+      if (kind === 'daily' && State.progress) State.progress.stats.dailyDoneToday = true;
       navigate('run');
     } catch (err) {
-      toast('error', err.message);
+      if (err.code !== 'auth_required') toast('error', err.message);
       if (err.code === 'daily_done' && State.progress) { State.progress.stats.dailyDoneToday = true; render(); }
     }
     startingRun = false;
@@ -726,15 +882,15 @@
         </div>
         ${total ? `<div class="run-progress"><span style="width:${((r.idx + (answered ? 1 : 0)) / total) * 100}%"></span></div>` : ''}
         ${ghost}
-        <div class="question-card">
+        <div class="question-card${answered ? '' : ' enter'}">
           ${r.kind !== 'quiz' && r.kind !== 'ghost' ? `<span class="question-module">${escapeHtml(q.moduleIcon)} ${escapeHtml(q.moduleTitle)}</span>` : ''}
-          <h2 class="question-text">${escapeHtml(q.question)}</h2>
+          <h1 class="question-text" tabindex="-1" ${answered ? '' : 'data-autofocus'}>${escapeHtml(q.question)}</h1>
           <div class="answers">${options}</div>
           ${answered ? `
             <div class="feedback ${answered.correct ? 'ok' : 'ko'}" role="status">
               <strong>${answered.correct ? 'Bonne réponse !' : 'Pas tout à fait…'}</strong> ${escapeHtml(answered.explanation || '')}
             </div>
-            <button type="button" class="btn btn-primary next-btn" data-action="run-next" data-autofocus>${answered.finished || lastFixed ? 'Voir le résultat' : 'Question suivante'} ${ic('next')}</button>` : ''}
+            <button type="button" class="btn btn-primary next-btn" data-action="run-next" data-autofocus>${answered.finished || lastFixed ? 'Voir le résultat' : 'Question suivante'} ${ic('next')}</button>` : `<p class="run-hint">Au clavier : touches ${LETTERS.slice(0, q.options.length).join(', ')}.</p>`}
         </div>
       </section>`;
   }
@@ -754,10 +910,13 @@
     } catch (err) {
       r.busy = false;
       if (err.code === 'run_over') { finishRun(); return; }
-      toast('error', err.message);
+      if (err.code !== 'auth_required') toast('error', err.message);
     }
     r.busy = false;
-    if (State.screen === 'run') render();
+    if (State.screen !== 'run') return;
+    render();
+    const next = $('.next-btn');
+    if (next) next.scrollIntoView({ block: 'nearest' });
   }
 
   function runNext() {
@@ -768,6 +927,7 @@
     r.idx += 1;
     r.answered = null;
     render();
+    window.scrollTo(0, 0);
   }
 
   async function finishRun() {
@@ -869,10 +1029,11 @@
     const p = P();
     const st = p.stats || {};
     const doneToday = !!st.dailyDoneToday;
+    const noRecord = p.guest ? 'Crée un compte pour garder tes records' : 'Pas encore de record';
     const cards = [
-      { kind: 'speedrun', title: 'Speedrun', desc: '60 secondes pour répondre au maximum de questions. Bonus tous les 5 bons d\'affilée !', best: st.speedrunBest ? 'Ton record : ' + st.speedrunBest + ' pts' : 'Pas encore de record' },
-      { kind: 'survival', title: 'Survie', desc: '3 vies. Chaque erreur en coûte une. Jusqu\'où iras-tu ?', best: st.survivalBest ? 'Ton record : ' + st.survivalBest + ' pts' : 'Pas encore de record' },
-      { kind: 'daily', title: 'Défi du jour', desc: doneToday ? 'Déjà fait aujourd\'hui. Reviens demain pour allonger ta série !' : '10 questions, les mêmes pour tout le monde, un seul essai par jour.', best: st.dailyStreak ? 'Série en cours : ' + st.dailyStreak + ' jour' + (st.dailyStreak > 1 ? 's' : '') : 'Commence une série !', disabled: doneToday },
+      { kind: 'speedrun', title: 'Speedrun', desc: '60 secondes pour répondre au maximum de questions. Bonus tous les 5 bons d\'affilée !', best: st.speedrunBest ? 'Ton record : ' + st.speedrunBest + ' pts' : noRecord },
+      { kind: 'survival', title: 'Survie', desc: '3 vies. Chaque erreur en coûte une. Jusqu\'où iras-tu ?', best: st.survivalBest ? 'Ton record : ' + st.survivalBest + ' pts' : noRecord },
+      { kind: 'daily', title: 'Défi du jour', desc: doneToday ? 'Déjà fait aujourd\'hui. Reviens demain pour allonger ta série !' : '10 questions, les mêmes pour tout le monde, un seul essai par jour.', best: st.dailyStreak ? 'Série en cours : ' + st.dailyStreak + ' jour' + (st.dailyStreak > 1 ? 's' : '') : p.guest ? 'Crée un compte pour lancer une série' : 'Commence une série !', disabled: doneToday },
     ];
     return `
       <section class="page">
@@ -897,7 +1058,6 @@
     const b = State.board;
     b.loading = true;
     b.error = '';
-    if (State.screen === 'leaderboard') render();
     try {
       const [season, hall, records] = await Promise.all([Api.season(), Api.hallOfFame(), Api.records()]);
       Object.assign(b, { season, hall: hall.seasons, records: records.records });
@@ -967,6 +1127,7 @@
     const rest = entries.slice(3);
     const me = s.me;
     const above = me && me.rank > 1 ? entries[me.rank - 2] : null;
+    const outside = me && !entries.some((e) => e.me);
     return `
       <div class="board-layout">
         <div class="board-main">
@@ -983,6 +1144,7 @@
             const lvl = levelFor(e.totalXp);
             return `<li class="rank-row${e.me ? ' me' : ''}"><span class="rank-num">#${e.rank}</span><span class="rank-name">${escapeHtml(e.pseudo)}${e.me ? ' (toi)' : ''}</span><span class="rank-level">${lvl.icon} ${escapeHtml(lvl.title)}</span><span class="rank-xp">${fmtInt(e.xp)} XP</span></li>`;
           }).join('')}</ol>` : ''}
+          ${outside ? `<div class="rank-row me"><span class="rank-num">#${me.rank}</span><span class="rank-name">${escapeHtml(State.user.pseudo)} (toi)</span><span class="rank-xp">${fmtInt(me.xp)} XP</span></div>` : ''}
           <p class="note">Seuls les XP gagnés pendant la saison comptent. À égalité, le temps total passé aux quiz départage. Le 1er du mois, le podium entre au Hall of Fame.</p>
         </div>
         <aside class="board-side">
@@ -990,7 +1152,7 @@
             <div class="side-card">
               <h2>Ta saison</h2>
               ${me ? `<div class="side-row"><span>Ton rang</span><b>#${me.rank} / ${s.players}</b></div><div class="side-row"><span>XP ce mois-ci</span><b class="amber">${fmtInt(me.xp)}</b></div>
-                ${above ? `<div class="side-row"><span>Pour dépasser ${escapeHtml(above.pseudo)}</span><b>${fmtInt(above.xp - me.xp + 1)} XP</b></div>` : '<p class="side-win">Tu es en tête, tiens bon !</p>'}`
+                ${above ? `<div class="side-row"><span>Pour dépasser ${escapeHtml(above.pseudo)}</span><b>${fmtInt(above.xp - me.xp + 1)} XP</b></div>` : me.rank === 1 ? '<p class="side-win">Tu es en tête, tiens bon !</p>' : ''}`
                 : '<p>Tu n\'as pas encore de points ce mois-ci. Une leçon suffit pour entrer dans le classement !</p>'}
             </div>
             <div class="side-card ghost-side">
@@ -1070,17 +1232,18 @@
           <div class="stat-card"><b>${p.lessons.size}/${lessonsTotal}</b><span>Leçons</span></div>
           <div class="stat-card"><b>${p.completed.size}/${Data.MODULES.length}</b><span>Modules terminés</span></div>
           <div class="stat-card"><b>${perfect}</b><span>Quiz sans faute</span></div>
+          ${p.guest ? '' : `
           <div class="stat-card"><b>${fmtInt(p.seasonXp)}</b><span>XP ce mois-ci</span></div>
           <div class="stat-card"><b>${st.maxStreak || 0}</b><span>Meilleure série</span></div>
           <div class="stat-card"><b>${st.speedrunBest || 0}</b><span>Record Speedrun</span></div>
           <div class="stat-card"><b>${st.survivalBest || 0}</b><span>Record Survie</span></div>
-          <div class="stat-card"><b>${st.dailyCount || 0}</b><span>Défis du jour</span></div>
+          <div class="stat-card"><b>${st.dailyCount || 0}</b><span>Défis du jour</span></div>`}
         </div>
         <div class="profile-badges-head">
           <h2>Badges (${p.badges.length}/${Data.BADGES.length})</h2>
           <button type="button" class="btn btn-ghost" data-action="go" data-screen="trophies">Voir tous les badges</button>
         </div>
-        <div class="badge-row">${p.badges.length ? p.badges.map((id) => { const b = Data.BADGES.find((x) => x.id === id); return b ? `<span class="badge-pill" title="${escapeHtml(b.desc)}">${b.icon} ${escapeHtml(b.title)}</span>` : ''; }).join('') : '<span class="note">Aucun badge pour l\'instant : termine ta première leçon !</span>'}</div>
+        <div class="badge-row">${p.badges.length ? p.badges.map((id) => { const b = Data.BADGES.find((x) => x.id === id); return b ? `<span class="badge-pill" title="${escapeHtml(b.desc)}">${b.icon} ${escapeHtml(b.title)}</span>` : ''; }).join('') : `<span class="note">${p.guest ? 'Les badges sont réservés aux comptes : crée le tien pour commencer ta collection.' : 'Aucun badge pour l\'instant : termine ta première leçon !'}</span>`}</div>
       </section>`;
   }
 
@@ -1108,7 +1271,7 @@
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'];
     return `
       <div class="pin-dots${error ? ' shake' : ''}" aria-hidden="true">${[0, 1, 2, 3].map((i) => `<span class="pin-dot${i < pin.length ? ' on' : ''}${error ? ' err' : ''}"></span>`).join('')}</div>
-      <span class="sr-only" aria-live="polite">${pin.length} chiffre${pin.length > 1 ? 's' : ''} saisi${pin.length > 1 ? 's' : ''} sur 4</span>
+      <span class="sr-only" id="pin-live" aria-live="polite">${pin.length} chiffre${pin.length > 1 ? 's' : ''} saisi${pin.length > 1 ? 's' : ''} sur 4</span>
       <div class="pin-pad">${keys.map((k) => {
         if (k === 'clear') return `<button type="button" class="pin-key small" data-action="${prefix}-clear" aria-label="Tout effacer">C</button>`;
         if (k === 'back') return `<button type="button" class="pin-key small" data-action="${prefix}-back" aria-label="Effacer le dernier chiffre">${ic('prev')}</button>`;
@@ -1116,11 +1279,21 @@
       }).join('')}</div>`;
   }
 
+  const PSEUDO_RE = /^[A-Za-z0-9_-]{3,16}$/;
+
+  function authReady() {
+    const a = State.auth;
+    const pseudo = a.pseudo.trim();
+    const validPseudo = a.mode === 'login' ? pseudo.length >= 3 : PSEUDO_RE.test(pseudo);
+    return a.pin.length === 4 && validPseudo && !a.loading && a.lockedUntil <= Date.now();
+  }
+
   function renderAuth() {
     const a = State.auth;
     const isLogin = a.mode === 'login';
     const locked = a.lockedUntil > Date.now();
-    const ready = a.pin.length === 4 && a.pseudo.trim().length >= 3 && !a.loading && !locked;
+    const ready = authReady();
+    const badPseudo = !isLogin && a.pseudo.trim() && !PSEUDO_RE.test(a.pseudo.trim());
     return `
       <section class="auth-view">
         <div class="auth-side">
@@ -1128,7 +1301,7 @@
           <button type="button" class="btn-back light" data-action="home">${ic('prev')} Accueil</button>
           <div>
             <p class="home-kicker">IT Discovery</p>
-            <h1>Ton nom au<br>Hall of Fame</h1>
+            <h1>Ton nom au <br>Hall of Fame</h1>
             <p>Crée ton compte en 10 secondes : ta progression te suit sur n'importe quel ordinateur.</p>
           </div>
           <ul class="auth-points"><li>Pas d'e-mail, pas de mot de passe compliqué</li><li>Ton code PIN est chiffré sur le serveur</li><li>PIN oublié ? Ton tuteur peut le réinitialiser</li></ul>
@@ -1140,8 +1313,8 @@
           </div>
           <label class="field-label" for="auth-pseudo">Pseudo</label>
           <input id="auth-pseudo" class="auth-input" maxlength="16" autocomplete="username" spellcheck="false" value="${escapeHtml(a.pseudo)}" placeholder="Ex. Neo42" ${a.pseudo ? '' : 'data-autofocus'}>
-          <span class="field-hint">3 à 16 caractères : lettres, chiffres, _ ou -. Les majuscules ne comptent pas.</span>
-          <span class="field-label">Code PIN (4 chiffres)${isLogin ? '' : ' · choisis-en un facile à retenir'}</span>
+          <span class="field-hint${badPseudo ? ' warn' : ''}" id="pseudo-hint">3 à 16 caractères : lettres, chiffres, _ ou -. Les majuscules ne comptent pas.</span>
+          <span class="field-label">Code PIN (4 chiffres)${isLogin ? '' : ' · facile à retenir'}</span>
           ${pinPad(a.pin, a.triesLeft != null && a.pin.length === 0, 'pin')}
           ${a.error ? `<div class="auth-error" role="alert">${escapeHtml(a.error)}${locked ? ' <span class="mono" id="lock-left"></span>' : ''}</div>` : ''}
           <button type="button" class="btn btn-primary btn-block" data-action="auth-submit" ${ready ? '' : 'disabled'}>
@@ -1155,18 +1328,23 @@
   function renderPinChange() {
     const c = State.pinChange;
     const forced = !!(State.user && State.user.mustChangePin);
-    const askCurrent = !forced && c.step !== 'new';
+    const step = c.step === 'current' && forced ? 'new' : c.step;
+    const hints = {
+      current: 'Tape d\'abord ton code actuel.',
+      new: forced ? 'Ton tuteur t\'a donné un code provisoire. Choisis maintenant un code à 4 chiffres que toi seul connais.' : 'Tape maintenant ton nouveau code.',
+      confirm: 'Tape-le une seconde fois pour éviter une faute de frappe.',
+    };
     return `
       <section class="auth-view single">
         <div class="auth-card">
           <h1>${forced ? 'Choisis ton nouveau code PIN' : 'Changer mon code PIN'}</h1>
-          <p class="field-hint">${forced ? 'Ton tuteur t\'a donné un code provisoire. Choisis maintenant un code à 4 chiffres que toi seul connais.' : askCurrent ? 'Tape d\'abord ton code actuel.' : 'Tape maintenant ton nouveau code.'}</p>
+          <p class="field-hint">${hints[step]}</p>
           ${pinPad(c.pin, !!c.error, 'newpin')}
           ${c.error ? `<div class="auth-error" role="alert">${escapeHtml(c.error)}</div>` : ''}
           <button type="button" class="btn btn-primary btn-block" data-action="newpin-submit" ${c.pin.length === 4 && !c.loading ? '' : 'disabled'}>
-            ${c.loading ? '<span class="spinner"></span>' : askCurrent ? 'Continuer' : 'Enregistrer'}
+            ${c.loading ? '<span class="spinner"></span>' : step === 'confirm' ? 'Enregistrer' : 'Continuer'}
           </button>
-          ${forced ? '' : '<button type="button" class="link-btn center" data-action="go" data-screen="profile">Annuler</button>'}
+          ${forced ? '<button type="button" class="link-btn center" data-action="logout-now">Ce n\'est pas moi : se déconnecter</button>' : '<button type="button" class="link-btn center" data-action="go" data-screen="profile">Annuler</button>'}
         </div>
       </section>`;
   }
@@ -1222,11 +1400,26 @@
     const c = State.pinChange;
     const forced = !!(State.user && State.user.mustChangePin);
     if (c.pin.length !== 4 || c.loading) return;
-    if (!forced && c.step !== 'new') {
+    c.error = '';
+    if (!forced && c.step === 'current') {
       c.current = c.pin;
       c.pin = '';
       c.step = 'new';
-      c.error = '';
+      render();
+      return;
+    }
+    if (c.step !== 'confirm') {
+      c.first = c.pin;
+      c.pin = '';
+      c.step = 'confirm';
+      render();
+      return;
+    }
+    if (c.pin !== c.first) {
+      c.error = 'Les deux codes sont différents. Choisis-le à nouveau.';
+      c.pin = '';
+      c.first = '';
+      c.step = 'new';
       render();
       return;
     }
@@ -1235,14 +1428,16 @@
     try {
       const res = await Api.changePin(forced ? '' : c.current, c.pin);
       State.user = res.player;
-      State.pinChange = { pin: '', error: '', loading: false, step: 'current', current: '' };
+      State.pinChange = newPinChange();
       toast('success', 'Nouveau code PIN enregistré. Retiens-le bien !');
       navigate(forced ? 'modules' : 'profile');
       return;
     } catch (err) {
       c.error = err.message;
       c.pin = '';
-      if (err.code === 'bad_pin') { c.step = 'current'; c.current = ''; }
+      c.first = '';
+      c.step = err.code === 'bad_pin' ? 'current' : 'new';
+      if (err.code === 'bad_pin') c.current = '';
     }
     c.loading = false;
     render();
@@ -1276,7 +1471,7 @@
           <div class="auth-card tutor-login">
             <span class="kicker amber">Espace tuteur</span>
             <h1>Code tuteur</h1>
-            <p class="field-hint">Saisis le code défini dans la variable ADMIN_CODE du container.</p>
+            <p class="field-hint">Réservé aux tuteurs. Saisis le code confié par l'administrateur de l'application.</p>
             <label class="field-label" for="admin-code">Code</label>
             <input id="admin-code" type="password" class="auth-input" autocomplete="current-password" value="${escapeHtml(a.code)}" data-autofocus>
             ${a.error ? `<div class="auth-error" role="alert">${escapeHtml(a.error)}${locked ? ' <span class="mono" id="lock-left"></span>' : ''}</div>` : ''}
@@ -1285,6 +1480,7 @@
         </section>`;
     }
     const o = a.overview;
+    if (!o && a.error) return `<section class="page"><div class="empty-state">${ic('warning', 28)}<p>${escapeHtml(a.error)}</p><button type="button" class="btn btn-ghost" data-action="admin-retry">Réessayer</button></div></section>`;
     if (!o) return `<section class="page"><div class="loading-inline"><span class="spinner"></span> Chargement…</div></section>`;
     return `
       <section class="page">
@@ -1347,7 +1543,7 @@
       return;
     } catch (err) {
       if (err.code === 'locked') { a.lockedUntil = lockUntil(err); a.error = 'Trop d\'essais ratés. Réessaie dans'; }
-      else if (err.code === 'bad_code') a.error = `Code incorrect. Encore ${err.extra.triesLeft} essai${err.extra.triesLeft > 1 ? 's' : ''}.`;
+      else if (err.code === 'bad_code') a.error = `Code incorrect. Encore ${err.extra.triesLeft} essai${err.extra.triesLeft > 1 ? 's' : ''} avant une pause de 5 minutes.`;
       else a.error = err.message;
       a.code = '';
     }
@@ -1389,16 +1585,36 @@
   function pinInput(digit, action) {
     const isNew = action.startsWith('newpin');
     const s = isNew ? State.pinChange : State.auth;
+    if (s.loading) return;
     if (!isNew && State.auth.lockedUntil > Date.now()) return;
     if (action.endsWith('-digit') && s.pin.length < 4) s.pin += digit;
     else if (action.endsWith('-back')) s.pin = s.pin.slice(0, -1);
     else if (action.endsWith('-clear')) s.pin = '';
     s.error = '';
     if (!isNew) s.triesLeft = null;
-    const pseudo = $id('auth-pseudo');
-    if (pseudo) State.auth.pseudo = pseudo.value;
-    render();
-    if (!isNew && s.pin.length === 4 && s.pseudo.trim().length >= 3) submitAuth();
+    refreshPin(s);
+    if (s.pin.length !== 4) return;
+    if (!isNew && s.mode === 'login' && authReady()) { submitAuth(); return; }
+    const submit = $('[data-action="auth-submit"], [data-action="newpin-submit"]');
+    if (submit && !submit.disabled) submit.focus({ preventScroll: true });
+  }
+
+  /* Patched in place: a full render would drop the focus from the key being pressed. */
+  function refreshPin(s) {
+    const dots = $('.pin-dots');
+    if (dots) dots.classList.remove('shake');
+    $$('.pin-dot').forEach((dot, i) => {
+      dot.classList.toggle('on', i < s.pin.length);
+      dot.classList.remove('err');
+    });
+    const live = $id('pin-live');
+    if (live) live.textContent = `${s.pin.length} chiffre${s.pin.length > 1 ? 's' : ''} saisi${s.pin.length > 1 ? 's' : ''} sur 4`;
+    const err = $('.auth-error');
+    if (err) err.remove();
+    const auth = $('[data-action="auth-submit"]');
+    if (auth) auth.disabled = !authReady();
+    const change = $('[data-action="newpin-submit"]');
+    if (change) change.disabled = s.pin.length !== 4;
   }
 
   async function handleClick(e) {
@@ -1408,13 +1624,7 @@
     if (Effects && target.tagName === 'BUTTON' && !target.closest('.scene')) Effects.ripple(e);
     switch (action) {
       case 'home': navigate('home'); break;
-      case 'go': {
-        const screen = target.dataset.screen;
-        navigate(screen);
-        if (screen === 'leaderboard') loadBoard();
-        if (screen === 'tutor') loadTutor();
-        break;
-      }
+      case 'go': navigate(target.dataset.screen); break;
       case 'auth':
         State.auth.error = '';
         State.auth.pin = '';
@@ -1434,7 +1644,7 @@
       case 'auth-submit': submitAuth(); break;
       case 'newpin-submit': submitPinChange(); break;
       case 'change-pin':
-        State.pinChange = { pin: '', error: '', loading: false, step: 'current', current: '' };
+        State.pinChange = newPinChange();
         navigate('pin-change');
         break;
       case 'logout': {
@@ -1442,10 +1652,8 @@
         if (ok) logout();
         break;
       }
-      case 'open-module':
-        navigate('module', { module: target.dataset.module });
-        if (State.user && State.ghosts[target.dataset.module] === undefined) loadGhost(target.dataset.module);
-        break;
+      case 'logout-now': logout(); break;
+      case 'open-module': navigate('module', { module: target.dataset.module }); break;
       case 'open-lesson': navigate('lesson', { lesson: parseInt(target.dataset.lesson, 10) }); break;
       case 'prev-lesson': navigate('lesson', { lesson: Math.max(0, State.lesson - 1) }); break;
       case 'finish-lesson': finishLesson(); break;
@@ -1461,21 +1669,34 @@
         break;
       case 'start-run': {
         const kind = target.dataset.kind;
-        startRun(kind, kind === 'quiz' || kind === 'ghost' ? State.module : null);
+        target.setAttribute('aria-busy', 'true');
+        await startRun(kind, kind === 'quiz' || kind === 'ghost' ? State.module : null);
+        target.removeAttribute('aria-busy');
         break;
       }
       case 'retry-run': if (State.run) startRun(State.run.kind, State.run.module); break;
       case 'run-answer': runAnswer(parseInt(target.dataset.index, 10)); break;
       case 'run-next': runNext(); break;
-      case 'quit-run': {
-        const ok = await dialog({ title: 'Quitter la partie ?', message: 'La partie s\'arrête ici et ton score actuel est enregistré.', confirmLabel: 'Quitter' });
-        if (ok) finishRun();
-        break;
-      }
+      case 'quit-run': askQuitRun(); break;
       case 'board-tab': State.board.tab = target.dataset.tab; render(); break;
-      case 'refresh-board': loadBoard(); break;
+      case 'refresh-board':
+        State.board.error = '';
+        render();
+        loadBoard();
+        break;
       case 'admin-login': adminLogin(); break;
-      case 'admin-logout': await Api.admin.logout(); Api.setAdmin(null); State.admin.overview = null; render(); break;
+      case 'admin-logout':
+        await Api.admin.logout();
+        Api.setAdmin(null);
+        State.admin.overview = null;
+        toast('info', 'Espace tuteur fermé.');
+        navigate('home');
+        break;
+      case 'admin-retry':
+        State.admin.error = '';
+        render();
+        loadTutor();
+        break;
       case 'admin-export': adminExport(); break;
       case 'admin-close-season': {
         const ok = await dialog({ title: 'Clôturer la saison maintenant ?', message: 'Le podium actuel entre au Hall of Fame et une nouvelle saison démarre tout de suite. Les saisons se clôturent aussi toutes seules au début de chaque mois.', confirmLabel: 'Clôturer' });
@@ -1499,9 +1720,17 @@
       }
 
       /* ─── Interactive lesson blocks ─── */
-      case 'reveal': target.classList.toggle('revealed'); break;
-      case 'flashcard-flip': target.classList.toggle('flipped'); break;
-      case 'diagram-click': target.classList.toggle('active'); break;
+      case 'reveal': target.setAttribute('aria-expanded', target.classList.toggle('revealed')); break;
+      case 'flashcard-flip': target.setAttribute('aria-pressed', target.classList.toggle('flipped')); break;
+      case 'diagram-click': {
+        const box = target.closest('.content-interactive-diagram');
+        $$('.diagram-element', box).forEach((el) => {
+          el.classList.toggle('active', el === target);
+          el.setAttribute('aria-pressed', el === target);
+        });
+        $('.diagram-info', box).textContent = target.dataset.info;
+        break;
+      }
       case 'drag-sort-select': {
         const list = target.closest('.drag-sort-list');
         const selected = list.querySelector('.drag-sort-item.selected');
@@ -1540,7 +1769,9 @@
       case 'drag-match-def': {
         const container = target.closest('.drag-match-container');
         const term = container.querySelector('.drag-match-term.selected');
-        if (!term) break;
+        const feedback = container.parentElement.querySelector('.interactive-feedback');
+        if (!term) { feedback.textContent = 'Choisis d\'abord un terme.'; break; }
+        feedback.textContent = '';
         // Compare texts: two terms may share the same definition (e.g. « Entrée »).
         if (term.dataset.def === target.dataset.def) {
           term.classList.remove('selected');
@@ -1548,10 +1779,11 @@
           target.classList.add('matched');
           term.disabled = true;
           target.disabled = true;
+          if (!container.querySelector('.drag-match-term:not(.matched)')) feedback.textContent = 'Bravo, tout est associé !';
         } else {
           target.classList.add('wrong');
           setTimeout(() => target.classList.remove('wrong'), 600);
-          term.classList.remove('selected');
+          feedback.textContent = 'Ce n\'est pas la bonne définition, réessaie.';
         }
         break;
       }
@@ -1561,6 +1793,7 @@
         stmt.classList.add('answered');
         const ok = (stmt.dataset.tfAnswer === 'true') === (target.dataset.tfVal === 'true');
         stmt.classList.add(ok ? 'correct' : 'wrong');
+        target.classList.add('chosen');
         stmt.querySelectorAll('.tf-btn').forEach((b) => { b.disabled = true; });
         const fb = stmt.querySelector('.tf-feedback');
         fb.textContent = (ok ? 'Exact ! ' : 'Raté. ') + stmt.dataset.tfExplanation;
@@ -1579,6 +1812,7 @@
     }
     if (e.target.id === 'admin-code') { if (e.key === 'Enter') adminLogin(); return; }
     const screen = State.screen;
+    if (screen === 'run') { runKeys(e); return; }
     if (screen !== 'auth' && screen !== 'pin-change') return;
     if (e.target.tagName === 'INPUT') {
       if (e.key === 'Enter' && screen === 'auth') { e.preventDefault(); submitAuth(); }
@@ -1587,7 +1821,15 @@
     const prefix = screen === 'auth' ? 'pin' : 'newpin';
     if (/^\d$/.test(e.key)) pinInput(e.key, prefix + '-digit');
     else if (e.key === 'Backspace') { e.preventDefault(); pinInput('', prefix + '-back'); }
-    else if (e.key === 'Enter') { if (screen === 'auth') submitAuth(); else submitPinChange(); }
+    // On a button, Enter already presses that button.
+    else if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { if (screen === 'auth') submitAuth(); else submitPinChange(); }
+  }
+
+  function runKeys(e) {
+    const r = State.run;
+    if (!r || r.answered || r.busy || e.ctrlKey || e.metaKey || e.altKey) return;
+    const index = LETTERS.indexOf(e.key.toUpperCase());
+    if (index >= 0 && index < runQuestion().options.length) runAnswer(index);
   }
 
   function handleInput(e) {
@@ -1595,7 +1837,9 @@
       State.auth.pseudo = e.target.value;
       const a = State.auth;
       const btn = $('[data-action="auth-submit"]');
-      if (btn) btn.disabled = !(a.pin.length === 4 && a.pseudo.trim().length >= 3 && !a.loading && a.lockedUntil <= Date.now());
+      if (btn) btn.disabled = !authReady();
+      const hint = $id('pseudo-hint');
+      if (hint) hint.classList.toggle('warn', a.mode === 'register' && !!a.pseudo.trim() && !PSEUDO_RE.test(a.pseudo.trim()));
     }
     if (e.target.id === 'admin-code') State.admin.code = e.target.value;
   }
@@ -1630,17 +1874,30 @@
     app.addEventListener('click', handleClick);
     app.addEventListener('input', handleInput);
     document.addEventListener('keydown', handleKeydown);
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('offline', () => setOffline(true));
     window.addEventListener('online', async () => {
-      if (!State.user) return;
-      State.offline = false;
+      setOffline(false);
+      if (!State.user) {
+        if (!Api.hasToken()) return;
+        await restoreSession();
+        if (State.user && State.screen !== 'run') render();
+        return;
+      }
       const res = await Api.flushQueue().catch(() => null);
-      if (res) applyProgress(res.progress, res.newBadges);
-      render();
+      if (res) {
+        applyProgress(res.progress, res.newBadges);
+        refreshHeaderXp();
+      }
     });
+    window.addEventListener('beforeunload', (e) => {
+      if (runActive()) e.preventDefault();
+    });
+    Api.onSessionLost = onSessionLost;
     if (Effects) Effects.initParticles();
     render();
     await restoreSession();
-    State.screen = State.user && State.user.mustChangePin ? 'pin-change' : 'home';
-    render();
+    const route = routeFromHash();
+    navigate(route.screen, route.params, { history: 'replace' });
   });
 })();

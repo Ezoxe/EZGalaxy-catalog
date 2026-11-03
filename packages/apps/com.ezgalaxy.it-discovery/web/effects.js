@@ -251,23 +251,28 @@
     if (reducedMotion) return;
     delay = delay || 80;
     const els = document.querySelectorAll(selector);
+    // A backwards-only fill leaves the element's own opacity (e.g. locked cards) in charge afterwards.
     els.forEach((el, i) => {
-      el.style.opacity = '0';
-      setTimeout(() => {
-        el.style.transition = 'opacity 400ms ease';
-        el.style.opacity = '1';
-      }, i * delay);
+      el.style.animation = `fadeIn 400ms ease ${i * delay}ms backwards`;
     });
   };
 
   /* ═══════════════════════════════════════════
      7. SCREEN TRANSITION
      ═══════════════════════════════════════════ */
+  let pendingRender = null;
+
   Effects.transition = function (appEl, renderFn) {
     if (reducedMotion) { renderFn(); return; }
+    // A second navigation during the fade replaces the first instead of rendering twice.
+    const running = !!pendingRender;
+    pendingRender = renderFn;
+    if (running) return;
     appEl.classList.add('screen-exit');
     setTimeout(() => {
-      renderFn();
+      const render = pendingRender;
+      pendingRender = null;
+      render();
       appEl.classList.remove('screen-exit');
       appEl.classList.add('screen-enter');
       setTimeout(() => appEl.classList.remove('screen-enter'), 400);
@@ -280,7 +285,8 @@
   Effects.ripple = function (e) {
     if (reducedMotion) return;
     const btn = e.target.closest('button, .module-card, [data-action]');
-    if (!btn) return;
+    // Lesson blocks position and clip their own buttons (flashcards, diagram).
+    if (!btn || btn.closest('.content-block')) return;
     const rect = btn.getBoundingClientRect();
     const circle = document.createElement('span');
     const diameter = Math.max(rect.width, rect.height);
@@ -288,7 +294,7 @@
       `border-radius:50%;background:rgba(255,255,255,0.25);` +
       `left:${e.clientX - rect.left - diameter / 2}px;top:${e.clientY - rect.top - diameter / 2}px;` +
       `transform:scale(0);animation:rippleAnim 500ms ease-out forwards;pointer-events:none;`;
-    btn.style.position = btn.style.position || 'relative';
+    if (getComputedStyle(btn).position === 'static') btn.style.position = 'relative';
     btn.style.overflow = 'hidden';
     btn.appendChild(circle);
     circle.addEventListener('animationend', () => circle.remove());

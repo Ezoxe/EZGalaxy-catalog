@@ -3,7 +3,7 @@
   "id": "com.ezgalaxy.it-discovery",
   "title": "IT Discovery",
   "function": "Découvre l'informatique du collège au BUT : cours en scènes animées sur 3 niveaux, quiz corrigés par le serveur, mini-jeux, classement mensuel, Hall of Fame, records, duels fantômes et espace tuteur",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "createdAt": "2025-07-08",
   "author": "EZGalaxy",
   "docker": {

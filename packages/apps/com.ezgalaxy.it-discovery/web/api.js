@@ -56,6 +56,7 @@
       const d = (data && data.detail) || {};
       if (typeof d === 'object' && d.code) {
         const { code, message, ...extra } = d;
+        if (code === 'auth_required' && Api.onSessionLost) Api.onSessionLost();
         throw new ApiError(res.status, code, message, extra);
       }
       throw new ApiError(res.status, 'http_' + res.status,

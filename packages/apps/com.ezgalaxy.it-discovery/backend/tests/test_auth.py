@@ -115,3 +115,12 @@ def test_legacy_accounts_are_imported_once(env, clock):
     content.reload_bank()
     client = TestClient(main.app)
     assert client.post("/api/v2/auth/login", json={"pseudo": "max", "pin": "1234"}).status_code == 200
+
+
+def test_static_files_are_revalidated_on_every_load(client, env, monkeypatch):
+    import main
+    (env / "index.html").write_text("<!doctype html>", encoding="utf-8")
+    (env / "app.js").write_text("// app", encoding="utf-8")
+    monkeypatch.setattr(main, "STATIC_DIR", str(env))
+    assert client.get("/app.js").headers["cache-control"] == "no-cache"
+    assert client.get("/").headers["cache-control"] == "no-cache"

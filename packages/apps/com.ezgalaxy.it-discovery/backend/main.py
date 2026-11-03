@@ -289,9 +289,11 @@ def serve_spa(full_path: str):
     # Path traversal protection: resolved path must be under STATIC_DIR
     if not file_path.startswith(STATIC_DIR + os.sep) and file_path != STATIC_DIR:
         raise HTTPException(403, "Forbidden")
+    # Revalidated on every load: a stale app.js next to a new index.html or API breaks the game.
+    no_cache = {"Cache-Control": "no-cache"}
     if full_path and os.path.isfile(file_path):
-        return FileResponse(file_path)
+        return FileResponse(file_path, headers=no_cache)
     index = os.path.join(STATIC_DIR, "index.html")
     if os.path.isfile(index):
-        return FileResponse(index)
+        return FileResponse(index, headers=no_cache)
     return JSONResponse(content={"error": "not found"}, status_code=404)
